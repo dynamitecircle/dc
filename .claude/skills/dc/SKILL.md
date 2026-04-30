@@ -128,13 +128,29 @@ python3 dc_skill.py profile
 # Update profile fields
 python3 dc_skill.py profile-update --headline 'CEO at Acme'
 
-# Set your GitHub username — required to be granted access to this
-# private dc-official repo (active member + GitHub username on profile,
-# synced nightly)
+# Set your GitHub username — required to be granted access to the
+# private dc-official repo (active DC member with GitHub username on
+# profile)
 python3 dc_skill.py profile-update --github octocat
 
 # Show your effective rate limits (per-minute, per-day) + current usage
 python3 dc_skill.py limits
+```
+
+### Announcements
+
+Read-only access to DC's broadcast channels (DC, DCBKK, DCMEX, DC BLACK, etc.).
+Same content visible in the app's announcements channels — DCC members see
+DC-scope announcements; DCB / Accel / Admin members additionally see DC BLACK.
+
+```bash
+# Mixed newest-first feed across all visible channels (cursor-paginated)
+python3 dc_skill.py announcements
+python3 dc_skill.py announcements --limit 25
+python3 dc_skill.py announcements --limit 10 --cursor <token>
+
+# Quick "what's new across DC?" — one most-recent announcement per channel
+python3 dc_skill.py announcements-latest
 ```
 
 ### Trips
@@ -178,6 +194,43 @@ python3 dc_skill.py event-attendees <eventID> --limit 50
 
 # RSVP — yes | maybe | no
 python3 dc_skill.py event-rsvp <eventID> --status yes
+```
+
+#### Event extras (require an event ticket)
+
+These endpoints return rich event-day content. They require you to hold a
+valid ticket for the event — calls without a ticket return 403.
+
+Time fields on the schedule are wall-clock ISO strings paired with the
+event's IANA timezone — the digits are venue-local, NOT real UTC.
+Always combine `startAt` + `timezone` together when displaying.
+
+```bash
+# Full schedule — sessions grouped by day
+python3 dc_skill.py event-schedule <eventID>
+
+# YOUR agenda (sessions you bookmarked + meetups you joined)
+python3 dc_skill.py event-agenda <eventID>
+
+# Approved member-organized meetups
+python3 dc_skill.py event-meetups <eventID>
+
+# Sponsors — ordered by tier, then display order
+python3 dc_skill.py event-sponsors <eventID>
+
+# Who else bookmarked a session?
+python3 dc_skill.py session-attendees <eventID> <sessionID>
+
+# Who else RSVPd to a meetup?
+python3 dc_skill.py meetup-attendees <eventID> <meetupID>
+
+# Bookmark / unbookmark a session (default: bookmark)
+python3 dc_skill.py session-bookmark <eventID> <sessionID>
+python3 dc_skill.py session-bookmark <eventID> <sessionID> --bookmarked false
+
+# Join / leave a meetup (default: join)
+python3 dc_skill.py meetup-rsvp <eventID> <meetupID>
+python3 dc_skill.py meetup-rsvp <eventID> <meetupID> --joined false
 ```
 
 ### Virtual events (online sessions/calls)

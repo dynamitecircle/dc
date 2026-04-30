@@ -22,6 +22,8 @@ Usage as import:
     dc.profile()                              # your profile
     dc.profile_update({"headline": "..."})    # patch profile fields
     dc.limits()                               # rate limits + current usage
+    dc.announcements()                        # mixed feed of recent broadcast announcements
+    dc.announcements_latest()                 # one most-recent announcement per channel
     dc.trips()                                # upcoming trips
     dc.trips(past=True, cursor="abc")         # paged history
     dc.overlaps()                             # destination overlaps
@@ -97,7 +99,7 @@ except ImportError:
 # Bump manually when this skill catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-SKILL_VERSION = "1.3.0"
+SKILL_VERSION = "1.5.0"
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -1184,6 +1186,77 @@ class _DCCore:
         """
         return self._get("/profile/limits")
 
+    # ── Announcements ───────────────────────────────────────────────
+
+    def announcements(self, limit=10, cursor=None):
+        """Recent announcements from DC's broadcast channels (mixed feed)."""
+        return self._get("/announcements", {
+            "cursor": cursor or None,
+            "limit":  limit,
+        })
+
+    def announcements_latest(self):
+        """One most-recent announcement per visible channel (quick overview)."""
+        return self._get("/announcements/latest")
+
+    # ── Event extras (schedule / agenda / meetups / sponsors) ───────
+
+    def event_schedule(self, event_id):
+        """Full schedule (sessions, day-grouped) for an event you have a ticket to.
+
+        Time fields are wall-clock ISO strings paired with `timezone` (IANA) —
+        the digits are venue-local, not real UTC. See the API docs for details.
+        """
+        if not event_id:
+            raise UsageError("event-schedule requires an event ID")
+        return self._get(f"/events/{event_id}/schedule")
+
+    def event_agenda(self, event_id):
+        """Sessions and meetups YOU have on your agenda for an event."""
+        if not event_id:
+            raise UsageError("event-agenda requires an event ID")
+        return self._get(f"/events/{event_id}/agenda")
+
+    def event_meetups(self, event_id):
+        """Approved member-organized meetups for an event."""
+        if not event_id:
+            raise UsageError("event-meetups requires an event ID")
+        return self._get(f"/events/{event_id}/meetups")
+
+    def event_sponsors(self, event_id):
+        """Sponsors for an event, ordered by tier then display order."""
+        if not event_id:
+            raise UsageError("event-sponsors requires an event ID")
+        return self._get(f"/events/{event_id}/sponsors")
+
+    def session_attendees(self, event_id, session_id):
+        """Attendees who have bookmarked a specific session."""
+        if not event_id or not session_id:
+            raise UsageError("session-attendees requires <eventID> <sessionID>")
+        return self._get(f"/events/{event_id}/schedule/{session_id}/attendees")
+
+    def meetup_attendees(self, event_id, meetup_id):
+        """Attendees who have RSVPd to a specific meetup."""
+        if not event_id or not meetup_id:
+            raise UsageError("meetup-attendees requires <eventID> <meetupID>")
+        return self._get(f"/events/{event_id}/meetups/{meetup_id}/attendees")
+
+    def session_bookmark(self, event_id, session_id, bookmarked=True):
+        """Add or remove a session from your agenda. Requires an event ticket."""
+        if not event_id or not session_id:
+            raise UsageError("session-bookmark requires <eventID> <sessionID>")
+        return self._post(f"/events/{event_id}/schedule/{session_id}/bookmark", {
+            "bookmarked": bool(bookmarked),
+        })
+
+    def meetup_rsvp(self, event_id, meetup_id, joined=True):
+        """Join or leave a meetup. Requires an event ticket."""
+        if not event_id or not meetup_id:
+            raise UsageError("meetup-rsvp requires <eventID> <meetupID>")
+        return self._post(f"/events/{event_id}/meetups/{meetup_id}/rsvp", {
+            "joined": bool(joined),
+        })
+
     # ── Trips ───────────────────────────────────────────────────────
 
     def trips(self, past=False, limit=50, cursor=None):
@@ -1422,7 +1495,7 @@ class DCSkill(Skill):
                        "businessUrl":        {"type": "string", "description": "Your business website URL"},
                        "industry":           {"type": "string", "description": "Industry tag"},
                        "github":             {"type": "string",
-                                              "description": "Your GitHub username — required for access to private DC repos (synced nightly)"},
+                                              "description": "Your GitHub username — required for access to private DC repos"},
                        "linkedin":           {"type": "string", "description": "LinkedIn profile URL"},
                        "twitter":            {"type": "string", "description": "Twitter/X profile URL"},
                        "instagram":          {"type": "string", "description": "Instagram handle"},
@@ -1438,6 +1511,21 @@ class DCSkill(Skill):
                    args={})
     def limits(self):
         return self._core.limits()
+
+    # ── Announcements ───────────────────────────────────────────────
+
+    @skill_command(name="announcements",
+                   help="Recent announcements from DC's broadcast channels [--limit N] [--cursor TOKEN]",
+                   parser=_DCCore._parse_list_args,
+                   args={**_PAGINATION_ARGS})
+    def announcements(self, limit=10, cursor=None, **_unused):
+        return self._core.announcements(limit=limit, cursor=cursor)
+
+    @skill_command(name="announcements-latest",
+                   help="One most-recent announcement per channel — quick 'what's new across DC?' overview",
+                   args={})
+    def announcements_latest(self):
+        return self._core.announcements_latest()
 
     # ── Trips ───────────────────────────────────────────────────────
 
@@ -1514,6 +1602,57 @@ class DCSkill(Skill):
                    args=_RSVP_STATUS_ARG)
     def event_rsvp(self, event_id, status=""):
         return self._core.event_rsvp(event_id, status)
+
+    @skill_command(name="event-schedule",
+                   help="Full event schedule (sessions, day-grouped). Requires an event ticket.",
+                   args={})
+    def event_schedule(self, event_id):
+        return self._core.event_schedule(event_id)
+
+    @skill_command(name="event-agenda",
+                   help="YOUR sessions + meetups for an event. Requires an event ticket.",
+                   args={})
+    def event_agenda(self, event_id):
+        return self._core.event_agenda(event_id)
+
+    @skill_command(name="event-meetups",
+                   help="Approved member-organized meetups for an event. Requires an event ticket.",
+                   args={})
+    def event_meetups(self, event_id):
+        return self._core.event_meetups(event_id)
+
+    @skill_command(name="event-sponsors",
+                   help="Event sponsors, ordered by tier. Requires an event ticket.",
+                   args={})
+    def event_sponsors(self, event_id):
+        return self._core.event_sponsors(event_id)
+
+    @skill_command(name="session-attendees",
+                   help="Attendees who bookmarked a session: <eventID> <sessionID>",
+                   args={})
+    def session_attendees(self, event_id, session_id):
+        return self._core.session_attendees(event_id, session_id)
+
+    @skill_command(name="meetup-attendees",
+                   help="Attendees who RSVPd to a meetup: <eventID> <meetupID>",
+                   args={})
+    def meetup_attendees(self, event_id, meetup_id):
+        return self._core.meetup_attendees(event_id, meetup_id)
+
+    @skill_command(name="session-bookmark",
+                   help="Bookmark/unbookmark a session: <eventID> <sessionID> [--bookmarked true|false]",
+                   args={"bookmarked": {"type": "boolean", "description": "true to add to agenda, false to remove (default true)"}})
+    def session_bookmark(self, event_id, session_id, bookmarked="true"):
+        # Accept "true"/"false" strings from CLI, real booleans from Python.
+        is_on = str(bookmarked).strip().lower() not in {"false", "0", "no", "n"}
+        return self._core.session_bookmark(event_id, session_id, bookmarked=is_on)
+
+    @skill_command(name="meetup-rsvp",
+                   help="Join/leave a meetup: <eventID> <meetupID> [--joined true|false]",
+                   args={"joined": {"type": "boolean", "description": "true to join, false to leave (default true)"}})
+    def meetup_rsvp(self, event_id, meetup_id, joined="true"):
+        is_on = str(joined).strip().lower() not in {"false", "0", "no", "n"}
+        return self._core.meetup_rsvp(event_id, meetup_id, joined=is_on)
 
     # ── Virtual events ─────────────────────────────────────────────
 
