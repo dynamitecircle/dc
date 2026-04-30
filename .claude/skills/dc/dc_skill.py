@@ -99,7 +99,7 @@ except ImportError:
 # Bump manually when this skill catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-SKILL_VERSION = "1.5.0"
+SKILL_VERSION = "1.6.0"
 
 
 # ════════════════════════════════════════════════════════════════════════
