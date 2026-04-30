@@ -1,0 +1,9 @@
+# Project-local Codex config for dc-official.
+# Codex merges this with ~/.codex/config.toml when running inside this directory.
+
+# DC Member API skill — same single-file skill as a CLI, Python library,
+# AND an MCP server. The --mcp flag speaks JSON-RPC over stdio.
+# Paths are relative to this project root.
+[mcp_servers.dc]
+command = ".venv/bin/python3"
+args = [".claude/skills/dc/dc_skill.py", "--mcp"]

@@ -1,0 +1,8 @@
+# The skill itself runs on the Python stdlib alone.
+#
+# The only dependency below is OPTIONAL — it's needed only if you want to
+# run the skill as an MCP server (`python3 dc_skill.py --mcp`). CLI and
+# Python-import users can skip `pip install` entirely.
+
+# Optional — Model Context Protocol server support.
+mcp>=0.9.0
