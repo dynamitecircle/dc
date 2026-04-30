@@ -132,6 +132,9 @@ python3 dc_skill.py profile-update --headline 'CEO at Acme'
 # private dc-official repo (active member + GitHub username on profile,
 # synced nightly)
 python3 dc_skill.py profile-update --github octocat
+
+# Show your effective rate limits (per-minute, per-day) + current usage
+python3 dc_skill.py limits
 ```
 
 ### Trips

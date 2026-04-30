@@ -21,6 +21,7 @@ Usage as import:
     dc = DCSkill()
     dc.profile()                              # your profile
     dc.profile_update({"headline": "..."})    # patch profile fields
+    dc.limits()                               # rate limits + current usage
     dc.trips()                                # upcoming trips
     dc.trips(past=True, cursor="abc")         # paged history
     dc.overlaps()                             # destination overlaps
@@ -96,7 +97,7 @@ except ImportError:
 # Bump manually when this skill catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-SKILL_VERSION = "1.2.0"
+SKILL_VERSION = "1.3.0"
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -396,12 +397,72 @@ class HttpClient:
     logs can attribute traffic to the skill. Reads the server's
     `X-API-Version` response header and notifies a registered observer
     (used by `_VersionTracker` to warn users when their skill is behind).
+
+    Handles HTTP 429 (rate limited) automatically: parses `Retry-After`
+    (preferred — RFC 7231 standard) or `X-RateLimit-Reset` (DC's epoch
+    timestamp), waits the indicated time, and retries up to
+    `HttpClient.max_retries` times. Configurable via the `--max-retries N`
+    and `--no-retry` global CLI flags, or by setting the class attributes
+    before any request.
     """
 
     # Module-level observer: called once per response with the server's
     # X-API-Version header value (or None if missing). Set by
     # `_VersionTracker.attach()` at skill construction time.
     _on_server_version = None  # type: ignore[var-annotated]
+
+    # Retry policy. Mutable so dispatch() can adjust based on CLI flags.
+    max_retries: int = 1          # number of retries on 429 (1 by default)
+    max_retry_wait: int = 120     # cap any single wait at 2 minutes
+    fallback_retry_wait: int = 60 # used when neither header is present
+
+    @staticmethod
+    def _parse_retry_seconds(headers, *, body: dict | None = None) -> int:
+        """Extract seconds-to-wait from a 429 response.
+
+        Order of preference:
+          1. `Retry-After` header — RFC 7231 standard, may be seconds OR HTTP-date
+          2. `X-RateLimit-Reset` header — DC's per-window epoch timestamp
+          3. Number embedded in the JSON body's `message` field (e.g.
+             "Try again in 32 seconds.") — last-ditch fallback
+          4. `HttpClient.fallback_retry_wait` (60s) — gives up gracefully
+        """
+        if not headers:
+            headers = {}
+
+        # 1. Retry-After (seconds form)
+        retry_after = headers.get("Retry-After") or headers.get("retry-after")
+        if retry_after:
+            try:
+                return max(1, int(float(retry_after)))
+            except (TypeError, ValueError):
+                pass  # may be HTTP-date — fall through to the next strategy
+
+        # 2. X-RateLimit-Reset (epoch seconds)
+        reset_raw = headers.get("X-RateLimit-Reset") or headers.get("x-ratelimit-reset")
+        if reset_raw:
+            try:
+                reset_ts = int(reset_raw)
+                import time as _time
+                wait = reset_ts - int(_time.time())
+                if wait > 0:
+                    return wait
+            except (TypeError, ValueError):
+                pass
+
+        # 3. Parse "Try again in N seconds." from the body message
+        if body and isinstance(body, dict):
+            msg = str(body.get("message", ""))
+            import re as _re
+            match = _re.search(r"in (\d+)\s*second", msg, _re.IGNORECASE)
+            if match:
+                try:
+                    return max(1, int(match.group(1)))
+                except (TypeError, ValueError):
+                    pass
+
+        # 4. Last-resort fallback
+        return HttpClient.fallback_retry_wait
 
     @staticmethod
     def request(method: str, url: str, *, headers: dict | None = None, body: dict | None = None) -> dict:
@@ -411,35 +472,61 @@ class HttpClient:
         if body is not None:
             data = json.dumps(body).encode("utf-8")
             hdrs.setdefault("Content-Type", "application/json")
-        req = urlrequest.Request(url, data=data, headers=hdrs, method=method.upper())
-        try:
-            with urlrequest.urlopen(req, timeout=30) as resp:
-                raw = resp.read().decode("utf-8") or "{}"
-                server_version = resp.headers.get("X-API-Version")
-        except urlerror.HTTPError as e:
-            # Even on errors, the server may have set X-API-Version — peek at it
+
+        # Outer retry loop — re-attempts on 429 only. All other errors and
+        # successes fall through to a single response.
+        attempt = 0
+        while True:
+            req = urlrequest.Request(url, data=data, headers=hdrs, method=method.upper())
+            status: int | None = None
+            resp_headers: dict = {}
+            raw: str = "{}"
             try:
-                server_version = e.headers.get("X-API-Version") if e.headers else None
-            except Exception:
-                server_version = None
+                with urlrequest.urlopen(req, timeout=30) as resp:
+                    raw = resp.read().decode("utf-8") or "{}"
+                    resp_headers = dict(resp.headers)
+                    status = resp.status
+            except urlerror.HTTPError as e:
+                status = e.code
+                try:
+                    resp_headers = dict(e.headers or {})
+                except Exception:
+                    resp_headers = {}
+                try:
+                    raw = e.read().decode("utf-8") or "{}"
+                except Exception:
+                    raw = "{}"
+            except urlerror.URLError as e:
+                raise SkillError(f"Network error contacting {url}: {e.reason}")
+
+            # Always notify the version-tracker — works on success and error
+            server_version = resp_headers.get("X-API-Version") or resp_headers.get("x-api-version")
             if HttpClient._on_server_version and server_version:
                 HttpClient._on_server_version(server_version)
+
+            # Parse the body (best-effort)
             try:
-                raw = e.read().decode("utf-8") or "{}"
-            except Exception:
-                raw = "{}"
-            try:
-                return json.loads(raw)
+                payload = json.loads(raw) if raw else {}
             except json.JSONDecodeError:
-                return {"ok": False, "error": "http_error", "message": f"HTTP {e.code}: {raw[:200]}"}
-        except urlerror.URLError as e:
-            raise SkillError(f"Network error contacting {url}: {e.reason}")
-        if HttpClient._on_server_version and server_version:
-            HttpClient._on_server_version(server_version)
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            raise SkillError(f"Non-JSON response from {url}: {raw[:200]}")
+                if status is not None and status >= 400:
+                    return {"ok": False, "error": "http_error",
+                            "message": f"HTTP {status}: {raw[:200]}"}
+                raise SkillError(f"Non-JSON response from {url}: {raw[:200]}")
+
+            # Retry on 429 if budget allows
+            if status == 429 and attempt < HttpClient.max_retries:
+                wait = min(HttpClient._parse_retry_seconds(resp_headers, body=payload),
+                           HttpClient.max_retry_wait)
+                attempt += 1
+                Skill.emit(
+                    f"Rate limited (HTTP 429) — waiting {wait}s before retry "
+                    f"{attempt}/{HttpClient.max_retries}..."
+                )
+                import time as _time
+                _time.sleep(wait)
+                continue
+
+            return payload
 
     @staticmethod
     def get(url, **kw):    return HttpClient.request("GET",    url, **kw)
@@ -1088,6 +1175,15 @@ class _DCCore:
             raise UsageError("profile-update requires at least one --<field> <value>")
         return self._patch("/profile", fields)
 
+    def limits(self):
+        """Effective rate limits + current usage for this API key.
+
+        Returns the same numbers exposed via the X-RateLimit-* response
+        headers, in JSON form. Useful for clients that want a single
+        snapshot rather than parsing headers on every call.
+        """
+        return self._get("/profile/limits")
+
     # ── Trips ───────────────────────────────────────────────────────
 
     def trips(self, past=False, limit=50, cursor=None):
@@ -1336,6 +1432,12 @@ class DCSkill(Skill):
                    })
     def profile_update(self, fields: dict):
         return self._core.update_profile(fields or {})
+
+    @skill_command(name="limits",
+                   help="Show your effective rate limits (per-minute / per-day) and current usage",
+                   args={})
+    def limits(self):
+        return self._core.limits()
 
     # ── Trips ───────────────────────────────────────────────────────
 
