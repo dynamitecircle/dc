@@ -8,15 +8,18 @@ Single file. Zero dependencies (stdlib only). Works as a CLI, Python library, **
 .claude/skills/dc/dc_skill.py    ← one file, three integration modes
 ```
 
-## Three integration modes
+## How it's exposed
 
-| Mode | Invoke with | Dependencies |
-|---|---|---|
-| **CLI** | `python3 .claude/skills/dc/dc_skill.py <command>` | stdlib only |
-| **Python import** | `from dc_skill import DCSkill; DCSkill().profile()` | stdlib only |
-| **MCP server** | `python3 .claude/skills/dc/dc_skill.py --mcp` | `pip install mcp` (optional) |
+The same `dc_skill.py` file is shipped as **four** integrations — pick whichever fits how your tool talks to it:
 
-The `mcp` package is **lazy-imported** — CLI and Python users never need it.
+| Integration | What it is | Invoke with | Dependencies |
+|---|---|---|---|
+| **Agent Skill** | Auto-discovered via `SKILL.md` frontmatter (Claude Code, Codex, Gemini CLI, Cursor, Copilot) | Just open the repo with the tool — it reads [`.claude/skills/dc/SKILL.md`](.claude/skills/dc/SKILL.md) and offers the commands | stdlib only |
+| **CLI** | Run commands directly from the shell or scripts | `python3 .claude/skills/dc/dc_skill.py <command>` | stdlib only |
+| **Python library** | Import in your own Python code | `from dc_skill import DCSkill; DCSkill().profile()` | stdlib only |
+| **MCP server** | Speaks Model Context Protocol over stdio (Claude Desktop, Cursor, Codex MCP, Cline, etc.) | `python3 .claude/skills/dc/dc_skill.py --mcp` | `pip install mcp` (optional) |
+
+The `mcp` package is **lazy-imported** — Agent Skill / CLI / Python-library users never need it.
 
 ## Features
 
