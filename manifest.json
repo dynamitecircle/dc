@@ -1,0 +1,56 @@
+{
+  "manifest_version": "0.3",
+  "name": "dc",
+  "display_name": "DC Member API",
+  "version": "1.6.1",
+  "description": "Read and act on your own Dynamite Circle membership data via the public Member API.",
+  "long_description": "Single-file Python skill wrapping the public DC Member API at https://api.dynamitecircle.com. Same file runs three ways: CLI, Python library, and MCP server (--mcp flag, opt-in mcp dependency). Compatible with Claude Code, Claude Desktop, Codex CLI, Gemini CLI, Cursor, GitHub Copilot, and any other Agent Skills / MCP-compatible tool. Covers profile (read+update), trips (CRUD), events + RSVP, virtual events + RSVP, tickets, invites, inbox, rooms, chapters, places lookup, locator digest, announcements, and event-day agendas (DCBKK / DCMEX / DC BLACK schedules, meetups, sponsors, session bookmarks).",
+  "author": {
+    "name": "Dynamite Circle",
+    "url": "https://dynamitecircle.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dynamite-Circle-Builders/dc-official"
+  },
+  "documentation": "https://www.dynamitecircle.com/developers/",
+  "homepage": "https://github.com/Dynamite-Circle-Builders/dc-official",
+  "keywords": [
+    "dynamite-circle",
+    "dc",
+    "membership",
+    "events",
+    "dcbkk",
+    "dcmex"
+  ],
+  "server": {
+    "type": "python",
+    "entry_point": ".claude/skills/dc/dc_skill.py",
+    "mcp_config": {
+      "command": "python3",
+      "args": ["${__dirname}/.claude/skills/dc/dc_skill.py", "--mcp"]
+    }
+  },
+  "capabilities": {
+    "tools": true,
+    "resources": false,
+    "prompts": false,
+    "sampling": false
+  },
+  "compatibility": {
+    "platforms": ["darwin", "linux", "win32"],
+    "runtimes": {
+      "python": ">=3.9"
+    },
+    "mcp": ">=0.9.0"
+  },
+  "user_config": {
+    "DC_API_KEY": {
+      "type": "string",
+      "description": "Your DC Member API key (format: dk_<userID>_<random>). Generate from your DC profile dropdown → DC Member API Key.",
+      "required": true,
+      "secret": true
+    }
+  }
+}
