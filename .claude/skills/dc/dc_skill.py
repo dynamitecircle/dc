@@ -49,7 +49,7 @@ Usage as import:
     dc.locator(sections="homeCity,favoriteCities")
 
 Usage as CLI:
-    python3 dc_skill.py setup --api-key dk_<userID>_<random>
+    python3 dc_skill.py setup --api-key dk_<api-key>
     python3 dc_skill.py profile
     python3 dc_skill.py profile-update --headline 'CEO at Acme'
     python3 dc_skill.py trips [--past] [--limit N] [--cursor TOKEN]
@@ -723,7 +723,7 @@ class Skill:
         if not value:
             raise SkillError(
                 f"Missing required environment variable: {key}\n"
-                f"Run: python3 {Path(self.source_file).name} setup --api-key dk_<userID>_<random>"
+                f"Run: python3 {Path(self.source_file).name} setup --api-key dk_<api-key>"
             )
         return value
 
@@ -1073,7 +1073,7 @@ class _DCCore:
 
     def setup(self, api_key: str = "") -> dict:
         if not api_key:
-            raise UsageError("setup requires --api-key dk_<userID>_<random>")
+            raise UsageError("setup requires --api-key dk_<api-key>")
         if not api_key.startswith("dk_"):
             raise SkillError("API key must start with 'dk_'.")
         self._skill.set_env("DC_API_KEY", api_key)
@@ -1459,11 +1459,11 @@ class DCSkill(Skill):
     # ── Setup ───────────────────────────────────────────────────────
 
     @skill_command(name="setup",
-                   help="Save your DC API key to .env.dc: --api-key dk_<userID>_<random>",
+                   help="Save your DC API key to .env.dc: --api-key dk_<api-key>",
                    parser=_DCCore._parse_setup,
                    args={
                        "api-key": {"type": "string", "required": True,
-                                   "description": "Your DC Member API key, format dk_<userID>_<random>"},
+                                   "description": "Your DC Member API key, format dk_<api-key>"},
                    })
     def setup(self, api_key=""):
         return self._core.setup(api_key=api_key)

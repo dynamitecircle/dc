@@ -48,7 +48,7 @@
   "user_config": {
     "DC_API_KEY": {
       "type": "string",
-      "description": "Your DC Member API key (format: dk_<userID>_<random>). Generate from your DC profile dropdown → DC Member API Key.",
+      "description": "Your DC Member API key (format: dk_<api-key>). Generate from your DC profile dropdown → DC Member API Key.",
       "required": true,
       "secret": true
     }

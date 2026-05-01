@@ -27,7 +27,7 @@ The full reference for the underlying API is at https://www.dynamitecircle.com/d
 You need a personal API key. Generate one from your DC profile dropdown → **DC Member API Key**. Then save it:
 
 ```bash
-python3 .claude/skills/dc/dc_skill.py setup --api-key dk_<userID>_<random>
+python3 .claude/skills/dc/dc_skill.py setup --api-key dk_<api-key>
 ```
 
 This writes `.claude/skills/dc/.env.dc` (chmod 600). The file is gitignored.

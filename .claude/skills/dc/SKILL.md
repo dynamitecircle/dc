@@ -19,12 +19,12 @@ CLI, and GitHub Copilot.
 
 Each member needs their own personal API key. Generate one from the DC
 profile dropdown → **DC Member API Key**. Keys look like
-`dk_<userID>_<random>` and are revocable from the same dropdown.
+`dk_<api-key>` and are revocable from the same dropdown.
 
 Save it with the built-in `setup` command:
 
 ```bash
-python3 .claude/skills/dc/dc_skill.py setup --api-key dk_<userID>_<random>
+python3 .claude/skills/dc/dc_skill.py setup --api-key dk_<api-key>
 ```
 
 This writes the key to `.claude/skills/dc/.env.dc` (chmod 600). The file
@@ -113,7 +113,7 @@ DCSkill(api_url="http://localhost:8083")
 
 ```bash
 # Save your DC API key to .env.dc
-python3 dc_skill.py setup --api-key dk_<userID>_<random>
+python3 dc_skill.py setup --api-key dk_<api-key>
 
 # Validate env, network, and /profile end-to-end
 python3 dc_skill.py self-test

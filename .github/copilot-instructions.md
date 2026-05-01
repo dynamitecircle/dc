@@ -18,7 +18,7 @@ When suggesting code in this repo:
 - All list-returning commands return the envelope
   `{items, count, cursor, has_more}` — use the `_wrap_list` helper.
 - API base URL: `https://api.dynamitecircle.com`. Auth header:
-  `Authorization: Bearer dk_<userID>_<random>`.
+  `Authorization: Bearer dk_<api-key>`.
 - Env config lives in `.claude/skills/dc/.env.dc` (skill-local).
 
 For the user-facing setup instructions, see

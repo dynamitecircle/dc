@@ -32,12 +32,12 @@ The `mcp` package is **lazy-imported** — CLI and Python users never need it.
 
 ### 1. Get an API key
 
-DC profile dropdown → **DC Member API Key** (admins/testers only). Keys look like `dk_<userID>_<random>` and are revocable from the same dropdown.
+DC profile dropdown → **DC Member API Key** (admins/testers only). Keys look like `dk_<api-key>` and are revocable from the same dropdown.
 
 ### 2. Save the key
 
 ```bash
-python3 .claude/skills/dc/dc_skill.py setup --api-key dk_<userID>_<random>
+python3 .claude/skills/dc/dc_skill.py setup --api-key dk_<api-key>
 ```
 
 This writes `.claude/skills/dc/.env.dc` (chmod 600, gitignored).
@@ -236,7 +236,7 @@ Pick whichever integration style fits your project. From simplest to most isolat
 ```bash
 git clone https://github.com/Dynamite-Circle-Builders/dc-official.git
 cd dc-official
-python3 .claude/skills/dc/dc_skill.py setup --api-key dk_<userID>_<random>
+python3 .claude/skills/dc/dc_skill.py setup --api-key dk_<api-key>
 ```
 
 To update: `cd dc-official && git pull`. Run `self-test` afterwards.
