@@ -380,6 +380,3 @@ dc-official/
 
 This repo is maintained by the Dynamite Circle team. It's read-only for the public — clone it and use it, but don't open PRs. If you spot a bug or want a new feature, contact us through the official DC channels.
 
-## License
-
-_(decide before push — recommend MIT for an example/SDK-style repo)_
