@@ -20,7 +20,7 @@ The `mcp` package is **lazy-imported** — CLI and Python users never need it.
 
 ## Features
 
-- **28 commands** — read+write across every public Member API endpoint
+- **Full Member API coverage** — read + write across every public endpoint (run `python3 .claude/skills/dc/dc_skill.py help` for the live list)
 - **Setup command** — saves your API key to a chmod-600 `.env.dc` next to the skill
 - **Self-test command** — validates env, network, key shape, and a live `/profile` call end-to-end
 - **Cursor pagination** — every list-returning command uses the same `[--limit N] [--cursor TOKEN]` shape and returns the canonical envelope `{items, count, cursor, has_more}`
@@ -353,6 +353,7 @@ dc-official/
 ├── CLAUDE.md                          # AI-tool guide (also linked as AGENTS.md, GEMINI.md)
 ├── AGENTS.md       → CLAUDE.md        # symlink (Codex)
 ├── GEMINI.md       → CLAUDE.md        # symlink (Gemini)
+├── dc              → .claude/skills/dc    # symlink — visible shortcut to the skill folder
 ├── .mcp.json                          # auto-registers `dc` MCP server in Claude Code
 ├── .codex/
 │   └── config.toml                    # auto-registers `dc` for Codex CLI
@@ -363,7 +364,7 @@ dc-official/
 │   │   ├── skill-conventions.md       # design rules / architecture
 │   │   └── mcp.md                     # MCP setup for every supported client
 │   └── skills/
-│       └── dc/
+│       └── dc/                        # ← canonical location of the skill
 │           ├── SKILL.md               # Agent Skills frontmatter + usage
 │           ├── config.json
 │           ├── dc_skill.py            # CLI + Python import + --mcp
@@ -375,6 +376,25 @@ dc-official/
 ├── .gitignore
 └── .gitattributes
 ```
+
+### About the `dc/` symlink
+
+Most of this repo lives under dotfile-prefixed directories
+(`.claude/`, `.codex/`, `.agents/`, `.github/`) so AI tools can
+auto-discover their config without cluttering the working area. That
+also means `ls` shows almost nothing by default, and new contributors
+sometimes wonder where the skill actually is.
+
+The `dc/` entry at the repo root is a **symlink to
+`.claude/skills/dc/`** — purely for visibility. It's the same files;
+opening `dc/dc_skill.py` and `.claude/skills/dc/dc_skill.py` are
+equivalent. Use whichever you prefer at the shell — `ls dc/` is just a
+faster way to see the skill's contents than `ls .claude/skills/dc/`.
+
+**The canonical path is `.claude/skills/dc/`.** All `.mcp.json`,
+`.codex/config.toml`, and documentation paths use the canonical form so
+the auto-discovery configs stay portable. Don't repoint configs at the
+`dc/` shortcut — it's a discovery aid, not a hook.
 
 ## Maintenance
 

@@ -33,7 +33,7 @@ The server speaks JSON-RPC over stdio. It's not meant to be used directly — wi
 ) | python3 .claude/skills/dc/dc_skill.py --mcp
 ```
 
-You should see three JSON-RPC responses: `initialize` ack, `tools/list` with all 28 tools, and `tools/call profile` with your profile data.
+You should see three JSON-RPC responses: `initialize` ack, `tools/list` with the full tool set, and `tools/call profile` with your profile data.
 
 ## Visual debugger (Inspector)
 

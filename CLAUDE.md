@@ -7,7 +7,7 @@ This repo ships a single self-contained Python skill that wraps the public **DC 
 - **One file**: `.claude/skills/dc/dc_skill.py`
 - **Three modes**: CLI, Python import, MCP server (`--mcp` flag)
 - **Stdlib only** for CLI/import. The `mcp` package is **lazy-imported** — only required for `--mcp` mode
-- **28 commands** wrapping every public Member API endpoint
+- **Full coverage** — every public Member API endpoint is wrapped (run `help` for the live list)
 - **Pre-configured `.mcp.json`** at the repo root — Claude Code auto-loads the server when you `cd` in
 - **Zero internal-only knowhow** — public-grade design with no telemetry, no usage tracking, no error capture, no extension hooks, no read/write gates
 
