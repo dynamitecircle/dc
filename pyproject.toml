@@ -69,18 +69,19 @@ pattern = "DC_API_VERSION\\s*=\\s*['\"](?P<version>[^'\"]+)['\"]"
 [tool.hatch.build.targets.wheel]
 # Ship py/dc.py inside the wheel as `dynamitecircle.py` so the public
 # import name matches the PyPI name.
-sources = ["py"]
-only-include = ["py/dc.py"]
+bypass-selection = true
 
 [tool.hatch.build.targets.wheel.force-include]
 "py/dc.py" = "dynamitecircle.py"
 
 [tool.hatch.build.targets.sdist]
-# Source dist includes the full repo so users who download the .tar.gz
-# can see the layout, the CHANGELOG, the docs, etc.
-include = [
-  "py/",
-  "docs/",
+# Source dist includes the full repo. only-include + bypass-selection
+# avoids hatch's auto-package-discovery which doesn't recognize our
+# non-standard layout (single-file at py/dc.py rather than py/<pkg>/).
+bypass-selection = true
+only-include = [
+  "py",
+  "docs",
   "README.md",
   "CHANGELOG.md",
   "LICENSE",
