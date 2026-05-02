@@ -81,7 +81,7 @@ python3 dc.py --format python profile
 ## Version warnings
 
 Every API response carries an `X-API-Version` header. The skill compares
-it against its own `SKILL_VERSION` constant. When the **server's major or
+it against its own `DC_API_VERSION` constant. When the **server's major or
 minor** is ahead of the skill, you'll see a one-shot warning on stderr
 prompting you to update:
 

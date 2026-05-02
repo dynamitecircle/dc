@@ -1,7 +1,7 @@
 # Changelog
 
 All notable changes to `dc-official` are listed here. The version
-numbers below track `SKILL_VERSION` in [`dc/dc.py`](dc/dc.py), which is
+numbers below track `DC_API_VERSION` in [`dc/dc.py`](dc/dc.py), which is
 deliberately aligned with the DC Member API server version it was last
 verified against. Patch bumps from the server are silent; minor or major
 bumps surface a one-shot stderr warning when this client falls behind.
@@ -16,7 +16,7 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 ## [Unreleased]
 
 Structural / repo-layout changes since 1.6.1 — no API surface changes,
-no `SKILL_VERSION` bump (the version constant tracks the API, not the
+no `DC_API_VERSION` bump (the version constant tracks the API, not the
 file structure).
 
 ### Changed
@@ -87,7 +87,7 @@ file structure).
 
 ### Changed
 
-- **`SKILL_VERSION`** bumped to 1.6.1 to match the deployed server API
+- **`DC_API_VERSION`** bumped to 1.6.1 to match the deployed server API
   release.
 - **README's "Three integration modes" → "How it's exposed"** with
   Agent Skill added as the primary integration.
@@ -113,7 +113,7 @@ file structure).
   to CLI stderr, MCP TextContent, or `result.emitted` for Python.
   JSON envelope `{ok, client, command, result, emitted}` when `--json`
   is set with non-empty emit.
-- **Version-mismatch warning** — `SKILL_VERSION` constant. Every request
+- **Version-mismatch warning** — `DC_API_VERSION` constant. Every request
   sends `User-Agent: dc-py/<version>` and reads the server's
   `X-API-Version` response header. `_VersionTracker` warns once per
   process when the server is on a newer minor/major.

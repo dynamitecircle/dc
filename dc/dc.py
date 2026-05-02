@@ -99,7 +99,7 @@ except ImportError:
 # Bump manually when this client catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-SKILL_VERSION = "1.6.1"
+DC_API_VERSION = "1.6.1"
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -395,7 +395,7 @@ class ArgHelpers:
 class HttpClient:
     """Minimal urllib-based HTTP client — GET/POST/PATCH/DELETE returning JSON.
 
-    Always sends `User-Agent: dc-py/<SKILL_VERSION>` so server-side
+    Always sends `User-Agent: dc-py/<DC_API_VERSION>` so server-side
     logs can attribute traffic to the client. Reads the server's
     `X-API-Version` response header and notifies a registered observer
     (used by `_VersionTracker` to warn users when their client is behind).
@@ -470,7 +470,7 @@ class HttpClient:
     def request(method: str, url: str, *, headers: dict | None = None, body: dict | None = None) -> dict:
         data = None
         hdrs = dict(headers or {})
-        hdrs.setdefault("User-Agent", f"dc-py/{SKILL_VERSION}")
+        hdrs.setdefault("User-Agent", f"dc-py/{DC_API_VERSION}")
         if body is not None:
             data = json.dumps(body).encode("utf-8")
             hdrs.setdefault("Content-Type", "application/json")
@@ -543,7 +543,7 @@ class HttpClient:
 # ── Version mismatch warning ───────────────────────────────────────────
 
 class _VersionTracker:
-    """Compare the server's X-API-Version against SKILL_VERSION; emit a
+    """Compare the server's X-API-Version against DC_API_VERSION; emit a
     one-shot stderr warning when the server has new features.
 
     Rules:
@@ -574,7 +574,7 @@ class _VersionTracker:
         if cls._warned:
             return
         server = cls._parse(server_version)
-        client = cls._parse(SKILL_VERSION)
+        client = cls._parse(DC_API_VERSION)
         if not server or not client:
             return
         # Major or minor newer on server → client is behind on features
@@ -582,7 +582,7 @@ class _VersionTracker:
             cls._warned = True
             print(
                 f"\n⚠  DC API has new features available "
-                f"(server {server_version}, this client built for {SKILL_VERSION}).\n"
+                f"(server {server_version}, this client built for {DC_API_VERSION}).\n"
                 f"   Update dc-official: cd <your dc-official clone> && git pull\n",
                 file=sys.stderr,
             )
@@ -1453,7 +1453,7 @@ class DC(Runtime):
         self._commands = self._discover_commands()
         # Wire HttpClient response-header observer so we can warn the
         # user once per process when the server's API version has
-        # outpaced this client's SKILL_VERSION on major or minor.
+        # outpaced this client's DC_API_VERSION on major or minor.
         _VersionTracker.attach()
 
     # ── Setup ───────────────────────────────────────────────────────

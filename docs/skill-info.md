@@ -165,12 +165,12 @@ Never call `urllib` directly inside `_DCCore` business methods — go through `_
 
 ## Versioning + version-mismatch warning
 
-`SKILL_VERSION` is declared at the top of `dc.py`. Bump it manually when the skill catches up to a new API version.
+`DC_API_VERSION` is declared at the top of `dc.py`. Bump it manually when the skill catches up to a new API version.
 
 Two things happen with this version:
 
-- **Outbound** — every request sends `User-Agent: dc-official-skill/<SKILL_VERSION>` so server-side logs can attribute traffic.
-- **Inbound** — `HttpClient` reads the server's `X-API-Version` response header. `_VersionTracker.observe()` compares it to `SKILL_VERSION` and prints a one-shot stderr warning when the server has new features (major or minor bump). Patch-only differences are silent. If the skill is *ahead* of the server, no warning — that's a normal upgrade path.
+- **Outbound** — every request sends `User-Agent: dc-official-skill/<DC_API_VERSION>` so server-side logs can attribute traffic.
+- **Inbound** — `HttpClient` reads the server's `X-API-Version` response header. `_VersionTracker.observe()` compares it to `DC_API_VERSION` and prints a one-shot stderr warning when the server has new features (major or minor bump). Patch-only differences are silent. If the skill is *ahead* of the server, no warning — that's a normal upgrade path.
 
 The warning fires once per process. Scripts and MCP servers don't get spammed.
 

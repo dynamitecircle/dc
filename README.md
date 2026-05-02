@@ -104,7 +104,9 @@ The `mcp` package is **lazy-imported** — Agent Skill / CLI / Python-library us
 - **MCP-ready** — same skill auto-exposes all commands as MCP tools
 - **Pre-configured for Claude Code** — repo ships an `.mcp.json`, just `cd` and `claude`
 
-## Quick start
+## CLI quickstart (already comfortable in a terminal?)
+
+If you're skipping past the [Quick Start](#quick-start) above and just want the CLI flow, here's the condensed version.
 
 ### 1. Get an API key
 
@@ -303,7 +305,7 @@ The full live reference for the DC Member API — every endpoint, parameter, and
 
 ## Staying up to date
 
-The DC Member API ships new endpoints and refinements regularly. This skill is the official client and we update it whenever the API changes. **Plan for updates** — the skill will warn you on stderr the first time a request returns a server `X-API-Version` newer than `SKILL_VERSION`, and major-version bumps may break older clients.
+The DC Member API ships new endpoints and refinements regularly. This skill is the official client and we update it whenever the API changes. **Plan for updates** — the skill will warn you on stderr the first time a request returns a server `X-API-Version` newer than `DC_API_VERSION`, and major-version bumps may break older clients.
 
 Pick whichever integration style fits your project. From simplest to most isolated:
 
