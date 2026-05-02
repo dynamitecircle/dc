@@ -8,6 +8,79 @@ Single file. Zero dependencies (stdlib only). Works as a CLI, Python library, **
 dc/dc.py    ← one file, three integration modes
 ```
 
+## Quick Start
+
+Never used Claude Code, Codex, or git? Here's the 5-minute path from zero to "Claude can read my DC profile."
+
+### 1. Install the basics (one-time)
+
+You need three free things on your computer:
+
+- **Python 3.9+** — the language this client is written in. [Download here](https://www.python.org/downloads/) (Mac/Windows/Linux installers; check **"Add Python to PATH"** on Windows).
+- **Git** — the tool that downloads code from GitHub. [Download here](https://git-scm.com/downloads).
+- **An AI assistant** — pick one:
+  - **[Claude Code](https://claude.com/product/claude-code)** ← *recommended* — this repo is built around it
+  - **[Codex CLI](https://github.com/openai/codex)** — works too, slightly different commands
+  - **[Claude Desktop](https://claude.ai/download)** — the chat app, gets you the MCP server but no CLI
+
+If anything during install asks "do you want to add to PATH?" — say yes.
+
+### 2. Get the code
+
+Open a terminal:
+- **Mac**: Spotlight → "Terminal"
+- **Windows**: Start → "Terminal" (or "PowerShell")
+- **Linux**: you know what to do
+
+Then paste:
+
+```bash
+git clone https://github.com/Dynamite-Circle-Builders/dc-official.git
+cd dc-official
+```
+
+You now have a folder called `dc-official` with all the code in it.
+
+### 3. Get your DC API key
+
+In your browser: go to **https://dc.dynamitecircle.com**, log in, click your profile photo (top-right), and choose **DC Member API Key**. Copy the long string starting with `dk_…`.
+
+### 4. Tell the client about your key
+
+Back in your terminal (still inside the `dc-official` folder):
+
+```bash
+python3 dc/dc.py setup --api-key dk_paste_your_key_here
+```
+
+### 5. Try it
+
+Open **Claude Code** and make sure it's pointed at the `dc-official` folder you just downloaded. (Claude usually opens to your last project — if it's somewhere else, click the folder icon and pick `dc-official`.)
+
+Then ask:
+
+> "Show me my DC profile"
+
+Claude runs the right command and shows you back your profile. A few more to try:
+
+> "What's the latest in DC announcements?"
+> "What events am I attending?"
+> "Show me the DCMEX schedule and bookmark anything about marketing"
+> "Who else from my chapter is going to DCBKK?"
+
+You're done. The rest of this README explains what's possible in more detail; [`dc/SKILL.md`](dc/SKILL.md) lists every command Claude can run.
+
+### If something didn't work
+
+| Symptom | What to try |
+|---|---|
+| `python3: command not found` | Python didn't install or didn't get added to PATH. Re-install and check the **"Add to PATH"** box on Windows; on Mac, try `python` instead of `python3`. |
+| `git: command not found` | Same idea — re-install Git. |
+| Claude says "I don't see a `dc` skill" | Make sure Claude Code is opened to the `dc-official` folder, not your home directory or another project. Or just ask Claude: *"are you in the dc-official folder?"* |
+| Anything else | Run `python3 dc/dc.py self-test` from the `dc-official` folder — it tells you exactly which step is broken. |
+
+---
+
 ## How it's exposed
 
 The same `dc.py` file is shipped as **four** integrations — pick whichever fits how your tool talks to it:
