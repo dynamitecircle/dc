@@ -1,9 +1,20 @@
 # Project-local Codex config for dc-official.
 # Codex merges this with ~/.codex/config.toml when running inside this directory.
+#
+# Reference: https://developers.openai.com/codex/config-reference
 
-# DC Member API skill — same single-file skill as a CLI, Python library,
+# DC Member API client — same single-file skill as a CLI, Python library,
 # AND an MCP server. The --mcp flag speaks JSON-RPC over stdio.
 # Paths are relative to this project root.
 [mcp_servers.dc]
 command = ".venv/bin/python3"
 args = ["dc/dc.py", "--mcp"]
+
+# Auto-approve every tool exposed by this server — we vouch for the dc client
+# (it's the official DC Member API wrapper, scoped to YOUR own membership data
+# via your DC_API_KEY). All write tools (event-rsvp, trip-create,
+# profile-update, invite-create) act on your own account only and are
+# rate-limited by the DC server (60/min, 3000/day).
+#
+# Equivalent of Claude Code's `mcp__dc__*` allow-rule + `enableAllProjectMcpServers`.
+default_tools_approval_mode = "approve"
