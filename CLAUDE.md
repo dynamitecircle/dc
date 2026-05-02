@@ -166,24 +166,29 @@ dc-official/
 │   ├── skills/dc  → ../../dc          # symlink to canonical skill
 │   └── docs       → ../docs           # symlink to canonical docs
 │
-├── .agents/                           # Agent Skills discovery (Codex CLI)
+├── .agents/                           # Agent Skills discovery (Codex CLI + Gemini CLI alias)
 │   ├── skills/dc  → ../../dc          # symlink to canonical skill
 │   └── docs       → ../docs           # symlink to canonical docs
+│
+├── .gemini/                           # Gemini CLI MCP config
+│   └── settings.json                  # auto-approves dc MCP tools (trust: true)
 │
 ├── .gitignore
 └── .gitattributes
 ```
 
-**Layout rationale:** the canonical files live at `/dc/` and `/docs/` so they're visible in `ls` and feel like a normal Python project. AI-tool discovery directories (`.claude/`, `.agents/`) stay hidden but symlink straight to the real folders, so Claude Code, Codex, Gemini CLI, etc. still auto-discover everything.
+**Layout rationale:** the canonical files live at `/dc/` and `/docs/` so they're visible in `ls` and feel like a normal Python project. AI-tool discovery directories (`.claude/`, `.agents/`, `.gemini/`) stay hidden but symlink (or point) straight to the real folders, so Claude Code, Codex, Gemini CLI, etc. still auto-discover everything. Gemini CLI also reads `.agents/skills/` as an alias, so we don't need a redundant `.gemini/skills/` symlink.
+
+**Pre-approval out of the box:** `.claude/settings.json`, `.codex/config.toml`, and `.gemini/settings.json` all auto-approve the `dc` MCP server's tools so users don't get a per-call approval prompt. Anyone uncomfortable with that can override with their personal `.claude/settings.local.json`, `~/.codex/config.toml`, or `~/.gemini/settings.json`.
 
 ## Multi-tool compatibility
 
-| Tool | How it discovers the skill |
-|---|---|
-| **Claude Code** | `CLAUDE.md` + `dc/SKILL.md` + `.mcp.json` (auto-loads server) |
-| **Claude Desktop** | Manual `claude_desktop_config.json` MCP entry |
-| **Codex CLI** | `AGENTS.md` (symlink) + `.agents/skills/` (symlink) + `~/.codex/config.toml` |
-| **Gemini CLI** | `GEMINI.md` (symlink) + Gemini settings |
+| Tool | How it discovers the skill | Pre-approved |
+|---|---|---|
+| **Claude Code** | `CLAUDE.md` + `dc/SKILL.md` + `.mcp.json` (auto-loads server) | ✅ `.claude/settings.json` |
+| **Claude Desktop** | Manual `claude_desktop_config.json` MCP entry | per-user |
+| **Codex CLI** | `AGENTS.md` (symlink) + `.agents/skills/` (symlink) + `.codex/config.toml` | ✅ `.codex/config.toml` |
+| **Gemini CLI** | `GEMINI.md` (symlink) + `.agents/skills/` (alias) + `.gemini/settings.json` | ✅ `.gemini/settings.json` |
 | **Cursor** | Settings → MCP → Add server |
 | **GitHub Copilot** | `.github/copilot-instructions.md` |
 

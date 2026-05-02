@@ -380,9 +380,12 @@ dc-official/
 │   ├── skills/dc  → ../../dc          # symlink to canonical skill
 │   └── docs       → ../docs           # symlink to canonical docs
 │
-├── .agents/                           # Agent Skills discovery (Codex CLI)
+├── .agents/                           # Agent Skills discovery (Codex CLI + Gemini CLI alias)
 │   ├── skills/dc  → ../../dc          # symlink to canonical skill
 │   └── docs       → ../docs           # symlink to canonical docs
+│
+├── .gemini/                           # Gemini CLI MCP config
+│   └── settings.json                  # auto-approves dc MCP tools (trust: true)
 │
 ├── .gitignore
 └── .gitattributes
@@ -390,9 +393,13 @@ dc-official/
 
 ### About the layout
 
-The skill code (`dc/`) and the design docs (`docs/`) live at the repo root so they're visible in `ls` and feel like a normal Python project. The dotfile-prefixed directories (`.claude/`, `.agents/`) exist because AI tools auto-discover skills from those specific paths — they're kept hidden but each one **symlinks straight to the canonical folder**, so you only edit files in one place. Edit `dc/dc.py` and Claude Code, Codex, and Gemini CLI all see the same file via their respective discovery directories.
+The skill code (`dc/`) and the design docs (`docs/`) live at the repo root so they're visible in `ls` and feel like a normal Python project. The dotfile-prefixed directories (`.claude/`, `.agents/`, `.gemini/`) exist because AI tools auto-discover skills from those specific paths — they're kept hidden but each one **symlinks (or points) straight to the canonical folder**, so you only edit files in one place. Edit `dc/dc.py` and Claude Code, Codex, and Gemini CLI all see the same file via their respective discovery directories. Gemini CLI also reads `.agents/skills/` as an alias, so we don't need a redundant `.gemini/skills/` symlink.
 
 If you're adding new code or docs, edit `dc/` and `docs/` directly. The discovery folders take care of themselves.
+
+### Pre-approval out of the box
+
+`.claude/settings.json`, `.codex/config.toml`, and `.gemini/settings.json` all auto-approve the `dc` MCP server's tools so users don't get a per-call approval prompt when they open this repo with their AI tool. Anyone uncomfortable with that can override with their personal `.claude/settings.local.json`, `~/.codex/config.toml`, or `~/.gemini/settings.json`. Every dc write tool is scoped to the caller's own DC account via their personal API key — pre-approval doesn't widen any blast radius, just removes per-call friction.
 
 ## Maintenance
 
