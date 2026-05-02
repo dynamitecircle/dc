@@ -318,15 +318,13 @@ pip install mcp
 git clone https://github.com/Dynamite-Circle-Builders/dc-official.git
 ```
 
-To pin to a specific commit, just `git checkout <sha>` after cloning. We use [SemVer-ish](#staying-up-to-date) version tags on the skill itself (`SKILL_VERSION` constant) so you can match a known-good version.
-
 Best for: CI environments, ephemeral containers, scripted setups.
 
 ### Update etiquette
 
+- **Stay current.** The DC Member API ships new endpoints regularly and the client mirrors them; running stale means missing features and (eventually) compatibility warnings on stderr.
 - **Run `self-test` after every update.** Five seconds, catches breakage.
 - **Watch stderr the first time you call any command after updating.** The version-mismatch warning prints once per process when the server is on a newer minor/major.
-- **Pin in production.** Either pin a submodule/subtree commit, or check the `SKILL_VERSION` constant in your CI before deploying.
 - **Major version bumps may be backwards-incompatible.** Read the release notes on the GitHub repo before pulling across a major boundary.
 
 ## Rate limits
