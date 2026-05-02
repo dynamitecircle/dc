@@ -20,6 +20,32 @@ _Nothing yet._
 
 ---
 
+## [1.7.1] – 2026-05-03
+
+### Changed
+- **Profile `chapter` field is now populated.** Previously the API
+  always returned `chapter: null` regardless of whether the member
+  had set a base location. Now `dc.profile()` returns the member's
+  home chapter as `{chapterURL, cityName, country, countryCode, placeID}`
+  whenever they've set `locBase` in their DC profile.
+- **Chapter shape unified across endpoints.** `/chapters` list/detail
+  now matches the profile.chapter shape exactly: `cityName` (was
+  `city`), plus `country` (added) alongside `countryCode`, plus
+  `chapterURL` and `placeID`. `/locator/digest` `favoriteCities`
+  entries also now include `country` (full name) alongside
+  `countryCode`.
+- `cityName` uses the same friendly-display logic as the in-app
+  profile card ("Bangkok, Thailand" rather than just "Bangkok").
+
+### Fixed
+- `/chapters` `chapterURL` was pointing at `cdn.dynamitecircle.com`
+  (the CDN, no app routes there). Now points at
+  `dc.dynamitecircle.com/chapter/<placeID>`.
+
+Bumped `DC_API_VERSION` to 1.7.1 (matches deployed server).
+
+---
+
 ## [1.6.3] – 2026-05-02
 
 Same content as the failed 1.6.2 attempt — PyPI never accepted 1.6.2
@@ -239,7 +265,8 @@ Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.6.3...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.7.1
 [1.6.3]: https://github.com/dynamitecircle/dc/releases/tag/v1.6.3
 [1.6.2]: https://github.com/dynamitecircle/dc/releases/tag/v1.6.2
 [1.6.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.6.1
