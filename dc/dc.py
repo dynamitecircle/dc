@@ -395,7 +395,7 @@ class ArgHelpers:
 class HttpClient:
     """Minimal urllib-based HTTP client — GET/POST/PATCH/DELETE returning JSON.
 
-    Always sends `User-Agent: dc-official-skill/<SKILL_VERSION>` so server-side
+    Always sends `User-Agent: dc-py/<SKILL_VERSION>` so server-side
     logs can attribute traffic to the client. Reads the server's
     `X-API-Version` response header and notifies a registered observer
     (used by `_VersionTracker` to warn users when their client is behind).
@@ -470,7 +470,7 @@ class HttpClient:
     def request(method: str, url: str, *, headers: dict | None = None, body: dict | None = None) -> dict:
         data = None
         hdrs = dict(headers or {})
-        hdrs.setdefault("User-Agent", f"dc-official-skill/{SKILL_VERSION}")
+        hdrs.setdefault("User-Agent", f"dc-py/{SKILL_VERSION}")
         if body is not None:
             data = json.dumps(body).encode("utf-8")
             hdrs.setdefault("Content-Type", "application/json")
