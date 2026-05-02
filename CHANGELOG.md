@@ -20,14 +20,18 @@ _Nothing yet._
 
 ---
 
-## [1.6.2] – 2026-05-02
+## [1.6.3] – 2026-05-02
 
-Structural / packaging release. Same API surface as 1.6.1 — the
-`DC_API_VERSION` bump is a tooling-only patch to ship the public PyPI
-package and verify the OIDC tag-based release pipeline end-to-end. The
-deployed Member API server is still on 1.6.1 (no `X-API-Version`
-warning fires; the client is allowed to lead the server within a patch
-window).
+Same content as the failed 1.6.2 attempt — PyPI never accepted 1.6.2
+because the GitHub Actions smoke step asserted that `dc --json help`
+emits JSON, which it never has (`help` is text-only). Smoke step
+rewritten to use `dc help setup` (which exercises subcommand-help
+dispatch without any network call). Bumping to 1.6.3 because PyPI
+versions are immutable — we can't retry 1.6.2.
+
+## [1.6.2] – 2026-05-02 (skipped — workflow failed)
+
+Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ### Changed
 
@@ -235,7 +239,8 @@ window).
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.6.2...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.6.3...HEAD
+[1.6.3]: https://github.com/dynamitecircle/dc/releases/tag/v1.6.3
 [1.6.2]: https://github.com/dynamitecircle/dc/releases/tag/v1.6.2
 [1.6.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.6.1
 [1.6.0]: https://github.com/dynamitecircle/dc/releases/tag/v1.6.0

@@ -68,7 +68,9 @@ jobs:
         shell: bash
         run: |
           dc help | head -5
-          dc --json help | python -c "import sys, json; d=json.load(sys.stdin); assert isinstance(d, (list, dict)); print('json help ok')"
+          # `dc help <command>` exercises subcommand-help dispatch
+          # without making any network calls.
+          dc help setup | head -3
 
   publish:
     name: Publish to PyPI
