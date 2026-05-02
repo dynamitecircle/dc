@@ -1890,7 +1890,12 @@ class DC(Runtime):
         return 0
 
 
-if __name__ == "__main__":
+def main():
+    """Entry point for the `dc` console script (PyPI install)."""
     if "--mcp" in sys.argv:
-        sys.exit(DC().run_mcp())
-    sys.exit(DC().dispatch())
+        return DC().run_mcp()
+    return DC().dispatch()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

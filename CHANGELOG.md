@@ -55,6 +55,27 @@ file structure).
 
 ### Added
 
+- **PyPI packaging** — `pyproject.toml` at repo root (hatchling backend)
+  builds the `dynamitecircle` package from `py/dc.py`. The single file
+  ships in the wheel as `dynamitecircle.py`, so installs give users
+  `from dynamitecircle import DC` and a `dc` console script on PATH.
+  Optional `[mcp]` extra installs the MCP server dependency. Version is
+  read at build time from `DC_API_VERSION` so it stays in lockstep with
+  the repo's existing version constant.
+- **`main()` entry point** in `py/dc.py` — extracted from the
+  `if __name__ == "__main__"` block so the `dc` console script
+  (`pip install dynamitecircle` → `dc help`) can target it directly.
+- **GitHub Actions publish workflow** at `.github/workflows/publish.yml`
+  — builds wheel + sdist on every push, smoke-tests installs across
+  Python 3.9 + 3.12 on Ubuntu / macOS / Windows, publishes to PyPI on
+  every `v*` tag via OIDC trusted publishing (no API tokens stored),
+  then auto-creates a GitHub Release with notes pulled from CHANGELOG.md.
+- **README rewrite** — opens with "DC Official Client" + a paragraph
+  about what the Dynamite Circle actually is (founded 2011, ~1,500
+  founders, $100k+ revenue requirement) with inline links to
+  dynamitecircle.com and the apply funnel, both UTM-tagged so we can
+  track inbound from this repo. Removes the "multi-language client suite"
+  framing — only the Python client exists today.
 - **Pre-approval configs** for all three auto-discovery AI tools so users
   don't get per-tool-call approval prompts when they open this repo:
   - Claude Code: `.claude/settings.json` with `mcp__dc__*`,

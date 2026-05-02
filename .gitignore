@@ -12,6 +12,8 @@ __pycache__/
 .venv/
 .venv*
 *.egg-info/
+dist/
+build/
 
 # Node (in case any tool ships a sub-app)
 node_modules/

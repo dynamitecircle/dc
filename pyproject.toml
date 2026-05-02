@@ -1,0 +1,89 @@
+# Build config for the `dynamitecircle` PyPI package.
+#
+# The single-file Python client lives at py/dc.py inside the monorepo.
+# When installed via `pip install dynamitecircle`, it ships as a module
+# named `dynamitecircle` (so users import `from dynamitecircle import DC`).
+# Inside the repo, the same file is still importable as `from dc import DC`
+# for local-development convenience — both paths work; the published one is
+# `dynamitecircle`.
+
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dynamitecircle"
+description = "Official Python client for the public Dynamite Circle Member API. CLI, library, Agent Skill, and MCP server in one file."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Dynamite Circle", email = "team@dynamitecircle.com" },
+]
+keywords = ["dynamite-circle", "dc", "membership", "events", "dcbkk", "dcmex", "mcp", "agent-skills"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Internet :: WWW/HTTP",
+]
+# Version is read at build time from py/dc.py so DC_API_VERSION stays the
+# single source of truth (no version-drift between the constant, the
+# manifest, and the wheel metadata).
+dynamic = ["version"]
+
+[project.optional-dependencies]
+# `pip install dynamitecircle[mcp]` enables --mcp server mode.
+# CLI / library use needs nothing beyond the stdlib.
+mcp = ["mcp>=0.9.0"]
+
+[project.scripts]
+# After `pip install dynamitecircle`, users get a `dc` command on PATH.
+dc = "dynamitecircle:main"
+
+[project.urls]
+Homepage = "https://github.com/dynamitecircle/dc"
+Repository = "https://github.com/dynamitecircle/dc"
+Documentation = "https://www.dynamitecircle.com/developers/"
+Changelog = "https://github.com/dynamitecircle/dc/blob/main/CHANGELOG.md"
+Issues = "https://github.com/dynamitecircle/dc/issues"
+"Apply to DC" = "https://dc.dynamitecircle.com/account/apply?utm_medium=pypi&utm_source=dynamitecircle&utm_campaign=client-package"
+
+# ---------------------------------------------------------------------------
+# Hatch build config
+# ---------------------------------------------------------------------------
+
+[tool.hatch.version]
+# Read DC_API_VERSION = "1.6.1" out of py/dc.py at build time.
+path = "py/dc.py"
+pattern = "DC_API_VERSION\\s*=\\s*['\"](?P<version>[^'\"]+)['\"]"
+
+[tool.hatch.build.targets.wheel]
+# Ship py/dc.py inside the wheel as `dynamitecircle.py` so the public
+# import name matches the PyPI name.
+sources = ["py"]
+only-include = ["py/dc.py"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"py/dc.py" = "dynamitecircle.py"
+
+[tool.hatch.build.targets.sdist]
+# Source dist includes the full repo so users who download the .tar.gz
+# can see the layout, the CHANGELOG, the docs, etc.
+include = [
+  "py/",
+  "docs/",
+  "README.md",
+  "CHANGELOG.md",
+  "LICENSE",
+  "manifest.json",
+  "pyproject.toml",
+]

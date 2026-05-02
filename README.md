@@ -1,17 +1,18 @@
 # DC Official Client
 
-> Official multi-language client suite for the [Dynamite Circle Member API](https://www.dynamitecircle.com/developers/).
-> Public website: **[dynamitecircle.com](https://www.dynamitecircle.com/?utm_medium=github&utm_source=dc-official&utm_campaign=client-repo)** · Apply to join: **[dc.dynamitecircle.com/account/apply](https://dc.dynamitecircle.com/account/apply?utm_medium=github&utm_source=dc-official&utm_campaign=client-repo&referrer=github.com)**
+The official Python client for the [Dynamite Circle Member API](https://www.dynamitecircle.com/developers/) — your own profile, trips, events, virtual events, tickets, invites, inbox, rooms, chapters, places lookup, and the weekly locator digest.
 
-A self-contained Python **client** for the public [Dynamite Circle Member API](https://www.dynamitecircle.com/developers/) — your own profile, trips, events, virtual events, tickets, invites, inbox, rooms, chapters, places lookup, and weekly locator digest.
-
-Single file. Zero dependencies (stdlib only). Works as a CLI, Python library, **and** Model Context Protocol (MCP) server. Compatible with Claude Code, Claude Desktop, Codex CLI, Gemini CLI, Cursor, GitHub Copilot, and every other Agent Skills / MCP-compatible tool.
-
-This repo is a **monorepo** — the Python client lives at `/py/`. Future Go / Node / Rust clients will sit alongside at `/go/`, `/node/`, `/rs/` as we ship them.
+A single self-contained file. Zero dependencies (stdlib only). Works as a CLI, a Python library, **and** a [Model Context Protocol](https://modelcontextprotocol.io) server. Compatible with Claude Code, Claude Desktop, Codex CLI, Gemini CLI, Cursor, GitHub Copilot, and every other Agent Skills / MCP-compatible tool.
 
 ```
 py/dc.py    ← one file, three integration modes
 ```
+
+## About the Dynamite Circle
+
+The [Dynamite Circle](https://www.dynamitecircle.com/?utm_medium=github&utm_source=dc-official&utm_campaign=client-repo) is **the place where global founders find their people** — a curated, members-only community of location-independent business owners running profitable companies around the world. Founded in 2011 (it started with twenty listeners on a remote tropical island), the DC has grown into a hand-selected network of ~1,500 active founders who meet at vetted in-person events like [DCBKK](https://www.dynamitecircle.com/dcbkk/) and DCMEX, swap notes in private rooms, and travel through each other's home cities year-round.
+
+DC is a private community, but it's open to applications from founders running location-independent businesses doing $100k+ in annual revenue. Every application is personally reviewed by a team member within 48 business hours — [start an application here](https://dc.dynamitecircle.com/account/apply?utm_medium=github&utm_source=dc-official&utm_campaign=client-repo&referrer=github.com) if that sounds like you.
 
 ## Quick Start
 
