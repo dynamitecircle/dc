@@ -164,7 +164,7 @@ file structure).
 ### Added
 
 - **Initial scaffold** — `Dynamite-Circle-Builders/dc-official` private
-  repo created with the single-file Python skill at
+  repo created with the single-file Python client at
   `.claude/skills/dc/dc_skill.py` (later moved to `dc/dc.py`).
 - **28 commands** wrapping the public DC Member API — profile,
   trips (CRUD + overlaps), events + RSVP, virtual events + RSVP,

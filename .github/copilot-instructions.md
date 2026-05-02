@@ -1,6 +1,6 @@
 # GitHub Copilot — Project Instructions
 
-This repo ships one self-contained Python skill at
+This repo ships **`dc-py`** — a single-file Python client at
 `dc/dc.py` that wraps the public DC Member API.
 
 When suggesting code in this repo:

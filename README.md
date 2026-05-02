@@ -1,6 +1,6 @@
 # DC Official
 
-A self-contained Python skill that wraps the public [Dynamite Circle Member API](https://www.dynamitecircle.com/developers/) — your own profile, trips, events, virtual events, tickets, invites, inbox, rooms, chapters, places lookup, and weekly locator digest.
+A self-contained Python **client** for the public [Dynamite Circle Member API](https://www.dynamitecircle.com/developers/) — your own profile, trips, events, virtual events, tickets, invites, inbox, rooms, chapters, places lookup, and weekly locator digest.
 
 Single file. Zero dependencies (stdlib only). Works as a CLI, Python library, **and** Model Context Protocol (MCP) server. Compatible with Claude Code, Claude Desktop, Codex CLI, Gemini CLI, Cursor, GitHub Copilot, and every other Agent Skills / MCP-compatible tool.
 

@@ -1,6 +1,6 @@
 # DC Official — AI Tool Guide
 
-This repo ships a single self-contained Python skill that wraps the public **DC Member API** (`https://api.dynamitecircle.com`). It works the same from Claude Code, Codex, Gemini CLI, GitHub Copilot, Cursor, and any other Agent Skills- or MCP-compatible tool.
+This repo ships **`dc-py`** — a self-contained, single-file Python client for the public **DC Member API** (`https://api.dynamitecircle.com`). It works the same from Claude Code, Codex, Gemini CLI, GitHub Copilot, Cursor, and any other Agent Skills- or MCP-compatible tool.
 
 ## At a glance
 
@@ -15,10 +15,10 @@ This repo ships a single self-contained Python skill that wraps the public **DC 
 
 `dc/dc.py` contains:
 
-- A small embedded mini-runtime — `Skill` base class, `@skill_command` decorator, `ArgHelpers` (flag parsing, cursor pagination, envelopes), `HttpClient` (urllib-based)
+- A small embedded mini-runtime — `Runtime` base class, `@skill_command` decorator, `ArgHelpers` (flag parsing, cursor pagination, envelopes), `HttpClient` (urllib-based)
 - Two concrete classes:
   - `_DCCore` — private helper with `_parse_*` argument parsers and HTTP business logic
-  - `DC(Skill)` — public wrapper with `@skill_command`-decorated methods for every endpoint
+  - `DC(Runtime)` — public wrapper with `@skill_command`-decorated methods for every endpoint
 
 The full reference for the underlying API is at https://www.dynamitecircle.com/developers/.
 
@@ -78,7 +78,7 @@ python3 dc.py --json profile      # flag works before or after command
 
 ## MCP mode
 
-The same skill can run as a [Model Context Protocol](https://modelcontextprotocol.io) server, exposing every command as a tool to MCP-compatible clients (Claude Desktop, Cursor, Codex, Cline, Continue, Windsurf, Zed, etc.).
+The client can also run as a [Model Context Protocol](https://modelcontextprotocol.io) server, exposing every command as a tool to MCP-compatible clients (Claude Desktop, Cursor, Codex, Cline, Continue, Windsurf, Zed, etc.).
 
 ```bash
 # One-time: install the optional MCP dependency
@@ -94,7 +94,7 @@ For all other clients, see [docs/mcp-info.md](docs/mcp-info.md) for the per-tool
 
 ## Conventions
 
-The skill enforces a small set of conventions designed to be predictable and easy to extend. Full spec in [docs/skill-info.md](docs/skill-info.md).
+The client enforces a small set of conventions designed to be predictable and easy to extend. Full spec in [docs/skill-info.md](docs/skill-info.md).
 
 | Convention | What it means |
 |---|---|
@@ -103,7 +103,7 @@ The skill enforces a small set of conventions designed to be predictable and eas
 | **Space-form flags** | `--limit 10`, not `--limit=10` (parser also accepts equals form for convenience, but space is canonical) |
 | **Cursor pagination** | Every list-returning command takes `[--limit N] [--cursor TOKEN]` and returns `{items, count, cursor, has_more}` |
 | **Envelope for lists** | `_DCCore._wrap_list(api_data, items_field)` — produces the canonical envelope, passes non-paginated extras through under `extra` |
-| **Skill-local env** | API key lives in `dc/.env.dc` next to the skill, not at the repo root |
+| **Client-local env** | API key lives in `dc/.env.dc` next to the client, not at the repo root |
 | **Lazy MCP import** | `mcp` is imported in a top-level `try/except`. CLI/import paths never trigger the import |
 
 ## Architecture diagram
@@ -114,12 +114,12 @@ The skill enforces a small set of conventions designed to be predictable and eas
                 ├─────────────────────────┤
                 │                         │
                 │  Mini-runtime           │
-                │  ├── Skill (base)       │
+                │  ├── Runtime (base)     │
                 │  ├── @skill_command     │
                 │  ├── ArgHelpers         │
                 │  └── HttpClient         │
                 │                         │
-                │  Skill                  │
+                │  Runtime                │
                 │  ├── _DCCore (private)  │
                 │  └── DC (public)   │
                 │                         │
@@ -150,7 +150,7 @@ dc-official/
 ├── .github/
 │   └── copilot-instructions.md        # GitHub Copilot guide
 │
-├── dc/                                # ← REAL skill files (canonical)
+├── dc/                                # ← REAL client files (canonical)
 │   ├── SKILL.md                       # Agent Skills frontmatter + per-command usage
 │   ├── config.json                    # name, version, env requirements
 │   ├── dc.py                          # CLI + Python import + --mcp server
@@ -183,7 +183,7 @@ dc-official/
 
 ## Multi-tool compatibility
 
-| Tool | How it discovers the skill | Pre-approved |
+| Tool | How it discovers it | Pre-approved |
 |---|---|---|
 | **Claude Code** | `CLAUDE.md` + `dc/SKILL.md` + `.mcp.json` (auto-loads server) | ✅ `.claude/settings.json` |
 | **Claude Desktop** | Manual `claude_desktop_config.json` MCP entry | per-user |

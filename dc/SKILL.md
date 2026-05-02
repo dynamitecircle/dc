@@ -1,13 +1,13 @@
 ---
 name: dc
-description: Read and act on your own Dynamite Circle membership data via the public Member API — profile (read+update), trips (CRUD), events + RSVP, virtual events + RSVP, tickets, invites (send), inbox, rooms, chapters, places lookup, locator digest. Self-contained single-file Python skill.
+description: Read and act on your own Dynamite Circle membership data via the public Member API — profile (read+update), trips (CRUD), events + RSVP, virtual events + RSVP, tickets, invites (send), inbox, rooms, chapters, places lookup, locator digest. Self-contained single-file Python client.
 tags: dc, dynamite-circle
 allowed-tools: Bash(python3 *), Read
 ---
 
 # DC Member API Skill
 
-A self-contained Python skill that wraps the public DC Member API at
+A self-contained Python client for the public DC Member API at
 `https://api.dynamitecircle.com`. Read-only and write access to your own
 membership data — your profile, trips, events, tickets, invites, inbox,
 rooms, chapters, and locator digest.
