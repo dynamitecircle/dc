@@ -16,9 +16,18 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ## [Unreleased]
 
-Structural / repo-layout changes since 1.6.1 — no API surface changes,
-no `DC_API_VERSION` bump (the version constant tracks the API, not the
-file structure).
+_Nothing yet._
+
+---
+
+## [1.6.2] – 2026-05-02
+
+Structural / packaging release. Same API surface as 1.6.1 — the
+`DC_API_VERSION` bump is a tooling-only patch to ship the public PyPI
+package and verify the OIDC tag-based release pipeline end-to-end. The
+deployed Member API server is still on 1.6.1 (no `X-API-Version`
+warning fires; the client is allowed to lead the server within a patch
+window).
 
 ### Changed
 
@@ -226,7 +235,8 @@ file structure).
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.6.1...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.6.2...HEAD
+[1.6.2]: https://github.com/dynamitecircle/dc/releases/tag/v1.6.2
 [1.6.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.6.1
 [1.6.0]: https://github.com/dynamitecircle/dc/releases/tag/v1.6.0
 [1.5.0]: https://github.com/dynamitecircle/dc/releases/tag/v1.5.0

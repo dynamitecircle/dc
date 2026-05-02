@@ -99,7 +99,7 @@ except ImportError:
 # Bump manually when this client catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-DC_API_VERSION = "1.6.1"
+DC_API_VERSION = "1.6.2"
 
 
 # ════════════════════════════════════════════════════════════════════════
