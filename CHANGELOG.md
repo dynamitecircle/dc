@@ -1,7 +1,8 @@
 # Changelog
 
-All notable changes to `dc-official` are listed here. The version
-numbers below track `DC_API_VERSION` in [`dc/dc.py`](dc/dc.py), which is
+All notable changes to the **`dc` client repo** (formerly `dc-official` /
+`dc-py`) are listed here. The version
+numbers below track `DC_API_VERSION` in [`py/dc.py`](py/dc.py), which is
 deliberately aligned with the DC Member API server version it was last
 verified against. Patch bumps from the server are silent; minor or major
 bumps surface a one-shot stderr warning when this client falls behind.
@@ -21,14 +22,23 @@ file structure).
 
 ### Changed
 
+- **Repo renamed** — `dynamitecircle/dc-py` → `dynamitecircle/dc`. The
+  repo is now a **monorepo** so future Go / Node / Rust clients can sit
+  alongside the Python one without a separate repo per language.
+- **Python client moved to `/py/`** — `/dc/dc.py` → `/py/dc.py`,
+  `/dc/SKILL.md` → `/py/SKILL.md`, etc. The `.claude/skills/dc` and
+  `.agents/skills/dc` symlinks now point at `../../py` so AI-tool
+  auto-discovery is unchanged. (Future siblings will live at `/go/`,
+  `/node/`, `/rs/`.)
 - **Layout** — canonical files moved out of dotfile-prefixed directories
-  so they're visible in `ls`. The skill folder is now `/dc/` and the
+  so they're visible in `ls`. Python client is at `/py/` and the
   design docs are `/docs/`. `.claude/skills/dc/`, `.agents/skills/dc/`,
   `.claude/docs/`, and `.agents/docs/` are now symlinks pointing at the
   canonical folders. AI-tool auto-discovery still works through the
   symlinks; you only edit files in one place.
-- **File rename** — `dc/dc_skill.py` → `dc/dc.py` (the `_skill` suffix
-  was redundant once the folder itself is the skill).
+- **File rename** — `dc/dc_skill.py` → `dc/dc.py` (later moved to
+  `py/dc.py` in the monorepo flip; the `_skill` suffix was redundant
+  once the folder itself is the skill).
 - **Class renames** — public Python surface refreshed:
   - `DCSkill` → `DC`
   - `Skill` (base) → `Runtime`
@@ -195,9 +205,9 @@ file structure).
 
 ---
 
-[Unreleased]: https://github.com/Dynamite-Circle-Builders/dc-official/compare/v1.6.1...HEAD
-[1.6.1]: https://github.com/Dynamite-Circle-Builders/dc-official/releases/tag/v1.6.1
-[1.6.0]: https://github.com/Dynamite-Circle-Builders/dc-official/releases/tag/v1.6.0
-[1.5.0]: https://github.com/Dynamite-Circle-Builders/dc-official/releases/tag/v1.5.0
-[1.3.0]: https://github.com/Dynamite-Circle-Builders/dc-official/releases/tag/v1.3.0
-[1.0.0]: https://github.com/Dynamite-Circle-Builders/dc-official/releases/tag/v1.0.0
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.6.1...HEAD
+[1.6.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.6.1
+[1.6.0]: https://github.com/dynamitecircle/dc/releases/tag/v1.6.0
+[1.5.0]: https://github.com/dynamitecircle/dc/releases/tag/v1.5.0
+[1.3.0]: https://github.com/dynamitecircle/dc/releases/tag/v1.3.0
+[1.0.0]: https://github.com/dynamitecircle/dc/releases/tag/v1.0.0

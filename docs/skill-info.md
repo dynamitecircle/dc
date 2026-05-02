@@ -10,7 +10,7 @@ Design rules for the `dc` skill. The skill is structured to be predictable, easy
 
 ## File layout
 
-The entire skill lives in **one Python file**: `dc/dc.py`.
+The entire skill lives in **one Python file**: `py/dc.py`.
 
 | File | Required? | Purpose |
 |---|---|---|
@@ -169,7 +169,7 @@ Never call `urllib` directly inside `_DCCore` business methods — go through `_
 
 Two things happen with this version:
 
-- **Outbound** — every request sends `User-Agent: dc-official-skill/<DC_API_VERSION>` so server-side logs can attribute traffic.
+- **Outbound** — every request sends `User-Agent: dc-py/<DC_API_VERSION>` so server-side logs can attribute traffic.
 - **Inbound** — `HttpClient` reads the server's `X-API-Version` response header. `_VersionTracker.observe()` compares it to `DC_API_VERSION` and prints a one-shot stderr warning when the server has new features (major or minor bump). Patch-only differences are silent. If the skill is *ahead* of the server, no warning — that's a normal upgrade path.
 
 The warning fires once per process. Scripts and MCP servers don't get spammed.
@@ -202,7 +202,7 @@ When raising:
 
 ## Env handling
 
-The skill loads its env from `dc/.env.dc` — **next to the skill file**, not at the repo root. This makes the skill self-contained: copy the folder, copy the env.
+The skill loads its env from `py/.env.dc` — **next to the skill file**, not at the repo root. This makes the skill self-contained: copy the folder, copy the env.
 
 - `_load_dotenv` is a zero-dep parser (KEY=VALUE, optional quotes, `#` comments)
 - `_write_dotenv_value` is atomic (temp file → rename) and chmod 600s the result
@@ -235,9 +235,9 @@ If `mcp` is not installed → clean install hint, no traceback. CLI and Python-i
 5. Verify the new endpoint is documented in the live API reference: https://www.dynamitecircle.com/developers/
 6. Smoke-test:
    ```bash
-   python3 dc/dc.py help                    # appears in list
-   python3 dc/dc.py <new-command> --json    # round-trips
-   python3 dc/dc.py self-test               # unaffected
+   python3 py/dc.py help                    # appears in list
+   python3 py/dc.py <new-command> --json    # round-trips
+   python3 py/dc.py self-test               # unaffected
    ```
 
 ## What's intentionally absent

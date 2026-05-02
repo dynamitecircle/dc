@@ -2,7 +2,7 @@
   "mcpServers": {
     "dc": {
       "command": "python3",
-      "args": ["dc/dc.py", "--mcp"],
+      "args": ["py/dc.py", "--mcp"],
       "trust": true
     }
   }

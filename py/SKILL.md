@@ -24,16 +24,16 @@ profile dropdown → **DC Member API Key**. Keys look like
 Save it with the built-in `setup` command:
 
 ```bash
-python3 dc/dc.py setup --api-key dk_<api-key>
+python3 py/dc.py setup --api-key dk_<api-key>
 ```
 
-This writes the key to `dc/.env.dc` (chmod 600). The file
+This writes the key to `py/.env.dc` (chmod 600). The file
 is gitignored.
 
 Verify the setup:
 
 ```bash
-python3 dc/dc.py self-test
+python3 py/dc.py self-test
 ```
 
 Runs four checks: `env`, `keyShape`, `profile` (live API call), and `mcpSchemas` (every command declares an explicit `args=` schema for MCP clients). Expected output: all four green with `connected as userID[<id>] <Your Name>`.
@@ -87,7 +87,7 @@ prompting you to update:
 
 ```
 ⚠  DC API has new features available (server 1.3.0, this skill built for 1.2.0).
-   Update dc-official: cd <your dc-official clone> && git pull
+   Update the dc client: cd <your dc clone> && git pull
 ```
 
 Patch differences (e.g. server 1.2.5 vs skill 1.2.0) are silent — they're
@@ -129,7 +129,7 @@ python3 dc.py profile
 python3 dc.py profile-update --headline 'CEO at Acme'
 
 # Set your GitHub username — required to be granted access to the
-# private dc-official repo (active DC member with GitHub username on
+# private dc repo (active DC member with GitHub username on
 # profile)
 python3 dc.py profile-update --github octocat
 
@@ -328,8 +328,8 @@ The same file can run as an MCP server. Tools are auto-derived from the
 registered commands.
 
 ```bash
-pip install -r dc/requirements.txt
-python3 dc/dc.py --mcp
+pip install -r py/requirements.txt
+python3 py/dc.py --mcp
 ```
 
 Client config (Claude Desktop / Cursor):
@@ -339,7 +339,7 @@ Client config (Claude Desktop / Cursor):
   "mcpServers": {
     "dc": {
       "command": "python3",
-      "args": [".../dc-official/dc/dc.py", "--mcp"]
+      "args": [".../dc/py/dc.py", "--mcp"]
     }
   }
 }

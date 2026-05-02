@@ -1,10 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python3 dc/dc.py *)",
+      "Bash(python3 py/dc.py *)",
       "Bash(python3 .claude/skills/dc/dc.py *)",
       "Bash(python3 .agents/skills/dc/dc.py *)",
-      "Bash(python3 dc/dc.py:*)",
+      "Bash(python3 py/dc.py:*)",
       "mcp__dc",
       "mcp__dc__*",
       "Read",

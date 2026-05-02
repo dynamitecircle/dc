@@ -1,7 +1,7 @@
 # GitHub Copilot — Project Instructions
 
 This repo ships **`dc-py`** — a single-file Python client at
-`dc/dc.py` that wraps the public DC Member API.
+`py/dc.py` that wraps the public DC Member API.
 
 When suggesting code in this repo:
 
@@ -19,8 +19,8 @@ When suggesting code in this repo:
   `{items, count, cursor, has_more}` — use the `_wrap_list` helper.
 - API base URL: `https://api.dynamitecircle.com`. Auth header:
   `Authorization: Bearer dk_<api-key>`.
-- Env config lives in `dc/.env.dc` (skill-local).
+- Env config lives in `py/.env.dc` (skill-local).
 
 For the user-facing setup instructions, see
 [../CLAUDE.md](../CLAUDE.md) and
-[../dc/SKILL.md](../dc/SKILL.md).
+[../py/SKILL.md](../py/SKILL.md).

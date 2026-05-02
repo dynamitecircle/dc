@@ -583,7 +583,7 @@ class _VersionTracker:
             print(
                 f"\n⚠  DC API has new features available "
                 f"(server {server_version}, this client built for {DC_API_VERSION}).\n"
-                f"   Update dc-official: cd <your dc-official clone> && git pull\n",
+                f"   Update the dc client: cd <your dc clone> && git pull\n",
                 file=sys.stderr,
             )
 
@@ -1790,7 +1790,7 @@ class DC(Runtime):
         if not _MCP_AVAILABLE:
             print(
                 "MCP mode requires the optional 'mcp' package.\n"
-                "Install it with: pip install -r dc/requirements.txt\n"
+                "Install it with: pip install -r py/requirements.txt\n"
                 "    or:           pip install mcp",
                 file=sys.stderr,
             )

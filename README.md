@@ -1,11 +1,16 @@
-# DC Official
+# DC Official Client
+
+> Official multi-language client suite for the [Dynamite Circle Member API](https://www.dynamitecircle.com/developers/).
+> Public website: **[dynamitecircle.com](https://www.dynamitecircle.com/?utm_medium=github&utm_source=dc-official&utm_campaign=client-repo)** · Apply to join: **[dc.dynamitecircle.com/account/apply](https://dc.dynamitecircle.com/account/apply?utm_medium=github&utm_source=dc-official&utm_campaign=client-repo&referrer=github.com)**
 
 A self-contained Python **client** for the public [Dynamite Circle Member API](https://www.dynamitecircle.com/developers/) — your own profile, trips, events, virtual events, tickets, invites, inbox, rooms, chapters, places lookup, and weekly locator digest.
 
 Single file. Zero dependencies (stdlib only). Works as a CLI, Python library, **and** Model Context Protocol (MCP) server. Compatible with Claude Code, Claude Desktop, Codex CLI, Gemini CLI, Cursor, GitHub Copilot, and every other Agent Skills / MCP-compatible tool.
 
+This repo is a **monorepo** — the Python client lives at `/py/`. Future Go / Node / Rust clients will sit alongside at `/go/`, `/node/`, `/rs/` as we ship them.
+
 ```
-dc/dc.py    ← one file, three integration modes
+py/dc.py    ← one file, three integration modes
 ```
 
 ## Quick Start
@@ -35,11 +40,11 @@ Open a terminal:
 Then paste:
 
 ```bash
-git clone https://github.com/Dynamite-Circle-Builders/dc-official.git
-cd dc-official
+git clone https://github.com/dynamitecircle/dc.git
+cd dc
 ```
 
-You now have a folder called `dc-official` with all the code in it.
+You now have a folder called `dc` with all the code in it.
 
 ### 3. Get your DC API key
 
@@ -47,15 +52,15 @@ In your browser: go to **https://dc.dynamitecircle.com**, log in, click your pro
 
 ### 4. Tell the client about your key
 
-Back in your terminal (still inside the `dc-official` folder):
+Back in your terminal (still inside the `dc` folder):
 
 ```bash
-python3 dc/dc.py setup --api-key dk_paste_your_key_here
+python3 py/dc.py setup --api-key dk_paste_your_key_here
 ```
 
 ### 5. Try it
 
-Open **Claude Code** and make sure it's pointed at the `dc-official` folder you just downloaded. (Claude usually opens to your last project — if it's somewhere else, click the folder icon and pick `dc-official`.)
+Open **Claude Code** and make sure it's pointed at the `dc` folder you just downloaded. (Claude usually opens to your last project — if it's somewhere else, click the folder icon and pick `dc`.)
 
 Then ask:
 
@@ -68,7 +73,7 @@ Claude runs the right command and shows you back your profile. A few more to try
 > "Show me the DCMEX schedule and bookmark anything about marketing"
 > "Who else from my chapter is going to DCBKK?"
 
-You're done. The rest of this README explains what's possible in more detail; [`dc/SKILL.md`](dc/SKILL.md) lists every command Claude can run.
+You're done. The rest of this README explains what's possible in more detail; [`py/SKILL.md`](py/SKILL.md) lists every command Claude can run.
 
 ### If something didn't work
 
@@ -76,8 +81,8 @@ You're done. The rest of this README explains what's possible in more detail; [`
 |---|---|
 | `python3: command not found` | Python didn't install or didn't get added to PATH. Re-install and check the **"Add to PATH"** box on Windows; on Mac, try `python` instead of `python3`. |
 | `git: command not found` | Same idea — re-install Git. |
-| Claude says "I don't see a `dc` skill" | Make sure Claude Code is opened to the `dc-official` folder, not your home directory or another project. Or just ask Claude: *"are you in the dc-official folder?"* |
-| Anything else | Run `python3 dc/dc.py self-test` from the `dc-official` folder — it tells you exactly which step is broken. |
+| Claude says "I don't see a `dc` skill" | Make sure Claude Code is opened to the `dc` folder, not your home directory or another project. Or just ask Claude: *"are you in the dc folder?"* |
+| Anything else | Run `python3 py/dc.py self-test` from the `dc` folder — it tells you exactly which step is broken. |
 
 ---
 
@@ -87,16 +92,16 @@ The same `dc.py` file is shipped as **four** integrations — pick whichever fit
 
 | Integration | What it is | Invoke with | Dependencies |
 |---|---|---|---|
-| **Agent Skill** | Auto-discovered via `SKILL.md` frontmatter (Claude Code, Codex, Gemini CLI, Cursor, Copilot) | Just open the repo with the tool — it reads [`dc/SKILL.md`](dc/SKILL.md) and offers the commands | stdlib only |
-| **CLI** | Run commands directly from the shell or scripts | `python3 dc/dc.py <command>` | stdlib only |
+| **Agent Skill** | Auto-discovered via `SKILL.md` frontmatter (Claude Code, Codex, Gemini CLI, Cursor, Copilot) | Just open the repo with the tool — it reads [`py/SKILL.md`](py/SKILL.md) and offers the commands | stdlib only |
+| **CLI** | Run commands directly from the shell or scripts | `python3 py/dc.py <command>` | stdlib only |
 | **Python library** | Import in your own Python code | `from dc import DC; DC().profile()` | stdlib only |
-| **MCP server** | Speaks Model Context Protocol over stdio (Claude Desktop, Cursor, Codex MCP, Cline, etc.) | `python3 dc/dc.py --mcp` | `pip install mcp` (optional) |
+| **MCP server** | Speaks Model Context Protocol over stdio (Claude Desktop, Cursor, Codex MCP, Cline, etc.) | `python3 py/dc.py --mcp` | `pip install mcp` (optional) |
 
 The `mcp` package is **lazy-imported** — Agent Skill / CLI / Python-library users never need it.
 
 ## Features
 
-- **Full Member API coverage** — read + write across every public endpoint (run `python3 dc/dc.py help` for the live list)
+- **Full Member API coverage** — read + write across every public endpoint (run `python3 py/dc.py help` for the live list)
 - **Setup command** — saves your API key to a chmod-600 `.env.dc` next to the skill
 - **Self-test command** — validates env, network, key shape, and a live `/profile` call end-to-end
 - **Cursor pagination** — every list-returning command uses the same `[--limit N] [--cursor TOKEN]` shape and returns the canonical envelope `{items, count, cursor, has_more}`
@@ -115,15 +120,15 @@ DC profile dropdown → **DC Member API Key** (admins/testers only). Keys look l
 ### 2. Save the key
 
 ```bash
-python3 dc/dc.py setup --api-key dk_<api-key>
+python3 py/dc.py setup --api-key dk_<api-key>
 ```
 
-This writes `dc/.env.dc` (chmod 600, gitignored).
+This writes `py/.env.dc` (chmod 600, gitignored).
 
 ### 3. Verify the connection
 
 ```bash
-python3 dc/dc.py self-test
+python3 py/dc.py self-test
 ```
 
 Expected output:
@@ -144,14 +149,14 @@ Expected output:
 ### 4. Try a few commands
 
 ```bash
-python3 dc/dc.py profile
-python3 dc/dc.py trips --limit 5
-python3 dc/dc.py events --past --limit 3
-python3 dc/dc.py chapters --limit 5
-python3 dc/dc.py permacode
+python3 py/dc.py profile
+python3 py/dc.py trips --limit 5
+python3 py/dc.py events --past --limit 3
+python3 py/dc.py chapters --limit 5
+python3 py/dc.py permacode
 ```
 
-Run `python3 dc/dc.py help` for the full command list.
+Run `python3 py/dc.py help` for the full command list.
 
 ## Setup per AI tool
 
@@ -160,17 +165,17 @@ Run `python3 dc/dc.py help` for the full command list.
 `.mcp.json` is already shipped with this repo. Open the repo with `claude`:
 
 ```bash
-cd dc-official
+cd dc
 claude
 ```
 
 Tools become available as `mcp__dc__*`. First-time install of the optional MCP dependency:
 
 ```bash
-pip install -r dc/requirements.txt
+pip install -r py/requirements.txt
 ```
 
-Skill discovery (CLI + import) works automatically via `dc/SKILL.md`.
+Skill discovery (CLI + import) works automatically via `py/SKILL.md`.
 
 ### Claude Desktop
 
@@ -185,7 +190,7 @@ Edit your config file:
   "mcpServers": {
     "dc": {
       "command": "python3",
-      "args": ["/absolute/path/to/dc-official/dc/dc.py", "--mcp"]
+      "args": ["/absolute/path/to/dc/py/dc.py", "--mcp"]
     }
   }
 }
@@ -200,7 +205,7 @@ Edit `~/.codex/config.toml`:
 ```toml
 [mcp_servers.dc]
 command = "python3"
-args = ["/absolute/path/to/dc-official/dc/dc.py", "--mcp"]
+args = ["/absolute/path/to/dc/py/dc.py", "--mcp"]
 ```
 
 Codex auto-discovers `AGENTS.md` (symlinked to `CLAUDE.md`) and `.agents/skills/` (symlinked to `.claude/skills/`).
@@ -214,7 +219,7 @@ mcp_servers:
   dc:
     command: python3
     args:
-      - /absolute/path/to/dc-official/dc/dc.py
+      - /absolute/path/to/dc/py/dc.py
       - --mcp
 ```
 
@@ -312,40 +317,40 @@ Pick whichever integration style fits your project. From simplest to most isolat
 ### 1. Plain git clone — quick local use
 
 ```bash
-git clone https://github.com/Dynamite-Circle-Builders/dc-official.git
-cd dc-official
-python3 dc/dc.py setup --api-key dk_<api-key>
+git clone https://github.com/dynamitecircle/dc.git
+cd dc
+python3 py/dc.py setup --api-key dk_<api-key>
 ```
 
-To update: `cd dc-official && git pull`. Run `self-test` afterwards.
+To update: `cd dc && git pull`. Run `self-test` afterwards.
 
 Best for: trying things out, scripts you run by hand, no other repo involved.
 
 ### 2. Git submodule — pinned to a specific commit
 
-If you have your own project repo and want `dc-official` versioned alongside it:
+If you have your own project repo and want the `dc` repo versioned alongside it:
 
 ```bash
 cd your-project
-git submodule add https://github.com/Dynamite-Circle-Builders/dc-official.git vendor/dc-official
-git commit -m "Add dc-official as submodule"
+git submodule add https://github.com/dynamitecircle/dc.git vendor/dc
+git commit -m "Add dc client as submodule"
 ```
 
 To update later:
 
 ```bash
-cd vendor/dc-official
+cd vendor/dc
 git pull origin main
 cd ../..
-git add vendor/dc-official
-git commit -m "Bump dc-official"
+git add vendor/dc
+git commit -m "Bump dc client"
 ```
 
 Then in your code:
 
 ```python
 import sys
-sys.path.insert(0, "vendor/dc-official/dc")
+sys.path.insert(0, "vendor/dc/py")
 from dc import DC
 ```
 
@@ -355,15 +360,15 @@ Best for: production-ish code where you want explicit, reviewable bumps.
 
 ```bash
 cd your-project
-git subtree add --prefix vendor/dc-official \
-  https://github.com/Dynamite-Circle-Builders/dc-official.git main --squash
+git subtree add --prefix vendor/dc \
+  https://github.com/dynamitecircle/dc.git main --squash
 ```
 
 Update with:
 
 ```bash
-git subtree pull --prefix vendor/dc-official \
-  https://github.com/Dynamite-Circle-Builders/dc-official.git main --squash
+git subtree pull --prefix vendor/dc \
+  https://github.com/dynamitecircle/dc.git main --squash
 ```
 
 Best for: teammates who don't know submodules — files just appear in your repo.
@@ -373,14 +378,14 @@ Best for: teammates who don't know submodules — files just appear in your repo
 If you keep all your projects in `~/code/`:
 
 ```bash
-git clone https://github.com/Dynamite-Circle-Builders/dc-official.git ~/code/dc-official
+git clone https://github.com/dynamitecircle/dc.git ~/code/dc
 
 # In each project that uses it:
 cd ~/code/your-project
-ln -s ../dc-official vendor/dc-official
+ln -s ../dc vendor/dc
 ```
 
-Now `cd ~/code/dc-official && git pull` updates every consumer at once. Project-level `.mcp.json` / `.codex/config.toml` entries can use `vendor/dc-official/dc/dc.py` and they'll resolve through the symlink.
+Now `cd ~/code/dc && git pull` updates every consumer at once. Project-level `.mcp.json` / `.codex/config.toml` entries can use `vendor/dc/py/dc.py` and they'll resolve through the symlink.
 
 Best for: power users with multiple personal projects and one machine.
 
@@ -390,7 +395,7 @@ The skill is one file with no setup.py, but you can install the package the MCP 
 
 ```bash
 pip install mcp
-git clone https://github.com/Dynamite-Circle-Builders/dc-official.git
+git clone https://github.com/dynamitecircle/dc.git
 ```
 
 Best for: CI environments, ephemeral containers, scripted setups.
@@ -424,7 +429,7 @@ Tested on macOS, Linux, and Windows 10/11. Python 3.9+ required (uses `pathlib`,
 ## Project layout
 
 ```
-dc-official/
+dc/
 ├── README.md                          # this file
 ├── CLAUDE.md                          # AI-tool guide (also linked as AGENTS.md, GEMINI.md)
 ├── AGENTS.md       → CLAUDE.md        # symlink (Codex)
@@ -437,7 +442,7 @@ dc-official/
 ├── .github/
 │   └── copilot-instructions.md        # GitHub Copilot
 │
-├── dc/                                # ← REAL skill files (canonical)
+├── py/                                # ← Python client (canonical)
 │   ├── SKILL.md                       # Agent Skills frontmatter + usage
 │   ├── config.json                    # name, version, env requirements
 │   ├── dc.py                          # CLI + Python import + --mcp server
@@ -445,16 +450,18 @@ dc-official/
 │   ├── .env.dc.example                # template
 │   └── .env.dc                        # gitignored (created by `setup`)
 │
+│   (Future: go/, node/, rs/ folders for sister clients in other languages)
+│
 ├── docs/                              # ← REAL design docs (canonical)
 │   ├── skill-info.md                # design rules / architecture
 │   └── mcp-info.md                    # MCP setup for every supported client
 │
 ├── .claude/                           # Agent Skills discovery (Claude Code)
-│   ├── skills/dc  → ../../dc          # symlink to canonical skill
+│   ├── skills/dc  → ../../py          # symlink to canonical Python client
 │   └── docs       → ../docs           # symlink to canonical docs
 │
 ├── .agents/                           # Agent Skills discovery (Codex CLI + Gemini CLI alias)
-│   ├── skills/dc  → ../../dc          # symlink to canonical skill
+│   ├── skills/dc  → ../../py          # symlink to canonical Python client
 │   └── docs       → ../docs           # symlink to canonical docs
 │
 ├── .gemini/                           # Gemini CLI MCP config
@@ -466,9 +473,9 @@ dc-official/
 
 ### About the layout
 
-The skill code (`dc/`) and the design docs (`docs/`) live at the repo root so they're visible in `ls` and feel like a normal Python project. The dotfile-prefixed directories (`.claude/`, `.agents/`, `.gemini/`) exist because AI tools auto-discover skills from those specific paths — they're kept hidden but each one **symlinks (or points) straight to the canonical folder**, so you only edit files in one place. Edit `dc/dc.py` and Claude Code, Codex, and Gemini CLI all see the same file via their respective discovery directories. Gemini CLI also reads `.agents/skills/` as an alias, so we don't need a redundant `.gemini/skills/` symlink.
+This is a **monorepo**. The Python client lives at `/py/` so we can add future sister clients (`go/`, `node/`, `rs/`) at the same level — they all wrap the same DC Member API. `/docs/` is shared. The dotfile-prefixed directories (`.claude/`, `.agents/`, `.gemini/`) exist because AI tools auto-discover skills from those specific paths — they're kept hidden but each one **symlinks (or points) straight to the canonical folder**, so you only edit files in one place. Edit `py/dc.py` and Claude Code, Codex, and Gemini CLI all see the same file via their respective discovery directories. Gemini CLI also reads `.agents/skills/` as an alias, so we don't need a redundant `.gemini/skills/` symlink.
 
-If you're adding new code or docs, edit `dc/` and `docs/` directly. The discovery folders take care of themselves.
+If you're adding new code or docs, edit `py/` (or `docs/`) directly. The discovery folders take care of themselves.
 
 ### Pre-approval out of the box
 

@@ -1,4 +1,4 @@
-# Project-local Codex config for dc-official.
+# Project-local Codex config for the dc client repo.
 # Codex merges this with ~/.codex/config.toml when running inside this directory.
 #
 # Reference: https://developers.openai.com/codex/config-reference
@@ -8,7 +8,7 @@
 # Paths are relative to this project root.
 [mcp_servers.dc]
 command = ".venv/bin/python3"
-args = ["dc/dc.py", "--mcp"]
+args = ["py/dc.py", "--mcp"]
 
 # Auto-approve every tool exposed by this server — we vouch for the dc client
 # (it's the official DC Member API wrapper, scoped to YOUR own membership data

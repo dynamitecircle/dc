@@ -12,10 +12,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Dynamite-Circle-Builders/dc-official"
+    "url": "https://github.com/dynamitecircle/dc"
   },
   "documentation": "https://www.dynamitecircle.com/developers/",
-  "homepage": "https://github.com/Dynamite-Circle-Builders/dc-official",
+  "homepage": "https://github.com/dynamitecircle/dc",
   "keywords": [
     "dynamite-circle",
     "dc",
@@ -26,10 +26,10 @@
   ],
   "server": {
     "type": "python",
-    "entry_point": "dc/dc.py",
+    "entry_point": "py/dc.py",
     "mcp_config": {
       "command": "python3",
-      "args": ["${__dirname}/dc/dc.py", "--mcp"]
+      "args": ["${__dirname}/py/dc.py", "--mcp"]
     }
   },
   "capabilities": {
