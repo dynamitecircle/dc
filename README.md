@@ -16,7 +16,7 @@ The same `dc.py` file is shipped as **four** integrations — pick whichever fit
 |---|---|---|---|
 | **Agent Skill** | Auto-discovered via `SKILL.md` frontmatter (Claude Code, Codex, Gemini CLI, Cursor, Copilot) | Just open the repo with the tool — it reads [`dc/SKILL.md`](dc/SKILL.md) and offers the commands | stdlib only |
 | **CLI** | Run commands directly from the shell or scripts | `python3 dc/dc.py <command>` | stdlib only |
-| **Python library** | Import in your own Python code | `from dc import DCSkill; DCSkill().profile()` | stdlib only |
+| **Python library** | Import in your own Python code | `from dc import DC; DC().profile()` | stdlib only |
 | **MCP server** | Speaks Model Context Protocol over stdio (Claude Desktop, Cursor, Codex MCP, Cline, etc.) | `python3 dc/dc.py --mcp` | `pip install mcp` (optional) |
 
 The `mcp` package is **lazy-imported** — Agent Skill / CLI / Python-library users never need it.
@@ -199,9 +199,9 @@ Non-paginated extras (e.g. `totalUnread` on `inbox`) are passed through under an
 ```python
 import sys
 sys.path.insert(0, "dc")
-from dc import DCSkill
+from dc import DC
 
-dc = DCSkill()
+dc = DC()
 
 # Reads
 profile  = dc.profile()
@@ -221,7 +221,7 @@ dc.invite_create(email="new@friend.com", full_name="New Friend")
 Override the API URL (e.g. for a local dev server):
 
 ```python
-dc = DCSkill(api_url="http://localhost:8080")
+dc = DC(api_url="http://localhost:8080")
 ```
 
 ## API reference
@@ -271,7 +271,7 @@ Then in your code:
 ```python
 import sys
 sys.path.insert(0, "vendor/dc-official/dc")
-from dc import DCSkill
+from dc import DC
 ```
 
 Best for: production-ish code where you want explicit, reviewable bumps.
@@ -373,8 +373,8 @@ dc-official/
 │   └── .env.dc                        # gitignored (created by `setup`)
 │
 ├── docs/                              # ← REAL design docs (canonical)
-│   ├── skill-conventions.md           # design rules / architecture
-│   └── mcp.md                         # MCP setup for every supported client
+│   ├── skill-info.md                # design rules / architecture
+│   └── mcp-info.md                    # MCP setup for every supported client
 │
 ├── .claude/                           # Agent Skills discovery (Claude Code)
 │   ├── skills/dc  → ../../dc          # symlink to canonical skill

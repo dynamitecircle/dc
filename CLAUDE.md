@@ -18,7 +18,7 @@ This repo ships a single self-contained Python skill that wraps the public **DC 
 - A small embedded mini-runtime — `Skill` base class, `@skill_command` decorator, `ArgHelpers` (flag parsing, cursor pagination, envelopes), `HttpClient` (urllib-based)
 - Two concrete classes:
   - `_DCCore` — private helper with `_parse_*` argument parsers and HTTP business logic
-  - `DCSkill(Skill)` — public wrapper with `@skill_command`-decorated methods for every endpoint
+  - `DC(Skill)` — public wrapper with `@skill_command`-decorated methods for every endpoint
 
 The full reference for the underlying API is at https://www.dynamitecircle.com/developers/.
 
@@ -90,15 +90,15 @@ python3 dc/dc.py --mcp
 
 This repo ships a `.mcp.json` at its root so **Claude Code** opens this repo with the server pre-registered. Tools become available as `mcp__dc__profile`, `mcp__dc__trips`, etc. No additional config needed beyond the one-time `pip install`.
 
-For all other clients, see [docs/mcp.md](docs/mcp.md) for the per-tool config snippets.
+For all other clients, see [docs/mcp-info.md](docs/mcp-info.md) for the per-tool config snippets.
 
 ## Conventions
 
-The skill enforces a small set of conventions designed to be predictable and easy to extend. Full spec in [docs/skill-conventions.md](docs/skill-conventions.md).
+The skill enforces a small set of conventions designed to be predictable and easy to extend. Full spec in [docs/skill-info.md](docs/skill-info.md).
 
 | Convention | What it means |
 |---|---|
-| **Two-class pattern** | `DCSkill` is the public wrapper. `_DCCore` is the private helper with `_parse_*` parsers + HTTP business logic |
+| **Two-class pattern** | `DC` is the public wrapper. `_DCCore` is the private helper with `_parse_*` parsers + HTTP business logic |
 | **`@skill_command` decorator** | Marks a method as a CLI command. Provides `name`, `help`, optional `parser` |
 | **Space-form flags** | `--limit 10`, not `--limit=10` (parser also accepts equals form for convenience, but space is canonical) |
 | **Cursor pagination** | Every list-returning command takes `[--limit N] [--cursor TOKEN]` and returns `{items, count, cursor, has_more}` |
@@ -121,7 +121,7 @@ The skill enforces a small set of conventions designed to be predictable and eas
                 │                         │
                 │  Skill                  │
                 │  ├── _DCCore (private)  │
-                │  └── DCSkill (public)   │
+                │  └── DC (public)   │
                 │                         │
                 └─┬─────────┬─────────┬───┘
                   │         │         │
@@ -130,7 +130,7 @@ The skill enforces a small set of conventions designed to be predictable and eas
 
          ▼                  ▼                       ▼
   python3 dc/dc.py     from dc import          Claude Desktop /
-    profile              DCSkill                Cursor / Codex /
+    profile              DC                Cursor / Codex /
                                                 Cline / etc.
 ```
 
@@ -159,8 +159,8 @@ dc-official/
 │   └── .env.dc                        # gitignored (created by `setup`)
 │
 ├── docs/                              # ← REAL design docs (canonical)
-│   ├── skill-conventions.md           # design rules / architecture
-│   └── mcp.md                         # MCP setup for every supported client
+│   ├── skill-info.md                # design rules / architecture
+│   └── mcp-info.md                                # MCP setup for every supported client
 │
 ├── .claude/                           # Agent Skills discovery (Claude Code)
 │   ├── skills/dc  → ../../dc          # symlink to canonical skill
@@ -203,7 +203,7 @@ The skill itself is plain Python — invoke it however your tool prefers.
 ## See also
 
 - [README.md](README.md) — public landing page
-- [docs/skill-conventions.md](docs/skill-conventions.md) — design rules / architecture
-- [docs/mcp.md](docs/mcp.md) — MCP setup for every supported client
+- [docs/skill-info.md](docs/skill-info.md) — design rules / architecture
+- [docs/mcp-info.md](docs/mcp-info.md) — MCP setup for every supported client
 - [dc/SKILL.md](dc/SKILL.md) — per-command usage examples
 - **https://www.dynamitecircle.com/developers/** — full live API reference

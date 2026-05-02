@@ -155,7 +155,7 @@ Copilot doesn't have native MCP support yet (as of late 2025). It does read `.gi
 
 ## How it works internally
 
-When you launch the server, `DCSkill.run_mcp()`:
+When you launch the server, `DC.run_mcp()`:
 
 1. Imports `mcp.server.Server` and `mcp.server.stdio` (lazy — only at this point)
 2. Creates a server named `"dc"`
@@ -170,7 +170,7 @@ The MCP path **reuses the CLI parsers** — there's no separate code path for ar
 
 The MCP server inherits the same `.env.dc` as the CLI:
 
-- Server starts → `DCSkill.__init__` → `Skill.__init__` → `_load_dotenv(.env.dc)` → `DC_API_KEY` in `os.environ`
+- Server starts → `DC.__init__` → `Skill.__init__` → `_load_dotenv(.env.dc)` → `DC_API_KEY` in `os.environ`
 - Tool call → `_DCCore._api_key()` reads `os.environ["DC_API_KEY"]`
 
 So `python3 dc.py setup --api-key dk_...` (run once) authorizes all three modes. No separate MCP auth step.

@@ -104,7 +104,7 @@ running the API on `localhost:8083`):
 python3 dc.py --api-url http://localhost:8083 profile
 
 # Python
-DCSkill(api_url="http://localhost:8083")
+DC(api_url="http://localhost:8083")
 ```
 
 ## Commands
@@ -352,9 +352,9 @@ CLI and Python-import users do not need the `mcp` package.
 ```python
 import sys, os
 sys.path.insert(0, os.path.join(os.path.abspath('.'), '.claude', 'skills', 'dc'))
-from dc import DCSkill
+from dc import DC
 
-dc = DCSkill()
+dc = DC()
 
 # Reads
 dc.profile()

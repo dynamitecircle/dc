@@ -30,7 +30,7 @@ Top of file (in order):
 3. Stdlib imports (`inspect`, `json`, `os`, `sys`, `pathlib`, `urllib`)
 4. **Optional** MCP import wrapped in `try/except ImportError` → `_MCP_AVAILABLE` flag
 5. **Mini-runtime** — `SkillError`, `UsageError`, `_load_dotenv`, `_write_dotenv_value`, `skill_command` decorator, `ArgHelpers`, `HttpClient`, `Skill` base class
-6. **Skill code** — `_DCCore` (private), `DCSkill` (public)
+6. **Skill code** — `_DCCore` (private), `DC` (public)
 7. **Entry point** — `if __name__ == "__main__":` dispatching `--mcp` vs CLI
 
 No bare functions outside classes. No top-level state mutation other than the optional `mcp` import.
@@ -43,14 +43,14 @@ Every skill ships two classes:
 class _DCCore:
     """Private — argument parsers + HTTP business logic."""
 
-class DCSkill(Skill):
+class DC(Skill):
     """Public — command registration and dispatch."""
 ```
 
 Why split:
 
 - **`_DCCore`** is the unit of testing/reuse. It has no knowledge of CLI dispatch — every method takes plain Python args and returns plain Python data
-- **`DCSkill`** is the wrapper. Each method is decorated with `@skill_command` and delegates to `_core`. Wrappers must be thin — no business logic
+- **`DC`** is the wrapper. Each method is decorated with `@skill_command` and delegates to `_core`. Wrappers must be thin — no business logic
 
 Wrapper responsibilities:
 
@@ -220,7 +220,7 @@ python3 dc.py --mcp
 How it works:
 
 1. `_MCP_AVAILABLE` flag set at module load via `try: from mcp.server import Server`
-2. `--mcp` in `sys.argv` → entry point calls `DCSkill().run_mcp()`
+2. `--mcp` in `sys.argv` → entry point calls `DC().run_mcp()`
 3. `run_mcp()` builds an `mcp.server.Server`, registers `list_tools` (one per `@skill_command`) and `call_tool` (translates MCP args → CLI raw_args, then invokes via `self._invoke`)
 4. Result serialized as `TextContent` (JSON for dicts/lists, str for scalars)
 
@@ -230,7 +230,7 @@ If `mcp` is not installed → clean install hint, no traceback. CLI and Python-i
 
 1. Add the business logic to `_DCCore` (returns plain Python data)
 2. If it takes flags → add a `_parse_*` static method to `_DCCore`
-3. Add a `@skill_command`-decorated wrapper to `DCSkill` that delegates to `_core`
+3. Add a `@skill_command`-decorated wrapper to `DC` that delegates to `_core`
 4. Update `SKILL.md` with usage examples
 5. Verify the new endpoint is documented in the live API reference: https://www.dynamitecircle.com/developers/
 6. Smoke-test:

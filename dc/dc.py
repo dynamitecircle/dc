@@ -17,8 +17,8 @@ All list-returning commands accept cursor pagination flags
 `{ items: [...], count: N, cursor: <next-or-null>, has_more: bool }`.
 
 Usage as import:
-    from dc import DCSkill
-    dc = DCSkill()
+    from dc import DC
+    dc = DC()
     dc.profile()                              # your profile
     dc.profile_update({"headline": "..."})    # patch profile fields
     dc.limits()                               # rate limits + current usage
@@ -1423,7 +1423,7 @@ class _DCCore:
         return self._get("/locator/digest", {"sections": sections or None})
 
 
-class DCSkill(Skill):
+class DC(Skill):
     """Public DC Member API skill — command registration and dispatch."""
 
     # ── Reusable schema fragments for @skill_command(args=...) ─────
@@ -1892,5 +1892,5 @@ class DCSkill(Skill):
 
 if __name__ == "__main__":
     if "--mcp" in sys.argv:
-        sys.exit(DCSkill().run_mcp())
-    sys.exit(DCSkill().dispatch())
+        sys.exit(DC().run_mcp())
+    sys.exit(DC().dispatch())

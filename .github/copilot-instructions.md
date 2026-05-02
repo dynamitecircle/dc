@@ -9,7 +9,7 @@ When suggesting code in this repo:
   is intentionally zero-dependency.
 - The skill file is the canonical entry point. Do not split it into
   multiple modules.
-- Two-class pattern: `DCSkill` is the public wrapper, `_DCCore` is the
+- Two-class pattern: `DC` is the public wrapper, `_DCCore` is the
   private helper with all HTTP and parsing logic. Keep new commands in
   this same shape.
 - Register CLI commands with `@skill_command(name=, help=, parser=)`.
