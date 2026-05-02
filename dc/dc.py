@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-"""DC Member API skill — read and act on your own DC membership data.
+"""DC Member API client — read and act on your own DC membership data.
 
-A self-contained Python skill that wraps the public DC Member API at
+A self-contained Python client that wraps the public DC Member API at
 https://api.dynamitecircle.com — your own profile, trips, events, virtual
 events, tickets, invites, inbox, rooms, chapters, places, and locator
 digest. Every endpoint is authenticated with the team member's personal
@@ -95,8 +95,8 @@ except ImportError:
     _MCP_AVAILABLE = False
 
 
-# ── Skill version ──────────────────────────────────────────────────────
-# Bump manually when this skill catches up to a new API version. Sent as
+# ── Client version ──────────────────────────────────────────────────────
+# Bump manually when this client catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
 SKILL_VERSION = "1.6.1"
@@ -107,17 +107,17 @@ SKILL_VERSION = "1.6.1"
 # ════════════════════════════════════════════════════════════════════════
 
 
-class SkillError(RuntimeError):
-    """Raised by skill code when validation, auth, or API calls fail."""
+class DCError(RuntimeError):
+    """Raised by client code when validation, auth, or API calls fail."""
 
 
-class UsageError(SkillError):
+class UsageError(DCError):
     """Raised when the CLI is invoked with the wrong arguments."""
 
 
 # ── Emit sink ──────────────────────────────────────────────────────────
 #
-# `Skill.emit(*args)` is the public way for command code to send extra
+# `Runtime.emit(*args)` is the public way for command code to send extra
 # text back to the calling agent (follow-up instructions, context hints,
 # friendly status). When no command is in flight the call falls back to
 # `print(...)` so it is always safe to use.
@@ -135,7 +135,7 @@ _EMIT_SINK: contextvars.ContextVar = contextvars.ContextVar(
 # ── .env loader ────────────────────────────────────────────────────────
 
 def _env_file_path(source_file: str) -> Path:
-    """Return the skill-local .env path — `<skill_dir>/.env.dc` next to this file."""
+    """Return the client-local .env path — `<dc_dir>/.env.dc` next to this file."""
     return Path(source_file).resolve().parent / ".env.dc"
 
 
@@ -396,9 +396,9 @@ class HttpClient:
     """Minimal urllib-based HTTP client — GET/POST/PATCH/DELETE returning JSON.
 
     Always sends `User-Agent: dc-official-skill/<SKILL_VERSION>` so server-side
-    logs can attribute traffic to the skill. Reads the server's
+    logs can attribute traffic to the client. Reads the server's
     `X-API-Version` response header and notifies a registered observer
-    (used by `_VersionTracker` to warn users when their skill is behind).
+    (used by `_VersionTracker` to warn users when their client is behind).
 
     Handles HTTP 429 (rate limited) automatically: parses `Retry-After`
     (preferred — RFC 7231 standard) or `X-RateLimit-Reset` (DC's epoch
@@ -410,7 +410,7 @@ class HttpClient:
 
     # Module-level observer: called once per response with the server's
     # X-API-Version header value (or None if missing). Set by
-    # `_VersionTracker.attach()` at skill construction time.
+    # `_VersionTracker.attach()` at runtime construction time.
     _on_server_version = None  # type: ignore[var-annotated]
 
     # Retry policy. Mutable so dispatch() can adjust based on CLI flags.
@@ -499,7 +499,7 @@ class HttpClient:
                 except Exception:
                     raw = "{}"
             except urlerror.URLError as e:
-                raise SkillError(f"Network error contacting {url}: {e.reason}")
+                raise DCError(f"Network error contacting {url}: {e.reason}")
 
             # Always notify the version-tracker — works on success and error
             server_version = resp_headers.get("X-API-Version") or resp_headers.get("x-api-version")
@@ -513,14 +513,14 @@ class HttpClient:
                 if status is not None and status >= 400:
                     return {"ok": False, "error": "http_error",
                             "message": f"HTTP {status}: {raw[:200]}"}
-                raise SkillError(f"Non-JSON response from {url}: {raw[:200]}")
+                raise DCError(f"Non-JSON response from {url}: {raw[:200]}")
 
             # Retry on 429 if budget allows
             if status == 429 and attempt < HttpClient.max_retries:
                 wait = min(HttpClient._parse_retry_seconds(resp_headers, body=payload),
                            HttpClient.max_retry_wait)
                 attempt += 1
-                Skill.emit(
+                Runtime.emit(
                     f"Rate limited (HTTP 429) — waiting {wait}s before retry "
                     f"{attempt}/{HttpClient.max_retries}..."
                 )
@@ -547,9 +547,9 @@ class _VersionTracker:
     one-shot stderr warning when the server has new features.
 
     Rules:
-    - Major or minor bump on the server → warn (this skill is behind)
+    - Major or minor bump on the server → warn (this client is behind)
     - Patch-only bump → silent (per-version-strategy: patch is bug fix)
-    - Server version older than skill → silent (we don't tell the user
+    - Server version older than client → silent (we don't tell the user
       to downgrade — they're running newer client; that's fine)
     - Warning fires once per process to avoid spamming script users
     """
@@ -574,15 +574,15 @@ class _VersionTracker:
         if cls._warned:
             return
         server = cls._parse(server_version)
-        skill = cls._parse(SKILL_VERSION)
-        if not server or not skill:
+        client = cls._parse(SKILL_VERSION)
+        if not server or not client:
             return
-        # Major or minor newer on server → skill is behind on features
-        if server[0] > skill[0] or (server[0] == skill[0] and server[1] > skill[1]):
+        # Major or minor newer on server → client is behind on features
+        if server[0] > client[0] or (server[0] == client[0] and server[1] > client[1]):
             cls._warned = True
             print(
                 f"\n⚠  DC API has new features available "
-                f"(server {server_version}, this skill built for {SKILL_VERSION}).\n"
+                f"(server {server_version}, this client built for {SKILL_VERSION}).\n"
                 f"   Update dc-official: cd <your dc-official clone> && git pull\n",
                 file=sys.stderr,
             )
@@ -593,15 +593,15 @@ class _VersionTracker:
         HttpClient._on_server_version = cls.observe
 
 
-# ── Skill base class ───────────────────────────────────────────────────
+# ── Runtime base class ───────────────────────────────────────────────────
 
-class SkillResult:
+class Result:
     """Wraps a command's return value alongside any text emitted during the call.
 
     Behaves transparently like the underlying ``data`` for callers that don't
     care about emit — delegates iteration, indexing, length, bool, and
     dict-style access to ``self.data``. The ``emitted`` attribute holds any
-    text produced via ``Skill.emit()`` during command execution.
+    text produced via ``Runtime.emit()`` during command execution.
 
     Callers that don't care about emit simply use the object as if it were
     the raw result (`result["userID"]`, `for item in result["items"]:`, etc.).
@@ -621,7 +621,7 @@ class SkillResult:
     def __iter__(self):             return iter(self.data)
     def __len__(self):              return len(self.data)
     def __bool__(self):             return bool(self.data)
-    def __eq__(self, other):        return self.data == (other.data if isinstance(other, SkillResult) else other)
+    def __eq__(self, other):        return self.data == (other.data if isinstance(other, Result) else other)
 
     def get(self, key, default=None):
         if isinstance(self.data, dict):
@@ -644,13 +644,13 @@ class SkillResult:
         raise AttributeError(f"'{type(self.data).__name__}' has no attribute 'items'")
 
     def __repr__(self):
-        return f"SkillResult(data={self.data!r}, emitted={self.emitted!r})"
+        return f"Result(data={self.data!r}, emitted={self.emitted!r})"
 
     def __str__(self):
         return str(self.data) if self.data is not None else ""
 
 
-class Skill:
+class Runtime:
     """Lightweight base class — env loading, command registration, dispatch."""
 
     def __init__(self, name: str, source_file: str):
@@ -721,7 +721,7 @@ class Skill:
     def require_env(self, key: str) -> str:
         value = os.environ.get(key)
         if not value:
-            raise SkillError(
+            raise DCError(
                 f"Missing required environment variable: {key}\n"
                 f"Run: python3 {Path(self.source_file).name} setup --api-key dk_<api-key>"
             )
@@ -738,18 +738,18 @@ class Skill:
     def _format_output(result, fmt: str, *, command_name: str = "", emitted: str = "") -> str:
         """Render a result for stdout in the requested format.
 
-        Accepts either a raw value or a `SkillResult` — extracts `.data`
+        Accepts either a raw value or a `Result` — extracts `.data`
         before serializing. When `--json` is requested AND emit text was
         captured, wraps the response in a structured envelope so the agent
         can see both the data and the follow-up instructions.
         """
-        data = result.data if isinstance(result, SkillResult) else result
+        data = result.data if isinstance(result, Result) else result
 
         if fmt == "json":
             if emitted:
                 payload = {
                     "ok":      True,
-                    "skill":   "dc",
+                    "client": "dc",
                     "command": command_name,
                     "result":  data,
                     "emitted": emitted,
@@ -838,16 +838,16 @@ class Skill:
         except UsageError as e:
             print(f"Usage: {e}", file=sys.stderr)
             return 2
-        except SkillError as e:
+        except DCError as e:
             print(f"Error: {e}", file=sys.stderr)
             return 1
 
-        # `_invoke` always returns a SkillResult; extract emit text for
+        # `_invoke` always returns a Result; extract emit text for
         # the chosen format. In JSON mode, emit is folded into the envelope
         # by `_format_output`. In text/python mode, we print emit to stderr
         # AFTER the result so it doesn't pollute pipelines.
-        emitted = result.emitted if isinstance(result, SkillResult) else ""
-        data = result.data if isinstance(result, SkillResult) else result
+        emitted = result.emitted if isinstance(result, Result) else ""
+        data = result.data if isinstance(result, Result) else result
 
         if data is not None:
             print(self._format_output(result, fmt, command_name=cmd_name, emitted=emitted))
@@ -857,13 +857,13 @@ class Skill:
 
         return 0
 
-    def _invoke(self, cmd: dict, raw_args: list) -> "SkillResult":
-        """Run a command with an emit sink installed; return a SkillResult.
+    def _invoke(self, cmd: dict, raw_args: list) -> "Result":
+        """Run a command with an emit sink installed; return a Result.
 
         Captures any `self.emit(...)` calls made during execution and
         attaches the joined text to the result as `.emitted`. Callers that
         don't care about emit can use `result.data` (or the result directly,
-        thanks to the proxy methods on `SkillResult`).
+        thanks to the proxy methods on `Result`).
         """
         fn = cmd["fn"]
         parser = cmd.get("parser")
@@ -892,16 +892,16 @@ class Skill:
 
         emitted = "".join(emit_chunks).rstrip("\n")
 
-        # Don't double-wrap: if a command already returned a SkillResult,
+        # Don't double-wrap: if a command already returned a Result,
         # merge its emit text with anything we captured.
-        if isinstance(raw, SkillResult):
+        if isinstance(raw, Result):
             combined = "\n".join(filter(None, [raw.emitted, emitted]))
-            return SkillResult(raw.data, combined)
-        return SkillResult(raw, emitted)
+            return Result(raw.data, combined)
+        return Result(raw, emitted)
 
 
 # ════════════════════════════════════════════════════════════════════════
-#  DC Member API skill
+#  DC Member API client
 # ════════════════════════════════════════════════════════════════════════
 
 
@@ -1002,17 +1002,17 @@ class _DCCore:
 
     # ── Init / HTTP plumbing ────────────────────────────────────────
 
-    def __init__(self, skill: Skill):
-        self._skill = skill
+    def __init__(self, runtime: Runtime):
+        self._runtime = runtime
 
     @property
     def _api_url(self) -> str:
-        return self._skill.api_url or self.DEFAULT_API_URL
+        return self._runtime.api_url or self.DEFAULT_API_URL
 
     def _api_key(self) -> str:
-        key = self._skill.require_env("DC_API_KEY")
+        key = self._runtime.require_env("DC_API_KEY")
         if not key.startswith("dk_"):
-            raise SkillError(
+            raise DCError(
                 "DC_API_KEY must start with 'dk_'. "
                 "Generate one from your DC profile dropdown → DC Member API Key."
             )
@@ -1047,12 +1047,12 @@ class _DCCore:
     @staticmethod
     def _unwrap(result) -> dict:
         if not isinstance(result, dict):
-            raise SkillError(f"Unexpected response: {result!r}")
+            raise DCError(f"Unexpected response: {result!r}")
         if result.get("ok") is True:
             return result.get("data") or {}
         error = result.get("error") or "unknown_error"
         message = result.get("message") or ""
-        raise SkillError(f"{error}: {message}")
+        raise DCError(f"{error}: {message}")
 
     @staticmethod
     def _wrap_list(api_data: dict, items_field: str, *, extra=None) -> dict:
@@ -1075,23 +1075,23 @@ class _DCCore:
         if not api_key:
             raise UsageError("setup requires --api-key dk_<api-key>")
         if not api_key.startswith("dk_"):
-            raise SkillError("API key must start with 'dk_'.")
-        self._skill.set_env("DC_API_KEY", api_key)
+            raise DCError("API key must start with 'dk_'.")
+        self._runtime.set_env("DC_API_KEY", api_key)
 
         # Heads up for Windows users — Unix-style chmod 600 is a no-op there,
         # so the file relies on the user's home-dir permissions instead.
         if sys.platform == "win32":
-            Skill.emit(
+            Runtime.emit(
                 "Note: file permissions can't be tightened on Windows the way "
                 "they can on Unix. .env.dc inherits NTFS perms from its parent "
                 "directory — make sure your repo isn't on a shared drive."
             )
 
-        Skill.emit("Next: run `self-test` to verify the connection.")
+        Runtime.emit("Next: run `self-test` to verify the connection.")
         return {
             "ok":      True,
-            "message": f"Saved DC_API_KEY to {self._skill.env_path}",
-            "envFile": str(self._skill.env_path),
+            "message": f"Saved DC_API_KEY to {self._runtime.env_path}",
+            "envFile": str(self._runtime.env_path),
         }
 
     # ── Self-test ──────────────────────────────────────────────────
@@ -1105,7 +1105,7 @@ class _DCCore:
         if not api_key:
             checks.append({"step": "env", "ok": False, "message": "DC_API_KEY not set — run `setup --api-key dk_...`"})
             return {"ok": False, "checks": checks}
-        checks.append({"step": "env", "ok": True, "message": f"DC_API_KEY loaded from {self._skill.env_path}"})
+        checks.append({"step": "env", "ok": True, "message": f"DC_API_KEY loaded from {self._runtime.env_path}"})
 
         # 2. Key shape
         if not api_key.startswith("dk_"):
@@ -1119,7 +1119,7 @@ class _DCCore:
         # 3. Network + profile
         try:
             profile = self.profile()
-        except SkillError as e:
+        except DCError as e:
             checks.append({"step": "profile", "ok": False, "message": str(e)})
             return {"ok": False, "checks": checks}
 
@@ -1141,7 +1141,7 @@ class _DCCore:
         # explicit `args=` (even if empty) so MCP clients see a typed schema
         # instead of the catch-all `additionalProperties: true` fallback.
         # Commands without `args=` get flagged as missing.
-        commands = self._skill._commands
+        commands = self._runtime._commands
         missing_schema = [
             name for name, cmd in commands.items()
             if cmd.get("args") is None
@@ -1280,7 +1280,7 @@ class _DCCore:
         if place_id: body["placeID"] = place_id
         if event_id: body["eventID"] = event_id
         result = self._post("/trips", body)
-        Skill.emit("Trip created. Run `trips` to see your upcoming list, or `overlaps` to find DCers visiting at the same time.")
+        Runtime.emit("Trip created. Run `trips` to see your upcoming list, or `overlaps` to find DCers visiting at the same time.")
         return result
 
     def update_trip(self, trip_id, start_date="", end_date="", place_id="", event_id=""):
@@ -1322,7 +1322,7 @@ class _DCCore:
             raise UsageError("--status must be yes|maybe|no")
         result = self._post(f"/events/{event_id}/rsvp", {"status": status})
         if status == "yes":
-            Skill.emit(f"RSVP'd yes. Run `event {event_id}` for full details, or `event-attendees {event_id}` to see who else is coming.")
+            Runtime.emit(f"RSVP'd yes. Run `event {event_id}` for full details, or `event-attendees {event_id}` to see who else is coming.")
         return result
 
     # ── Virtual events ─────────────────────────────────────────────
@@ -1423,8 +1423,8 @@ class _DCCore:
         return self._get("/locator/digest", {"sections": sections or None})
 
 
-class DC(Skill):
-    """Public DC Member API skill — command registration and dispatch."""
+class DC(Runtime):
+    """Public DC Member API client — command registration and dispatch."""
 
     # ── Reusable schema fragments for @skill_command(args=...) ─────
     #
@@ -1453,7 +1453,7 @@ class DC(Skill):
         self._commands = self._discover_commands()
         # Wire HttpClient response-header observer so we can warn the
         # user once per process when the server's API version has
-        # outpaced this skill's SKILL_VERSION on major or minor.
+        # outpaced this client's SKILL_VERSION on major or minor.
         _VersionTracker.attach()
 
     # ── Setup ───────────────────────────────────────────────────────
@@ -1859,11 +1859,11 @@ class DC(Skill):
                     raw_args.append(f"--{k}")
                     raw_args.append(str(v))
                 result = self._invoke(cmd, raw_args)
-            except (UsageError, SkillError) as e:
+            except (UsageError, DCError) as e:
                 return [_mcp_types.TextContent(type="text", text=f"Error: {e}")]
 
-            data = result.data if isinstance(result, SkillResult) else result
-            emitted = result.emitted if isinstance(result, SkillResult) else ""
+            data = result.data if isinstance(result, Result) else result
+            emitted = result.emitted if isinstance(result, Result) else ""
 
             payload = json.dumps(data, indent=2, ensure_ascii=False, default=str) \
                 if isinstance(data, (dict, list)) else str(data) if data is not None else ""

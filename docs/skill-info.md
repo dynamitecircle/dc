@@ -29,7 +29,7 @@ Top of file (in order):
 2. `__future__` import
 3. Stdlib imports (`inspect`, `json`, `os`, `sys`, `pathlib`, `urllib`)
 4. **Optional** MCP import wrapped in `try/except ImportError` → `_MCP_AVAILABLE` flag
-5. **Mini-runtime** — `SkillError`, `UsageError`, `_load_dotenv`, `_write_dotenv_value`, `skill_command` decorator, `ArgHelpers`, `HttpClient`, `Skill` base class
+5. **Mini-runtime** — `DCError`, `UsageError`, `_load_dotenv`, `_write_dotenv_value`, `skill_command` decorator, `ArgHelpers`, `HttpClient`, `Runtime` base class
 6. **Skill code** — `_DCCore` (private), `DC` (public)
 7. **Entry point** — `if __name__ == "__main__":` dispatching `--mcp` vs CLI
 
@@ -159,7 +159,7 @@ Use `_DCCore._wrap_list(api_data, items_field)` — it reads `nextCursor` from t
 2. Inject `Authorization: Bearer <DC_API_KEY>` and `Accept: application/json`
 3. Encode JSON body if present
 4. Parse the response and call `_unwrap` to extract `data` from `{ ok, data?, error?, message? }`
-5. Raise `SkillError` on `ok: false` or non-JSON responses
+5. Raise `DCError` on `ok: false` or non-JSON responses
 
 Never call `urllib` directly inside `_DCCore` business methods — go through `_get` / `_post` / etc.
 
@@ -191,7 +191,7 @@ Commands return native Python objects. Formatting happens at the dispatch bounda
 Two exception types:
 
 - **`UsageError`** — argument validation failures. Raised by parsers and command methods. Exit code 2. Prefixed with `Usage:` in CLI output
-- **`SkillError`** — env, network, auth, API errors. Exit code 1. Prefixed with `Error:` in CLI output
+- **`DCError`** — env, network, auth, API errors. Exit code 1. Prefixed with `Error:` in CLI output
 
 Wrappers should let these bubble up. The base `Skill.dispatch` catches both and prints to stderr.
 
