@@ -6,4 +6,4 @@
 # Paths are relative to this project root.
 [mcp_servers.dc]
 command = ".venv/bin/python3"
-args = [".claude/skills/dc/dc_skill.py", "--mcp"]
+args = ["dc/dc.py", "--mcp"]

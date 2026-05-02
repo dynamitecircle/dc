@@ -17,7 +17,7 @@ All list-returning commands accept cursor pagination flags
 `{ items: [...], count: N, cursor: <next-or-null>, has_more: bool }`.
 
 Usage as import:
-    from dc_skill import DCSkill
+    from dc import DCSkill
     dc = DCSkill()
     dc.profile()                              # your profile
     dc.profile_update({"headline": "..."})    # patch profile fields
@@ -49,11 +49,11 @@ Usage as import:
     dc.locator(sections="homeCity,favoriteCities")
 
 Usage as CLI:
-    python3 dc_skill.py setup --api-key dk_<api-key>
-    python3 dc_skill.py profile
-    python3 dc_skill.py profile-update --headline 'CEO at Acme'
-    python3 dc_skill.py trips [--past] [--limit N] [--cursor TOKEN]
-    ... (run `python3 dc_skill.py help` for the full list)
+    python3 dc.py setup --api-key dk_<api-key>
+    python3 dc.py profile
+    python3 dc.py profile-update --headline 'CEO at Acme'
+    python3 dc.py trips [--past] [--limit N] [--cursor TOKEN]
+    ... (run `python3 dc.py help` for the full list)
 """
 
 import contextvars
@@ -84,7 +84,7 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError, OSError):
         pass
 
-# Optional MCP support — only loaded when the user runs `python3 dc_skill.py --mcp`.
+# Optional MCP support — only loaded when the user runs `python3 dc.py --mcp`.
 # CLI and Python-import users have zero dependencies.
 try:
     from mcp.server import Server as _MCPServer
@@ -128,7 +128,7 @@ class UsageError(SkillError):
 # the MCP server appends it as an extra `TextContent`; Python callers get
 # it on `result.emitted`.
 _EMIT_SINK: contextvars.ContextVar = contextvars.ContextVar(
-    "dc_skill_emit_sink", default=None,
+    "dc_emit_sink", default=None,
 )
 
 
@@ -1781,7 +1781,7 @@ class DCSkill(Skill):
 
     # ── MCP server (optional) ──────────────────────────────────────
     #
-    # When the user runs `python3 dc_skill.py --mcp`, the same registered
+    # When the user runs `python3 dc.py --mcp`, the same registered
     # commands are exposed as MCP tools over stdio. The `mcp` package is
     # imported lazily — CLI and Python-import users never need it.
 
@@ -1790,7 +1790,7 @@ class DCSkill(Skill):
         if not _MCP_AVAILABLE:
             print(
                 "MCP mode requires the optional 'mcp' package.\n"
-                "Install it with: pip install -r .claude/skills/dc/requirements.txt\n"
+                "Install it with: pip install -r dc/requirements.txt\n"
                 "    or:           pip install mcp",
                 file=sys.stderr,
             )

@@ -7,7 +7,7 @@ The `dc` skill exposes its commands as [Model Context Protocol](https://modelcon
 The `mcp` package is the only dependency:
 
 ```bash
-pip install -r .claude/skills/dc/requirements.txt
+pip install -r dc/requirements.txt
 # or
 pip install mcp
 ```
@@ -17,7 +17,7 @@ CLI and Python-import users **do not need** this — the import is lazy.
 ## Run the server manually
 
 ```bash
-python3 .claude/skills/dc/dc_skill.py --mcp
+python3 dc/dc.py --mcp
 ```
 
 The server speaks JSON-RPC over stdio. It's not meant to be used directly — wire it into a client below.
@@ -30,7 +30,7 @@ The server speaks JSON-RPC over stdio. It's not meant to be used directly — wi
   echo '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}'
   echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
   echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"profile","arguments":{}}}'
-) | python3 .claude/skills/dc/dc_skill.py --mcp
+) | python3 dc/dc.py --mcp
 ```
 
 You should see three JSON-RPC responses: `initialize` ack, `tools/list` with the full tool set, and `tools/call profile` with your profile data.
@@ -40,7 +40,7 @@ You should see three JSON-RPC responses: `initialize` ack, `tools/list` with the
 Anthropic's official MCP Inspector opens a browser UI to test each tool individually:
 
 ```bash
-npx @modelcontextprotocol/inspector python3 .claude/skills/dc/dc_skill.py --mcp
+npx @modelcontextprotocol/inspector python3 dc/dc.py --mcp
 ```
 
 Browser opens. Click any tool → fill in arguments → run → see the response. The "Console" tab shows raw JSON-RPC traffic.
@@ -62,7 +62,7 @@ To register the server in a different Claude Code project (e.g. a workspace that
 
 ```bash
 cd /path/to/your-other-project
-claude mcp add dc --scope project -- python3 /absolute/path/to/dc-official/.claude/skills/dc/dc_skill.py --mcp
+claude mcp add dc --scope project -- python3 /absolute/path/to/dc-official/dc/dc.py --mcp
 ```
 
 This creates `<project>/.mcp.json`. Claude Code scopes:
@@ -89,7 +89,7 @@ Edit your config file:
     "dc": {
       "command": "python3",
       "args": [
-        "/absolute/path/to/dc-official/.claude/skills/dc/dc_skill.py",
+        "/absolute/path/to/dc-official/dc/dc.py",
         "--mcp"
       ]
     }
@@ -107,7 +107,7 @@ Edit `~/.codex/config.toml`:
 [mcp_servers.dc]
 command = "python3"
 args = [
-  "/absolute/path/to/dc-official/.claude/skills/dc/dc_skill.py",
+  "/absolute/path/to/dc-official/dc/dc.py",
   "--mcp"
 ]
 ```
@@ -123,7 +123,7 @@ mcp_servers:
   dc:
     command: python3
     args:
-      - /absolute/path/to/dc-official/.claude/skills/dc/dc_skill.py
+      - /absolute/path/to/dc-official/dc/dc.py
       - --mcp
 ```
 
@@ -136,7 +136,7 @@ mcp_servers:
 3. Fill in:
    - Name: `dc`
    - Command: `python3`
-   - Args: `/absolute/path/to/dc-official/.claude/skills/dc/dc_skill.py --mcp`
+   - Args: `/absolute/path/to/dc-official/dc/dc.py --mcp`
 
 ### Cline / Continue / Windsurf / Zed
 
@@ -144,7 +144,7 @@ Same shape. Each tool has its own settings UI but the data is the same:
 
 ```
 command: python3
-args:    [absolute path to dc_skill.py, --mcp]
+args:    [absolute path to dc.py, --mcp]
 ```
 
 Refer to the tool's own MCP docs for the exact location of the settings file.
@@ -173,13 +173,13 @@ The MCP server inherits the same `.env.dc` as the CLI:
 - Server starts → `DCSkill.__init__` → `Skill.__init__` → `_load_dotenv(.env.dc)` → `DC_API_KEY` in `os.environ`
 - Tool call → `_DCCore._api_key()` reads `os.environ["DC_API_KEY"]`
 
-So `python3 dc_skill.py setup --api-key dk_...` (run once) authorizes all three modes. No separate MCP auth step.
+So `python3 dc.py setup --api-key dk_...` (run once) authorizes all three modes. No separate MCP auth step.
 
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `MCP mode requires the optional 'mcp' package` | Not installed | `pip install -r .claude/skills/dc/requirements.txt` |
+| `MCP mode requires the optional 'mcp' package` | Not installed | `pip install -r dc/requirements.txt` |
 | Tools list is empty in the client | Server didn't start (path wrong, perms) | Run the smoke test above to isolate |
 | `unauthorized` from any tool | `DC_API_KEY` not loaded | Run `setup --api-key dk_...` once at the CLI |
 | Tools list shows but calls hang | Client expects HTTP transport, not stdio | Check the client's transport setting; this server is stdio-only |
@@ -195,7 +195,7 @@ If your system Python doesn't have `mcp` installed but you've created a venv, po
     "dc": {
       "command": "/absolute/path/to/dc-official/.venv/bin/python3",
       "args": [
-        "/absolute/path/to/dc-official/.claude/skills/dc/dc_skill.py",
+        "/absolute/path/to/dc-official/dc/dc.py",
         "--mcp"
       ]
     }

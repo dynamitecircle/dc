@@ -26,10 +26,10 @@
   ],
   "server": {
     "type": "python",
-    "entry_point": ".claude/skills/dc/dc_skill.py",
+    "entry_point": "dc/dc.py",
     "mcp_config": {
       "command": "python3",
-      "args": ["${__dirname}/.claude/skills/dc/dc_skill.py", "--mcp"]
+      "args": ["${__dirname}/dc/dc.py", "--mcp"]
     }
   },
   "capabilities": {

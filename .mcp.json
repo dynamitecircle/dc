@@ -4,7 +4,7 @@
       "type": "stdio",
       "command": ".venv/bin/python3",
       "args": [
-        ".claude/skills/dc/dc_skill.py",
+        "dc/dc.py",
         "--mcp"
       ],
       "env": {}

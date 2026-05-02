@@ -2,7 +2,7 @@
   "name": "dc",
   "version": "1.6.1",
   "description": "Read and act on your own Dynamite Circle membership data via the public Member API.",
-  "entry": "dc_skill.py",
+  "entry": "dc.py",
   "env": {
     "required": ["DC_API_KEY"],
     "file": ".env.dc"

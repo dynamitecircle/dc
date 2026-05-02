@@ -10,18 +10,18 @@ Design rules for the `dc` skill. The skill is structured to be predictable, easy
 
 ## File layout
 
-The entire skill lives in **one Python file**: `.claude/skills/dc/dc_skill.py`.
+The entire skill lives in **one Python file**: `dc/dc.py`.
 
 | File | Required? | Purpose |
 |---|---|---|
-| `dc_skill.py` | MUST | The skill — runtime + CLI + MCP entry point |
+| `dc.py` | MUST | The skill — runtime + CLI + MCP entry point |
 | `SKILL.md` | MUST | Agent Skills frontmatter + per-command usage |
 | `config.json` | MUST | Skill metadata — name, version, env requirements |
 | `requirements.txt` | MUST | Optional dep for MCP mode (`mcp>=0.9.0`). CLI/import users skip it |
 | `.env.dc` | gitignored | Skill-local env file with `DC_API_KEY=…` (created by `setup` command) |
 | `.env.dc.example` | MUST | Template documenting expected env vars |
 
-## Module layout (inside `dc_skill.py`)
+## Module layout (inside `dc.py`)
 
 Top of file (in order):
 
@@ -88,7 +88,7 @@ There are **no** `mode="read"|"write"` labels, no permission gates, no extension
 ### Space-form flags (canonical)
 
 ```bash
-python3 dc_skill.py trips --limit 10 --cursor abc
+python3 dc.py trips --limit 10 --cursor abc
 ```
 
 The `--limit=10` form is also accepted by `ArgHelpers.parse_flags`, but space form is the documented style.
@@ -165,7 +165,7 @@ Never call `urllib` directly inside `_DCCore` business methods — go through `_
 
 ## Versioning + version-mismatch warning
 
-`SKILL_VERSION` is declared at the top of `dc_skill.py`. Bump it manually when the skill catches up to a new API version.
+`SKILL_VERSION` is declared at the top of `dc.py`. Bump it manually when the skill catches up to a new API version.
 
 Two things happen with this version:
 
@@ -202,7 +202,7 @@ When raising:
 
 ## Env handling
 
-The skill loads its env from `.claude/skills/dc/.env.dc` — **next to the skill file**, not at the repo root. This makes the skill self-contained: copy the folder, copy the env.
+The skill loads its env from `dc/.env.dc` — **next to the skill file**, not at the repo root. This makes the skill self-contained: copy the folder, copy the env.
 
 - `_load_dotenv` is a zero-dep parser (KEY=VALUE, optional quotes, `#` comments)
 - `_write_dotenv_value` is atomic (temp file → rename) and chmod 600s the result
@@ -214,7 +214,7 @@ The skill loads its env from `.claude/skills/dc/.env.dc` — **next to the skill
 The same skill auto-exposes its commands as MCP tools:
 
 ```bash
-python3 dc_skill.py --mcp
+python3 dc.py --mcp
 ```
 
 How it works:
@@ -235,9 +235,9 @@ If `mcp` is not installed → clean install hint, no traceback. CLI and Python-i
 5. Verify the new endpoint is documented in the live API reference: https://www.dynamitecircle.com/developers/
 6. Smoke-test:
    ```bash
-   python3 .claude/skills/dc/dc_skill.py help                    # appears in list
-   python3 .claude/skills/dc/dc_skill.py <new-command> --json    # round-trips
-   python3 .claude/skills/dc/dc_skill.py self-test               # unaffected
+   python3 dc/dc.py help                    # appears in list
+   python3 dc/dc.py <new-command> --json    # round-trips
+   python3 dc/dc.py self-test               # unaffected
    ```
 
 ## What's intentionally absent

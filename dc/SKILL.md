@@ -24,16 +24,16 @@ profile dropdown → **DC Member API Key**. Keys look like
 Save it with the built-in `setup` command:
 
 ```bash
-python3 .claude/skills/dc/dc_skill.py setup --api-key dk_<api-key>
+python3 dc/dc.py setup --api-key dk_<api-key>
 ```
 
-This writes the key to `.claude/skills/dc/.env.dc` (chmod 600). The file
+This writes the key to `dc/.env.dc` (chmod 600). The file
 is gitignored.
 
 Verify the setup:
 
 ```bash
-python3 .claude/skills/dc/dc_skill.py self-test
+python3 dc/dc.py self-test
 ```
 
 Runs four checks: `env`, `keyShape`, `profile` (live API call), and `mcpSchemas` (every command declares an explicit `args=` schema for MCP clients). Expected output: all four green with `connected as userID[<id>] <Your Name>`.
@@ -72,10 +72,10 @@ are passed through under an `extra` key.
 ## Output formats
 
 ```bash
-python3 dc_skill.py profile             # text (pretty JSON)
-python3 dc_skill.py profile --json      # explicit JSON
-python3 dc_skill.py profile --python    # Python repr
-python3 dc_skill.py --format python profile
+python3 dc.py profile             # text (pretty JSON)
+python3 dc.py profile --json      # explicit JSON
+python3 dc.py profile --python    # Python repr
+python3 dc.py --format python profile
 ```
 
 ## Version warnings
@@ -101,7 +101,7 @@ running the API on `localhost:8083`):
 
 ```bash
 # CLI
-python3 dc_skill.py --api-url http://localhost:8083 profile
+python3 dc.py --api-url http://localhost:8083 profile
 
 # Python
 DCSkill(api_url="http://localhost:8083")
@@ -113,28 +113,28 @@ DCSkill(api_url="http://localhost:8083")
 
 ```bash
 # Save your DC API key to .env.dc
-python3 dc_skill.py setup --api-key dk_<api-key>
+python3 dc.py setup --api-key dk_<api-key>
 
 # Validate env, network, and /profile end-to-end
-python3 dc_skill.py self-test
+python3 dc.py self-test
 ```
 
 ### Profile
 
 ```bash
 # Your own profile
-python3 dc_skill.py profile
+python3 dc.py profile
 
 # Update profile fields
-python3 dc_skill.py profile-update --headline 'CEO at Acme'
+python3 dc.py profile-update --headline 'CEO at Acme'
 
 # Set your GitHub username — required to be granted access to the
 # private dc-official repo (active DC member with GitHub username on
 # profile)
-python3 dc_skill.py profile-update --github octocat
+python3 dc.py profile-update --github octocat
 
 # Show your effective rate limits (per-minute, per-day) + current usage
-python3 dc_skill.py limits
+python3 dc.py limits
 ```
 
 ### Announcements
@@ -145,55 +145,55 @@ DC-scope announcements; DCB / Accel / Admin members additionally see DC BLACK.
 
 ```bash
 # Mixed newest-first feed across all visible channels (cursor-paginated)
-python3 dc_skill.py announcements
-python3 dc_skill.py announcements --limit 25
-python3 dc_skill.py announcements --limit 10 --cursor <token>
+python3 dc.py announcements
+python3 dc.py announcements --limit 25
+python3 dc.py announcements --limit 10 --cursor <token>
 
 # Quick "what's new across DC?" — one most-recent announcement per channel
-python3 dc_skill.py announcements-latest
+python3 dc.py announcements-latest
 ```
 
 ### Trips
 
 ```bash
 # Upcoming trips (cursor-paginated)
-python3 dc_skill.py trips
-python3 dc_skill.py trips --limit 10 --cursor <token>
+python3 dc.py trips
+python3 dc.py trips --limit 10 --cursor <token>
 
 # Past trips
-python3 dc_skill.py trips --past
+python3 dc.py trips --past
 
 # Trip overlaps — DCers whose trips overlap with yours in the same city
-python3 dc_skill.py overlaps
+python3 dc.py overlaps
 
 # Create a trip — provide either --place-id (Google Place ID) OR --event-id
-python3 dc_skill.py trip-create \
+python3 dc.py trip-create \
   --start-date 2026-12-01 --end-date 2026-12-05 --place-id ChIJ-ZRLfIQzMBQR2bAQQ8sZh90
 
 # Or attach to a DC event (location is copied from the event's city)
-python3 dc_skill.py trip-create \
+python3 dc.py trip-create \
   --start-date 2026-11-01 --end-date 2026-11-05 --event-id sWnllj1DW2jLMZ1n2KWB
 
 # Update / delete a trip
-python3 dc_skill.py trip-update <tripID> --end-date 2026-12-06
-python3 dc_skill.py trip-delete <tripID>
+python3 dc.py trip-update <tripID> --end-date 2026-12-06
+python3 dc.py trip-delete <tripID>
 ```
 
 ### Events (in-person)
 
 ```bash
 # Upcoming / past, cursor-paginated
-python3 dc_skill.py events
-python3 dc_skill.py events --past --limit 5
+python3 dc.py events
+python3 dc.py events --past --limit 5
 
 # Single event
-python3 dc_skill.py event <eventID>
+python3 dc.py event <eventID>
 
 # Attendees (cursor-paginated)
-python3 dc_skill.py event-attendees <eventID> --limit 50
+python3 dc.py event-attendees <eventID> --limit 50
 
 # RSVP — yes | maybe | no
-python3 dc_skill.py event-rsvp <eventID> --status yes
+python3 dc.py event-rsvp <eventID> --status yes
 ```
 
 #### Event extras (require an event ticket)
@@ -207,97 +207,97 @@ Always combine `startAt` + `timezone` together when displaying.
 
 ```bash
 # Full schedule — sessions grouped by day
-python3 dc_skill.py event-schedule <eventID>
+python3 dc.py event-schedule <eventID>
 
 # YOUR agenda (sessions you bookmarked + meetups you joined)
-python3 dc_skill.py event-agenda <eventID>
+python3 dc.py event-agenda <eventID>
 
 # Approved member-organized meetups
-python3 dc_skill.py event-meetups <eventID>
+python3 dc.py event-meetups <eventID>
 
 # Sponsors — ordered by tier, then display order
-python3 dc_skill.py event-sponsors <eventID>
+python3 dc.py event-sponsors <eventID>
 
 # Who else bookmarked a session?
-python3 dc_skill.py session-attendees <eventID> <sessionID>
+python3 dc.py session-attendees <eventID> <sessionID>
 
 # Who else RSVPd to a meetup?
-python3 dc_skill.py meetup-attendees <eventID> <meetupID>
+python3 dc.py meetup-attendees <eventID> <meetupID>
 
 # Bookmark / unbookmark a session (default: bookmark)
-python3 dc_skill.py session-bookmark <eventID> <sessionID>
-python3 dc_skill.py session-bookmark <eventID> <sessionID> --bookmarked false
+python3 dc.py session-bookmark <eventID> <sessionID>
+python3 dc.py session-bookmark <eventID> <sessionID> --bookmarked false
 
 # Join / leave a meetup (default: join)
-python3 dc_skill.py meetup-rsvp <eventID> <meetupID>
-python3 dc_skill.py meetup-rsvp <eventID> <meetupID> --joined false
+python3 dc.py meetup-rsvp <eventID> <meetupID>
+python3 dc.py meetup-rsvp <eventID> <meetupID> --joined false
 ```
 
 ### Virtual events (online sessions/calls)
 
 ```bash
 # Upcoming / past
-python3 dc_skill.py virtual-events
-python3 dc_skill.py virtual-events --past
+python3 dc.py virtual-events
+python3 dc.py virtual-events --past
 
 # Single session
-python3 dc_skill.py virtual-event <sessionID>
+python3 dc.py virtual-event <sessionID>
 
 # RSVP
-python3 dc_skill.py virtual-event-rsvp <sessionID> --status maybe
+python3 dc.py virtual-event-rsvp <sessionID> --status maybe
 ```
 
 ### Tickets
 
 ```bash
 # All your tickets (cursor-paginated)
-python3 dc_skill.py tickets
+python3 dc.py tickets
 
 # Filter by status (valid|maybe|refunded|canceled)
-python3 dc_skill.py tickets --status valid
+python3 dc.py tickets --status valid
 ```
 
 ### Invites
 
 ```bash
 # Your sent invites (cursor-paginated)
-python3 dc_skill.py invites
+python3 dc.py invites
 
 # Your permanent invite code
-python3 dc_skill.py permacode
+python3 dc.py permacode
 
 # Send a new invite
-python3 dc_skill.py invite-create --email new@friend.com --full-name 'New Friend'
+python3 dc.py invite-create --email new@friend.com --full-name 'New Friend'
 ```
 
 ### Inbox
 
 ```bash
 # Unread messages summary (rooms list + totalUnread under .extra)
-python3 dc_skill.py inbox
+python3 dc.py inbox
 ```
 
 ### Rooms
 
 ```bash
 # Rooms you are subscribed to
-python3 dc_skill.py rooms
-python3 dc_skill.py rooms --type channel
+python3 dc.py rooms
+python3 dc.py rooms --type channel
 
 # Browse public rooms (type required: channel|discussion|activity)
-python3 dc_skill.py browse-rooms channel
-python3 dc_skill.py browse-rooms channel --limit 20 --cursor <token>
+python3 dc.py browse-rooms channel
+python3 dc.py browse-rooms channel --limit 20 --cursor <token>
 ```
 
 ### Chapters (city hubs)
 
 ```bash
 # All DC chapters (cursor-paginated, sorted by member count)
-python3 dc_skill.py chapters
-python3 dc_skill.py chapters --limit 5 --cursor <token>
+python3 dc.py chapters
+python3 dc.py chapters --limit 5 --cursor <token>
 
 # Single chapter (cityID == Google Place ID) — includes up to 100 members
-python3 dc_skill.py chapter ChIJ82ENKDJgHTERIEjiXbIAAQE
+python3 dc.py chapter ChIJ82ENKDJgHTERIEjiXbIAAQE
 ```
 
 ### Places (Google Places lookup)
@@ -306,20 +306,20 @@ Helpers for resolving a Google Place ID before creating a trip.
 
 ```bash
 # Search for a place by name
-python3 dc_skill.py places-search --q 'Tokyo Japan' --limit 5
+python3 dc.py places-search --q 'Tokyo Japan' --limit 5
 
 # Verify a placeID
-python3 dc_skill.py place ChIJ51cu8IcbXWARiRtXIothAS4
+python3 dc.py place ChIJ51cu8IcbXWARiRtXIothAS4
 ```
 
 ### Locator
 
 ```bash
 # Full weekly digest (favorites, home city, attending, who's coming where)
-python3 dc_skill.py locator
+python3 dc.py locator
 
 # Just one or more sections
-python3 dc_skill.py locator --sections homeCity,favoriteCities
+python3 dc.py locator --sections homeCity,favoriteCities
 ```
 
 ## MCP server (optional)
@@ -328,8 +328,8 @@ The same file can run as an MCP server. Tools are auto-derived from the
 registered commands.
 
 ```bash
-pip install -r .claude/skills/dc/requirements.txt
-python3 .claude/skills/dc/dc_skill.py --mcp
+pip install -r dc/requirements.txt
+python3 dc/dc.py --mcp
 ```
 
 Client config (Claude Desktop / Cursor):
@@ -339,7 +339,7 @@ Client config (Claude Desktop / Cursor):
   "mcpServers": {
     "dc": {
       "command": "python3",
-      "args": [".../dc-official/.claude/skills/dc/dc_skill.py", "--mcp"]
+      "args": [".../dc-official/dc/dc.py", "--mcp"]
     }
   }
 }
@@ -352,7 +352,7 @@ CLI and Python-import users do not need the `mcp` package.
 ```python
 import sys, os
 sys.path.insert(0, os.path.join(os.path.abspath('.'), '.claude', 'skills', 'dc'))
-from dc_skill import DCSkill
+from dc import DCSkill
 
 dc = DCSkill()
 

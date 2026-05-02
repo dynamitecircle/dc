@@ -5,25 +5,25 @@ A self-contained Python skill that wraps the public [Dynamite Circle Member API]
 Single file. Zero dependencies (stdlib only). Works as a CLI, Python library, **and** Model Context Protocol (MCP) server. Compatible with Claude Code, Claude Desktop, Codex CLI, Gemini CLI, Cursor, GitHub Copilot, and every other Agent Skills / MCP-compatible tool.
 
 ```
-.claude/skills/dc/dc_skill.py    ← one file, three integration modes
+dc/dc.py    ← one file, three integration modes
 ```
 
 ## How it's exposed
 
-The same `dc_skill.py` file is shipped as **four** integrations — pick whichever fits how your tool talks to it:
+The same `dc.py` file is shipped as **four** integrations — pick whichever fits how your tool talks to it:
 
 | Integration | What it is | Invoke with | Dependencies |
 |---|---|---|---|
-| **Agent Skill** | Auto-discovered via `SKILL.md` frontmatter (Claude Code, Codex, Gemini CLI, Cursor, Copilot) | Just open the repo with the tool — it reads [`.claude/skills/dc/SKILL.md`](.claude/skills/dc/SKILL.md) and offers the commands | stdlib only |
-| **CLI** | Run commands directly from the shell or scripts | `python3 .claude/skills/dc/dc_skill.py <command>` | stdlib only |
-| **Python library** | Import in your own Python code | `from dc_skill import DCSkill; DCSkill().profile()` | stdlib only |
-| **MCP server** | Speaks Model Context Protocol over stdio (Claude Desktop, Cursor, Codex MCP, Cline, etc.) | `python3 .claude/skills/dc/dc_skill.py --mcp` | `pip install mcp` (optional) |
+| **Agent Skill** | Auto-discovered via `SKILL.md` frontmatter (Claude Code, Codex, Gemini CLI, Cursor, Copilot) | Just open the repo with the tool — it reads [`dc/SKILL.md`](dc/SKILL.md) and offers the commands | stdlib only |
+| **CLI** | Run commands directly from the shell or scripts | `python3 dc/dc.py <command>` | stdlib only |
+| **Python library** | Import in your own Python code | `from dc import DCSkill; DCSkill().profile()` | stdlib only |
+| **MCP server** | Speaks Model Context Protocol over stdio (Claude Desktop, Cursor, Codex MCP, Cline, etc.) | `python3 dc/dc.py --mcp` | `pip install mcp` (optional) |
 
 The `mcp` package is **lazy-imported** — Agent Skill / CLI / Python-library users never need it.
 
 ## Features
 
-- **Full Member API coverage** — read + write across every public endpoint (run `python3 .claude/skills/dc/dc_skill.py help` for the live list)
+- **Full Member API coverage** — read + write across every public endpoint (run `python3 dc/dc.py help` for the live list)
 - **Setup command** — saves your API key to a chmod-600 `.env.dc` next to the skill
 - **Self-test command** — validates env, network, key shape, and a live `/profile` call end-to-end
 - **Cursor pagination** — every list-returning command uses the same `[--limit N] [--cursor TOKEN]` shape and returns the canonical envelope `{items, count, cursor, has_more}`
@@ -40,15 +40,15 @@ DC profile dropdown → **DC Member API Key** (admins/testers only). Keys look l
 ### 2. Save the key
 
 ```bash
-python3 .claude/skills/dc/dc_skill.py setup --api-key dk_<api-key>
+python3 dc/dc.py setup --api-key dk_<api-key>
 ```
 
-This writes `.claude/skills/dc/.env.dc` (chmod 600, gitignored).
+This writes `dc/.env.dc` (chmod 600, gitignored).
 
 ### 3. Verify the connection
 
 ```bash
-python3 .claude/skills/dc/dc_skill.py self-test
+python3 dc/dc.py self-test
 ```
 
 Expected output:
@@ -69,14 +69,14 @@ Expected output:
 ### 4. Try a few commands
 
 ```bash
-python3 .claude/skills/dc/dc_skill.py profile
-python3 .claude/skills/dc/dc_skill.py trips --limit 5
-python3 .claude/skills/dc/dc_skill.py events --past --limit 3
-python3 .claude/skills/dc/dc_skill.py chapters --limit 5
-python3 .claude/skills/dc/dc_skill.py permacode
+python3 dc/dc.py profile
+python3 dc/dc.py trips --limit 5
+python3 dc/dc.py events --past --limit 3
+python3 dc/dc.py chapters --limit 5
+python3 dc/dc.py permacode
 ```
 
-Run `python3 .claude/skills/dc/dc_skill.py help` for the full command list.
+Run `python3 dc/dc.py help` for the full command list.
 
 ## Setup per AI tool
 
@@ -92,10 +92,10 @@ claude
 Tools become available as `mcp__dc__*`. First-time install of the optional MCP dependency:
 
 ```bash
-pip install -r .claude/skills/dc/requirements.txt
+pip install -r dc/requirements.txt
 ```
 
-Skill discovery (CLI + import) works automatically via `.claude/skills/dc/SKILL.md`.
+Skill discovery (CLI + import) works automatically via `dc/SKILL.md`.
 
 ### Claude Desktop
 
@@ -110,7 +110,7 @@ Edit your config file:
   "mcpServers": {
     "dc": {
       "command": "python3",
-      "args": ["/absolute/path/to/dc-official/.claude/skills/dc/dc_skill.py", "--mcp"]
+      "args": ["/absolute/path/to/dc-official/dc/dc.py", "--mcp"]
     }
   }
 }
@@ -125,7 +125,7 @@ Edit `~/.codex/config.toml`:
 ```toml
 [mcp_servers.dc]
 command = "python3"
-args = ["/absolute/path/to/dc-official/.claude/skills/dc/dc_skill.py", "--mcp"]
+args = ["/absolute/path/to/dc-official/dc/dc.py", "--mcp"]
 ```
 
 Codex auto-discovers `AGENTS.md` (symlinked to `CLAUDE.md`) and `.agents/skills/` (symlinked to `.claude/skills/`).
@@ -139,13 +139,13 @@ mcp_servers:
   dc:
     command: python3
     args:
-      - /absolute/path/to/dc-official/.claude/skills/dc/dc_skill.py
+      - /absolute/path/to/dc-official/dc/dc.py
       - --mcp
 ```
 
 ### Cursor
 
-Settings → MCP → Add server, then point at the same `dc_skill.py --mcp`.
+Settings → MCP → Add server, then point at the same `dc.py --mcp`.
 
 ### GitHub Copilot
 
@@ -153,21 +153,21 @@ Reads `.github/copilot-instructions.md` for context. Copilot doesn't have native
 
 ### Any other MCP client
 
-Same recipe: command = `python3`, args = `["/path/to/dc_skill.py", "--mcp"]`. The protocol is standard.
+Same recipe: command = `python3`, args = `["/path/to/dc.py", "--mcp"]`. The protocol is standard.
 
 ## Output formats
 
 ```bash
-python3 dc_skill.py profile             # text (pretty JSON for dicts/lists)
-python3 dc_skill.py profile --json      # explicit JSON
-python3 dc_skill.py profile --python    # Python repr (eval-safe)
+python3 dc.py profile             # text (pretty JSON for dicts/lists)
+python3 dc.py profile --json      # explicit JSON
+python3 dc.py profile --python    # Python repr (eval-safe)
 ```
 
 Global flags work before or after the command name:
 
 ```bash
-python3 dc_skill.py --json profile
-python3 dc_skill.py profile --json
+python3 dc.py --json profile
+python3 dc.py profile --json
 ```
 
 ## Cursor pagination
@@ -175,10 +175,10 @@ python3 dc_skill.py profile --json
 All list-returning commands take the same flags:
 
 ```bash
-python3 dc_skill.py trips
-python3 dc_skill.py trips --limit 10
-python3 dc_skill.py trips --limit 10 --cursor <opaque-token-from-previous-response>
-python3 dc_skill.py trips --past --limit 5
+python3 dc.py trips
+python3 dc.py trips --limit 10
+python3 dc.py trips --limit 10 --cursor <opaque-token-from-previous-response>
+python3 dc.py trips --past --limit 5
 ```
 
 Standard envelope:
@@ -198,8 +198,8 @@ Non-paginated extras (e.g. `totalUnread` on `inbox`) are passed through under an
 
 ```python
 import sys
-sys.path.insert(0, ".claude/skills/dc")
-from dc_skill import DCSkill
+sys.path.insert(0, "dc")
+from dc import DCSkill
 
 dc = DCSkill()
 
@@ -239,7 +239,7 @@ Pick whichever integration style fits your project. From simplest to most isolat
 ```bash
 git clone https://github.com/Dynamite-Circle-Builders/dc-official.git
 cd dc-official
-python3 .claude/skills/dc/dc_skill.py setup --api-key dk_<api-key>
+python3 dc/dc.py setup --api-key dk_<api-key>
 ```
 
 To update: `cd dc-official && git pull`. Run `self-test` afterwards.
@@ -270,8 +270,8 @@ Then in your code:
 
 ```python
 import sys
-sys.path.insert(0, "vendor/dc-official/.claude/skills/dc")
-from dc_skill import DCSkill
+sys.path.insert(0, "vendor/dc-official/dc")
+from dc import DCSkill
 ```
 
 Best for: production-ish code where you want explicit, reviewable bumps.
@@ -305,7 +305,7 @@ cd ~/code/your-project
 ln -s ../dc-official vendor/dc-official
 ```
 
-Now `cd ~/code/dc-official && git pull` updates every consumer at once. Project-level `.mcp.json` / `.codex/config.toml` entries can use `vendor/dc-official/.claude/skills/dc/dc_skill.py` and they'll resolve through the symlink.
+Now `cd ~/code/dc-official && git pull` updates every consumer at once. Project-level `.mcp.json` / `.codex/config.toml` entries can use `vendor/dc-official/dc/dc.py` and they'll resolve through the symlink.
 
 Best for: power users with multiple personal projects and one machine.
 
@@ -356,48 +356,43 @@ dc-official/
 ├── CLAUDE.md                          # AI-tool guide (also linked as AGENTS.md, GEMINI.md)
 ├── AGENTS.md       → CLAUDE.md        # symlink (Codex)
 ├── GEMINI.md       → CLAUDE.md        # symlink (Gemini)
-├── dc              → .claude/skills/dc    # symlink — visible shortcut to the skill folder
+├── LICENSE                            # MIT
+├── manifest.json                      # MCPB manifest (MCP 2025-11 spec)
 ├── .mcp.json                          # auto-registers `dc` MCP server in Claude Code
 ├── .codex/
 │   └── config.toml                    # auto-registers `dc` for Codex CLI
 ├── .github/
 │   └── copilot-instructions.md        # GitHub Copilot
-├── .claude/
-│   ├── docs/
-│   │   ├── skill-conventions.md       # design rules / architecture
-│   │   └── mcp.md                     # MCP setup for every supported client
-│   └── skills/
-│       └── dc/                        # ← canonical location of the skill
-│           ├── SKILL.md               # Agent Skills frontmatter + usage
-│           ├── config.json
-│           ├── dc_skill.py            # CLI + Python import + --mcp
-│           ├── requirements.txt       # optional MCP dep — skip for CLI/import
-│           ├── .env.dc.example
-│           └── .env.dc                # gitignored (created by `setup`)
-├── .agents/
-│   └── skills      → ../.claude/skills    # symlink (Codex)
+│
+├── dc/                                # ← REAL skill files (canonical)
+│   ├── SKILL.md                       # Agent Skills frontmatter + usage
+│   ├── config.json                    # name, version, env requirements
+│   ├── dc.py                          # CLI + Python import + --mcp server
+│   ├── requirements.txt               # optional MCP dep — skip for CLI/import
+│   ├── .env.dc.example                # template
+│   └── .env.dc                        # gitignored (created by `setup`)
+│
+├── docs/                              # ← REAL design docs (canonical)
+│   ├── skill-conventions.md           # design rules / architecture
+│   └── mcp.md                         # MCP setup for every supported client
+│
+├── .claude/                           # Agent Skills discovery (Claude Code)
+│   ├── skills/dc  → ../../dc          # symlink to canonical skill
+│   └── docs       → ../docs           # symlink to canonical docs
+│
+├── .agents/                           # Agent Skills discovery (Codex CLI)
+│   ├── skills/dc  → ../../dc          # symlink to canonical skill
+│   └── docs       → ../docs           # symlink to canonical docs
+│
 ├── .gitignore
 └── .gitattributes
 ```
 
-### About the `dc/` symlink
+### About the layout
 
-Most of this repo lives under dotfile-prefixed directories
-(`.claude/`, `.codex/`, `.agents/`, `.github/`) so AI tools can
-auto-discover their config without cluttering the working area. That
-also means `ls` shows almost nothing by default, and new contributors
-sometimes wonder where the skill actually is.
+The skill code (`dc/`) and the design docs (`docs/`) live at the repo root so they're visible in `ls` and feel like a normal Python project. The dotfile-prefixed directories (`.claude/`, `.agents/`) exist because AI tools auto-discover skills from those specific paths — they're kept hidden but each one **symlinks straight to the canonical folder**, so you only edit files in one place. Edit `dc/dc.py` and Claude Code, Codex, and Gemini CLI all see the same file via their respective discovery directories.
 
-The `dc/` entry at the repo root is a **symlink to
-`.claude/skills/dc/`** — purely for visibility. It's the same files;
-opening `dc/dc_skill.py` and `.claude/skills/dc/dc_skill.py` are
-equivalent. Use whichever you prefer at the shell — `ls dc/` is just a
-faster way to see the skill's contents than `ls .claude/skills/dc/`.
-
-**The canonical path is `.claude/skills/dc/`.** All `.mcp.json`,
-`.codex/config.toml`, and documentation paths use the canonical form so
-the auto-discovery configs stay portable. Don't repoint configs at the
-`dc/` shortcut — it's a discovery aid, not a hook.
+If you're adding new code or docs, edit `dc/` and `docs/` directly. The discovery folders take care of themselves.
 
 ## Maintenance
 
