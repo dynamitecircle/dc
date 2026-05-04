@@ -20,6 +20,51 @@ _Nothing yet._
 
 ---
 
+## [1.8.1] – 2026-05-04
+
+### Fixed
+- **Trips created via API now have full location data.** The server
+  was only writing `{city, country, countryCode, name, placeID}` to
+  Firestore, missing `description`, `lat`, `lon`, `latLon`, `locHash`,
+  `region`, `regionCode`, `utcOffsetMins`. The in-app trip editor's
+  vuelidate rule requires `location.description`, so opening an
+  API-created trip in the UI showed an orange "Location is invalid"
+  error and Save was blocked. Server-side fix; clients pass through.
+- **`/places/search` no longer returns useless country-level results
+  with `city: null`.** Previously a query like `?q=Mexico` could
+  return a country-level match that, if picked, would create a trip
+  with no city. The endpoint now classifies every result with a `type`
+  (see below) and trips reject non-cities server-side.
+
+### Added
+- **`type` field on every `/places/search` and `/places/:placeID`
+  result** — `"city"` for chapter-level matches usable in `POST
+  /trips`; `"venue"` for everything else (specific addresses,
+  establishments, country-level matches). Filter `type === "city"`
+  on the client when building a trip-creation flow.
+- **Enriched location fields on every place + trip response**:
+  `description` (Google formatted address), `lat`, `lon`, `latLon`,
+  `locHash` (geohash), `region`, `regionCode`, `utcOffsetMins`. Same
+  shape the in-app trip editor produces, so trips created via the API
+  are now indistinguishable from trips created via the web UI.
+- **Trip create/update/delete now refresh chapter counts.** POST,
+  PATCH, and DELETE on `/trips` fan out to the same
+  `/auth/city/calc-totals` task the in-app editor calls — so member
+  count, upcoming-trip count, and locator digests stay in sync
+  immediately after an API write (instead of waiting for the next
+  periodic recalc).
+
+### Changed
+- **`POST /trips` validates `place.type === "city"`** before storing.
+  Passing a venue placeID now returns 400 with a clear error pointing
+  callers at `/places/search` and the `type === "city"` filter. This
+  was technically a behavior change, but trips created with venue
+  placeIDs were already broken (no city = no chapter rollup).
+
+Bumped `DC_API_VERSION` to 1.8.1 (matches deployed server).
+
+---
+
 ## [1.7.1] – 2026-05-03
 
 ### Changed
@@ -265,7 +310,8 @@ Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.7.1...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.8.1...HEAD
+[1.8.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.8.1
 [1.7.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.7.1
 [1.6.3]: https://github.com/dynamitecircle/dc/releases/tag/v1.6.3
 [1.6.2]: https://github.com/dynamitecircle/dc/releases/tag/v1.6.2
