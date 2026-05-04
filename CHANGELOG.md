@@ -20,46 +20,61 @@ _Nothing yet._
 
 ---
 
-## [1.8.1] – 2026-05-04
+## [1.9.1] – 2026-05-04
 
-### Fixed
-- **Trips created via API now have full location data.** The server
-  was only writing `{city, country, countryCode, name, placeID}` to
-  Firestore, missing `description`, `lat`, `lon`, `latLon`, `locHash`,
-  `region`, `regionCode`, `utcOffsetMins`. The in-app trip editor's
-  vuelidate rule requires `location.description`, so opening an
-  API-created trip in the UI showed an orange "Location is invalid"
-  error and Save was blocked. Server-side fix; clients pass through.
-- **`/places/search` no longer returns useless country-level results
-  with `city: null`.** Previously a query like `?q=Mexico` could
-  return a country-level match that, if picked, would create a trip
-  with no city. The endpoint now classifies every result with a `type`
-  (see below) and trips reject non-cities server-side.
+### Added
+- **`GET /membership`** — your full membership state in one call:
+  role (label + key), join date, DC BLACK status, trial info, full
+  billing details (status, plan, current period, next billing date,
+  formatted amount, currency, frequency), and a Stripe Customer Portal
+  link for managing your subscription, payment method, and invoices.
+  Use this to check renewal dates, see your current tier, or surface
+  the manage-billing link in your own UI.
+- **`POST /report-issue`** — self-service bug / feedback / question
+  reporting endpoint. Sends a structured report to the DC team with
+  your message, optional structured `context` for debug info, and an
+  optional screenshot. The Python client's `report_issue(...)` helper
+  accepts a screenshot as a file path, raw bytes, or a base64 / data:
+  URL string and handles encoding for you. PNG, JPEG, or WebP only;
+  re-encoded server-side to strip EXIF; max 4 MB raw.
+  **Privacy note:** screenshots and report text go to the DC team
+  unredacted — don't include passwords, payment details, or secrets.
+- **New CLI commands**: `dc membership` and `dc report-issue --text "..." [--severity bug|feedback|question] [--screenshot path] [--context '{...}']`.
+- **New library methods**: `DC.membership()` and `DC.report_issue(text, severity, screenshot, context)`.
+
+Bumped `DC_API_VERSION` to 1.9.1 (matches deployed server).
+
+---
+
+## [1.8.1] – 2026-05-04
 
 ### Added
 - **`type` field on every `/places/search` and `/places/:placeID`
   result** — `"city"` for chapter-level matches usable in `POST
   /trips`; `"venue"` for everything else (specific addresses,
   establishments, country-level matches). Filter `type === "city"`
-  on the client when building a trip-creation flow.
-- **Enriched location fields on every place + trip response**:
-  `description` (Google formatted address), `lat`, `lon`, `latLon`,
-  `locHash` (geohash), `region`, `regionCode`, `utcOffsetMins`. Same
-  shape the in-app trip editor produces, so trips created via the API
-  are now indistinguishable from trips created via the web UI.
-- **Trip create/update/delete now refresh chapter counts.** POST,
-  PATCH, and DELETE on `/trips` fan out to the same
-  `/auth/city/calc-totals` task the in-app editor calls — so member
-  count, upcoming-trip count, and locator digests stay in sync
-  immediately after an API write (instead of waiting for the next
-  periodic recalc).
+  in your client code when building a trip-creation flow; events
+  and meetups accept both.
+- **Richer location fields on every place + trip response**:
+  `description`, `lat`, `lon`, `latLon`, `region`, `regionCode`,
+  `utcOffsetMins`. Available on `/places/search`, `/places/:placeID`,
+  and trip responses.
+
+### Fixed
+- **Trips created via API now sync correctly with the DC web app.**
+  Previously, opening an API-created trip in the in-app trip editor
+  could show a "Location is invalid" error and block Save. Resolved.
+- **`/places/search` no longer returns country-level matches with
+  empty city fields.** Useless results that could lead to broken
+  trips are now properly classified as `type: "venue"` instead.
+- **Chapter counts and locator digests update immediately after a
+  trip create / update / delete via the API**, instead of waiting
+  for the next periodic recalc.
 
 ### Changed
-- **`POST /trips` validates `place.type === "city"`** before storing.
-  Passing a venue placeID now returns 400 with a clear error pointing
-  callers at `/places/search` and the `type === "city"` filter. This
-  was technically a behavior change, but trips created with venue
-  placeIDs were already broken (no city = no chapter rollup).
+- **`POST /trips` rejects placeIDs that aren't cities.** Passing a
+  venue placeID now returns 400 with a clear error pointing you at
+  `/places/search` and the `type === "city"` filter.
 
 Bumped `DC_API_VERSION` to 1.8.1 (matches deployed server).
 
@@ -310,7 +325,8 @@ Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.8.1...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.9.1...HEAD
+[1.9.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.9.1
 [1.8.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.8.1
 [1.7.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.7.1
 [1.6.3]: https://github.com/dynamitecircle/dc/releases/tag/v1.6.3

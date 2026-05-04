@@ -56,6 +56,7 @@ Usage as CLI:
     ... (run `python3 dc.py help` for the full list)
 """
 
+import base64
 import contextvars
 import inspect
 import json
@@ -99,7 +100,7 @@ except ImportError:
 # Bump manually when this client catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-DC_API_VERSION = "1.8.1"
+DC_API_VERSION = "1.9.1"
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -983,6 +984,25 @@ class _DCCore:
         return tuple(), {"fields": flags}
 
     @staticmethod
+    def _parse_report_issue(raw_args):
+        positionals, flags = ArgHelpers.parse_flags(list(raw_args))
+        kwargs: dict = {}
+        if "text"       in flags: kwargs["text"]       = str(flags["text"])
+        if "severity"   in flags: kwargs["severity"]   = str(flags["severity"]).strip()
+        if "screenshot" in flags: kwargs["screenshot"] = str(flags["screenshot"]).strip()
+        if "context"    in flags:
+            ctx_raw = str(flags["context"]).strip()
+            if ctx_raw:
+                try:
+                    parsed = json.loads(ctx_raw)
+                except json.JSONDecodeError as e:
+                    raise UsageError(f"--context must be valid JSON: {e}") from e
+                if not isinstance(parsed, dict):
+                    raise UsageError("--context must be a JSON object (e.g. '{\"key\":\"value\"}').")
+                kwargs["context"] = parsed
+        return tuple(positionals), kwargs
+
+    @staticmethod
     def _parse_places_search(raw_args):
         positionals, flags = ArgHelpers.parse_flags(list(raw_args))
         kwargs: dict = {}
@@ -1185,6 +1205,108 @@ class _DCCore:
         snapshot rather than parsing headers on every call.
         """
         return self._get("/profile/limits")
+
+    # ── Membership ──────────────────────────────────────────────────
+
+    def membership(self):
+        """Your full membership state — role, lifecycle, trial, billing.
+
+        Returns role label/key, joined date, DC BLACK status, trial
+        info, and full billing details (status, plan, current period,
+        next billing date, amounts, manage-billing URL). Use this when
+        you need to know whether the member is active, on trial, or
+        when their next charge is.
+        """
+        return self._get("/membership")
+
+    # ── Report Issue ────────────────────────────────────────────────
+
+    @staticmethod
+    def _encode_screenshot(value) -> str:
+        """Normalize a screenshot input to a base64 string.
+
+        Accepts:
+          - bytes: raw image bytes (e.g. from PIL or a screenshot lib)
+          - str: a filesystem path, a `data:image/...;base64,...` URL,
+            or an already-encoded base64 string
+
+        Returns the base64-encoded string the API expects. Raises
+        UsageError on unsupported extensions or oversize files.
+        """
+        max_bytes = 4 * 1024 * 1024  # mirror server cap
+
+        # bytes → base64
+        if isinstance(value, (bytes, bytearray)):
+            if len(value) > max_bytes:
+                raise UsageError(
+                    f"Screenshot too large ({len(value) / 1024 / 1024:.1f} MB). Max 4 MB."
+                )
+            return base64.b64encode(bytes(value)).decode("ascii")
+
+        if not isinstance(value, str):
+            raise UsageError(
+                "screenshot must be a file path, base64 string, or bytes."
+            )
+
+        s = value.strip()
+        if not s:
+            raise UsageError("screenshot is empty.")
+
+        # Already a data URL — pass through; server strips the prefix.
+        if s.startswith("data:image/"):
+            return s
+
+        # Looks like a file path? Read it.
+        candidate = Path(os.path.expanduser(s))
+        if candidate.is_file():
+            ext = candidate.suffix.lower().lstrip(".")
+            if ext not in {"png", "jpg", "jpeg", "webp"}:
+                raise UsageError(
+                    f"Unsupported screenshot type: .{ext}. Use png, jpg, jpeg, or webp."
+                )
+            data = candidate.read_bytes()
+            if len(data) > max_bytes:
+                raise UsageError(
+                    f"Screenshot too large ({len(data) / 1024 / 1024:.1f} MB). Max 4 MB."
+                )
+            return base64.b64encode(data).decode("ascii")
+
+        # Otherwise assume it's already a base64 string.
+        return s
+
+    def report_issue(self, text="", severity="bug", screenshot=None, context=None):
+        """Submit a bug report, feedback, or question to the DC team.
+
+        Args:
+            text: Description of the issue (required, 1-4000 chars).
+            severity: One of "bug", "feedback", "question". Defaults to "bug".
+            screenshot: Optional. File path, base64 string, data URL, or raw bytes.
+                The helper handles encoding automatically. PNG/JPEG/WebP only,
+                max 4 MB raw.
+            context: Optional dict of debug context — anything useful for
+                triage (last error, request payload, endpoint, etc.).
+
+        **Privacy note:** Screenshots and report text go to the DC team
+        unredacted. Don't include passwords, payment details, or secrets.
+        """
+        if not text:
+            raise UsageError("report-issue requires --text")
+        if severity not in ("bug", "feedback", "question"):
+            raise UsageError(
+                f"--severity must be one of: bug, feedback, question (got: {severity!r})"
+            )
+        body: dict = {"text": text, "severity": severity}
+        if screenshot is not None:
+            body["screenshot"] = self._encode_screenshot(screenshot)
+        if context:
+            if not isinstance(context, dict):
+                raise UsageError("--context must be a JSON object.")
+            body["context"] = context
+        result = self._post("/report-issue", body)
+        Runtime.emit(
+            "Issue reported. The DC team has been notified."
+        )
+        return result
 
     # ── Announcements ───────────────────────────────────────────────
 
@@ -1511,6 +1633,36 @@ class DC(Runtime):
                    args={})
     def limits(self):
         return self._core.limits()
+
+    # ── Membership ──────────────────────────────────────────────────
+
+    @skill_command(name="membership",
+                   help="Get your full membership state — role, trial, billing, next renewal date",
+                   args={})
+    def membership(self):
+        return self._core.membership()
+
+    # ── Report Issue ────────────────────────────────────────────────
+
+    @skill_command(name="report-issue",
+                   help="Report a bug, feedback, or question to the DC team. "
+                        "--text REQUIRED. --severity bug|feedback|question (default bug). "
+                        "--screenshot FILE_PATH (PNG/JPEG/WebP, max 4 MB, optional). "
+                        "--context JSON_STRING (optional structured debug info).",
+                   parser=_DCCore._parse_report_issue,
+                   args={
+                       "text":       {"type": "string", "required": True,
+                                      "description": "Description of the issue (1-4000 chars)"},
+                       "severity":   {"type": "string", "enum": ["bug", "feedback", "question"],
+                                      "default": "bug",
+                                      "description": "Issue severity"},
+                       "screenshot": {"type": "string",
+                                      "description": "Path to a PNG/JPEG/WebP file (max 4 MB), a base64 string, or a data: URL"},
+                       "context":    {"type": "string",
+                                      "description": "Optional JSON object as a string — debug context for triage"},
+                   })
+    def report_issue(self, text="", severity="bug", screenshot=None, context=None):
+        return self._core.report_issue(text=text, severity=severity, screenshot=screenshot, context=context)
 
     # ── Announcements ───────────────────────────────────────────────
 
