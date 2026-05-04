@@ -100,7 +100,7 @@ except ImportError:
 # Bump manually when this client catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-DC_API_VERSION = "1.9.1"
+DC_API_VERSION = "1.10.2"
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -984,6 +984,67 @@ class _DCCore:
         return tuple(), {"fields": flags}
 
     @staticmethod
+    def _parse_notifications_patch(raw_args):
+        """Parse `--cat-<category>-<channel>` flags into the nested PATCH shape."""
+        _positionals, flags = ArgHelpers.parse_flags(list(raw_args))
+        cats: dict = {}
+        for k, v in flags.items():
+            sv = str(v).strip().lower()
+            if sv in ("true", "1", "yes"):
+                bv = True
+            elif sv in ("false", "0", "no"):
+                bv = False
+            else:
+                raise UsageError(f"--{k} expects true|false (got {v!r})")
+            if not k.startswith("cat-"):
+                raise UsageError(
+                    f"Unknown flag --{k}. Use --cat-<category>-<push|email>."
+                )
+            rest = k[len("cat-"):]
+            if "-" not in rest:
+                raise UsageError(f"--cat-{rest} must be of form --cat-<category>-<channel>")
+            category, channel = rest.rsplit("-", 1)
+            if channel not in ("push", "email"):
+                raise UsageError(f"--cat-{category}-{channel} must end with -push or -email")
+            cats.setdefault(category, {})[channel] = bv
+        return tuple(), {"fields": {"categories": cats} if cats else {}}
+
+    @staticmethod
+    def _parse_locator_settings_patch(raw_args):
+        """Parse boolean flags --enabled / --events / --tickets / --trips."""
+        _positionals, flags = ArgHelpers.parse_flags(list(raw_args))
+        allowed = {"enabled", "events", "tickets", "trips"}
+        out: dict = {}
+        for k, v in flags.items():
+            if k not in allowed:
+                raise UsageError(
+                    f"Unknown flag --{k}. Allowed: --enabled, --events, --tickets, --trips."
+                )
+            sv = str(v).strip().lower()
+            if sv in ("true", "1", "yes"):
+                out[k] = True
+            elif sv in ("false", "0", "no"):
+                out[k] = False
+            else:
+                raise UsageError(f"--{k} expects true|false (got {v!r})")
+        return tuple(), {"fields": out}
+
+    @staticmethod
+    def _parse_calendar_patch(raw_args):
+        """Parse boolean --include* flags into the calendar PATCH body."""
+        _positionals, flags = ArgHelpers.parse_flags(list(raw_args))
+        out: dict = {}
+        for k, v in flags.items():
+            sv = str(v).strip().lower()
+            if sv in ("true", "1", "yes"):
+                out[k] = True
+            elif sv in ("false", "0", "no"):
+                out[k] = False
+            else:
+                raise UsageError(f"--{k} expects true|false (got {v!r})")
+        return tuple(), {"fields": out}
+
+    @staticmethod
     def _parse_report_issue(raw_args):
         positionals, flags = ArgHelpers.parse_flags(list(raw_args))
         kwargs: dict = {}
@@ -1218,6 +1279,63 @@ class _DCCore:
         when their next charge is.
         """
         return self._get("/membership")
+
+    def membership_invoices(self, limit=20):
+        """Your Stripe invoices (newest first) with hosted URL + PDF.
+
+        Returns an empty list for legacy paypal/chargify members or
+        members with no Stripe customer record.
+        """
+        return self._get("/membership/invoices", {"limit": limit})
+
+    # ── Notifications ───────────────────────────────────────────────
+
+    def notifications(self):
+        """Read your push/email preferences per notification category."""
+        return self._get("/notifications")
+
+    def update_notifications(self, fields: dict):
+        """Update notification preferences. Pass a `categories` dict:
+
+            {"categories": {
+                "announcement": {"email": False},
+                "reaction":     {"push": True}
+            }}
+        """
+        if not fields:
+            raise UsageError("notifications-update requires at least one field")
+        return self._patch("/notifications", fields)
+
+    # ── Locator (Friday email) ──────────────────────────────────────
+
+    def locator_settings(self):
+        """Read your Friday locator email digest toggles."""
+        return self._get("/locator/settings")
+
+    def update_locator_settings(self, fields: dict):
+        """Update Friday locator email toggles. Any subset of:
+        enabled, events, tickets, trips.
+        """
+        if not fields:
+            raise UsageError("locator-settings-update requires at least one field")
+        return self._patch("/locator/settings", fields)
+
+    # ── Calendar ────────────────────────────────────────────────────
+
+    def calendar(self):
+        """Your iCalendar feed URLs + the 9 feed-content toggles."""
+        return self._get("/calendar")
+
+    def update_calendar(self, fields: dict):
+        """Update calendar feed toggles. Any subset of:
+        includeMyTickets, includeEventAgenda, includeVirtualCalls,
+        includeMyTrips, includeFlagshipEvents, includeDCBlackEvents,
+        includeHomeChapterEvents, includeFollowedChapterEvents,
+        includeOtherChapterEvents.
+        """
+        if not fields:
+            raise UsageError("calendar-update requires at least one field")
+        return self._patch("/calendar", fields)
 
     # ── Report Issue ────────────────────────────────────────────────
 
@@ -1641,6 +1759,89 @@ class DC(Runtime):
                    args={})
     def membership(self):
         return self._core.membership()
+
+    @skill_command(name="invoices",
+                   help="Your Stripe invoices (newest first) with hosted URL + PDF [--limit N]",
+                   parser=_DCCore._parse_list_args,
+                   args={**_PAGINATION_ARGS})
+    def invoices(self, limit=20, cursor=None, **_unused):  # cursor accepted for symmetry
+        return self._core.membership_invoices(limit=limit)
+
+    # ── Notifications ───────────────────────────────────────────────
+
+    @skill_command(name="notifications",
+                   help="Read your push/email preferences + locator (Friday email) toggles",
+                   args={})
+    def notifications(self):
+        return self._core.notifications()
+
+    @skill_command(name="notifications-update",
+                   help="Update notification preferences. Examples: "
+                        "--cat-announcement-email false / --cat-reaction-push true. "
+                        "Categories: account, activity, announcement, channel, chat, "
+                        "directMessage, discussion, event, mention, myReaction, photoTag, reaction. "
+                        "Channels: push, email (email not supported for reaction/myReaction). "
+                        "For the Friday email digest, use `locator-settings-update` instead.",
+                   parser=_DCCore._parse_notifications_patch,
+                   args={
+                       "_accept_extras": {"additional": True},
+                       "cat-announcement-email": {"type": "boolean", "description": "Email for announcements"},
+                       "cat-announcement-push":  {"type": "boolean", "description": "Push for announcements"},
+                       "cat-mention-email":      {"type": "boolean", "description": "Email for @mentions"},
+                       "cat-mention-push":       {"type": "boolean", "description": "Push for @mentions"},
+                   })
+    def notifications_update(self, fields: dict):
+        return self._core.update_notifications(fields or {})
+
+    # ── Locator (Friday email) ──────────────────────────────────────
+
+    @skill_command(name="locator-settings",
+                   help="Read your Friday locator email digest toggles",
+                   args={})
+    def locator_settings(self):
+        return self._core.locator_settings()
+
+    @skill_command(name="locator-settings-update",
+                   help="Update Friday locator email toggles. Any subset of: "
+                        "--enabled --events --tickets --trips (true|false).",
+                   parser=_DCCore._parse_locator_settings_patch,
+                   args={
+                       "enabled": {"type": "boolean", "description": "Master toggle for the Friday digest"},
+                       "events":  {"type": "boolean", "description": "Include new events"},
+                       "tickets": {"type": "boolean", "description": "Include DCer tickets"},
+                       "trips":   {"type": "boolean", "description": "Include trip alerts"},
+                   })
+    def locator_settings_update(self, fields: dict):
+        return self._core.update_locator_settings(fields or {})
+
+    # ── Calendar ────────────────────────────────────────────────────
+
+    @skill_command(name="calendar",
+                   help="Your iCalendar feed URLs + content toggles. Subscribe in any calendar app.",
+                   args={})
+    def calendar(self):
+        return self._core.calendar()
+
+    @skill_command(name="calendar-update",
+                   help="Update calendar feed toggles. Pass any of: "
+                        "--includeMyTickets, --includeEventAgenda, --includeVirtualCalls, "
+                        "--includeMyTrips, --includeFlagshipEvents, --includeDCBlackEvents, "
+                        "--includeHomeChapterEvents, --includeFollowedChapterEvents, "
+                        "--includeOtherChapterEvents (true|false).",
+                   parser=_DCCore._parse_calendar_patch,
+                   args={
+                       "includeMyTickets":             {"type": "boolean"},
+                       "includeEventAgenda":           {"type": "boolean"},
+                       "includeVirtualCalls":          {"type": "boolean"},
+                       "includeMyTrips":               {"type": "boolean"},
+                       "includeFlagshipEvents":        {"type": "boolean"},
+                       "includeDCBlackEvents":         {"type": "boolean"},
+                       "includeHomeChapterEvents":     {"type": "boolean"},
+                       "includeFollowedChapterEvents": {"type": "boolean"},
+                       "includeOtherChapterEvents":    {"type": "boolean"},
+                   })
+    def calendar_update(self, fields: dict):
+        return self._core.update_calendar(fields or {})
 
     # ── Report Issue ────────────────────────────────────────────────
 

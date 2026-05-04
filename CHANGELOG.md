@@ -20,6 +20,50 @@ _Nothing yet._
 
 ---
 
+## [1.10.2] – 2026-05-04
+
+### Added
+- **`GET /membership/invoices`** — your Stripe invoices (newest first)
+  with hosted invoice URL + PDF link, amount, currency, status, period
+  start/end, and plan description. Useful for self-serve receipts.
+  Returns an empty list for legacy paypal/chargify members or members
+  with no Stripe customer record.
+- **`GET /notifications` + `PATCH /notifications`** — read and update
+  push/email preferences per notification category. 12 categories:
+  `account`, `activity`, `announcement`, `channel`, `chat`,
+  `directMessage`, `discussion`, `event`, `mention`, `myReaction`,
+  `photoTag`, `reaction`. Email is `null` for `reaction` / `myReaction`
+  (not supported there). Defaults are applied for any preference you
+  haven't explicitly set.
+- **`GET /locator/settings` + `PATCH /locator/settings`** — read and
+  update the four toggles for the Friday locator email digest:
+  `enabled`, `events`, `tickets`, `trips`.
+- **`GET /calendar` + `PATCH /calendar`** — your iCalendar feed and
+  the 9 content toggles. Returns three subscription URLs for the same
+  feed: `httpsURL` (works in any calendar app), `webcalURL` (macOS /
+  iOS open it directly), and `googleURL` (one-click Google Calendar
+  subscribe). Toggles control which event categories are included:
+  your tickets, bookmarked agenda items, virtual calls, your trips,
+  flagship events (DCBKK/DCMEX), DC BLACK retreats, home chapter
+  events, followed-chapter events, and other-chapter events. Defaults
+  mirror the in-app subscribe modal exactly.
+- **New CLI commands**: `dc invoices`, `dc notifications`,
+  `dc notifications-update`, `dc locator-settings`,
+  `dc locator-settings-update`, `dc calendar`, `dc calendar-update`.
+- **New library methods**: `DC.membership_invoices()`,
+  `DC.notifications()`, `DC.update_notifications()`,
+  `DC.locator_settings()`, `DC.update_locator_settings()`,
+  `DC.calendar()`, `DC.update_calendar()`.
+
+### Fixed
+- Sharp re-encode pipeline for `POST /report-issue` screenshots no
+  longer rejects valid PNG/JPEG/WebP images on the right `fit` option.
+  EXIF metadata still stripped on every accepted upload.
+
+Bumped `DC_API_VERSION` to 1.10.2 (matches deployed server).
+
+---
+
 ## [1.9.1] – 2026-05-04
 
 ### Added
@@ -325,7 +369,8 @@ Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.9.1...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.10.2...HEAD
+[1.10.2]: https://github.com/dynamitecircle/dc/releases/tag/v1.10.2
 [1.9.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.9.1
 [1.8.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.8.1
 [1.7.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.7.1
