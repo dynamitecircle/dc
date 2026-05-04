@@ -20,6 +20,24 @@ _Nothing yet._
 
 ---
 
+## [1.10.4] – 2026-05-04
+
+### Fixed
+- **`PATCH /notifications` now actually persists changes.** Previous
+  release set values via `set({"cats.foo.email": false}, {merge:true})`
+  which Firestore stores as a literal top-level key — silently no-op
+  for the read path. Now uses `update()` (which understands dot paths)
+  with a fall-through to `set(nested)` for first-time writes.
+
+### Changed
+- API instance class bumped from F1 (256MB / 384MB hard cap) to F2
+  (512MB) so the server starts cleanly. The expanded surface (sharp,
+  stripe, full route set) was OOM'ing F1 at startup.
+
+Bumped `DC_API_VERSION` to 1.10.4 (matches deployed server).
+
+---
+
 ## [1.10.2] – 2026-05-04
 
 ### Added
@@ -369,7 +387,8 @@ Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.10.2...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.10.4...HEAD
+[1.10.4]: https://github.com/dynamitecircle/dc/releases/tag/v1.10.4
 [1.10.2]: https://github.com/dynamitecircle/dc/releases/tag/v1.10.2
 [1.9.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.9.1
 [1.8.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.8.1
