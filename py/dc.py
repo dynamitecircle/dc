@@ -100,7 +100,7 @@ except ImportError:
 # Bump manually when this client catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-DC_API_VERSION = "1.10.5"
+DC_API_VERSION = "1.11.1"
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -1265,7 +1265,7 @@ class _DCCore:
         headers, in JSON form. Useful for clients that want a single
         snapshot rather than parsing headers on every call.
         """
-        return self._get("/profile/limits")
+        return self._get("/limits")
 
     # ── Membership ──────────────────────────────────────────────────
 

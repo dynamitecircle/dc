@@ -20,6 +20,28 @@ _Nothing yet._
 
 ---
 
+## [1.11.1] – 2026-05-07
+
+### Breaking
+- **`/profile/limits` moved to `/limits`.** The rate-limit
+  endpoint is now mounted at the root, like the rest of the
+  non-profile surface. The old path returns **HTTP 308** with
+  `Location: /limits` — 308 preserves the GET method (vs 301
+  which clients sometimes downgrade), so older callers that
+  follow redirects keep working through one extra hop. The
+  `dc.limits()` helper in this client already points at the
+  new path.
+
+### Changed
+- **`POST /profile-match` is now described as "AI-powered".**
+  Behaviour unchanged. The public OpenAPI description now
+  leads with "AI-powered profile matchmaker" so callers
+  immediately understand it uses Gemini embeddings + reranking
+  under the hood, and carries stricter rate limits than the
+  standard CRUD endpoints.
+
+---
+
 ## [1.10.5] – 2026-05-07
 
 ### Added
