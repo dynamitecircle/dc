@@ -100,7 +100,7 @@ except ImportError:
 # Bump manually when this client catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-DC_API_VERSION = "1.10.4"
+DC_API_VERSION = "1.10.5"
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -1451,11 +1451,49 @@ class _DCCore:
             raise UsageError("event-schedule requires an event ID")
         return self._get(f"/events/{event_id}/schedule")
 
-    def event_agenda(self, event_id):
-        """Sessions and meetups YOU have on your agenda for an event."""
+    def event_agenda(self, event_id, user_id=None):
+        """Sessions and meetups on the agenda for an event.
+
+        With no user_id (default): returns YOUR agenda.
+        With user_id: returns another attendee's agenda — useful when
+        AI agents want to plan together (find a coffee window with a
+        DCer, suggest sessions to overlap, etc.). Both you and the
+        target must hold a valid ticket to the event.
+        """
         if not event_id:
             raise UsageError("event-agenda requires an event ID")
+        if user_id:
+            return self._get(f"/events/{event_id}/agenda/{user_id}")
         return self._get(f"/events/{event_id}/agenda")
+
+    def profile_match(self, query=None, limit=20, location_chapter_place_id=None,
+                      location_current_place_id=None, event_id=None, is_dcb=None):
+        """Match DCers against a description, or recommend if no query.
+
+        With `query`: free-form description ("DCers in Lisbon who run SaaS").
+        Without `query`: server uses your own profile to recommend "DCers
+        you should meet". Useful for cold-start "who should I message?"
+
+        Optional filters (compose with AND):
+            location_chapter_place_id  — DCers based here (Google Place ID)
+            location_current_place_id  — DCers currently here
+            event_id                   — DCers attending this event
+            is_dcb                     — DC BLACK members only
+
+        Resolve place IDs via `places-search` first.
+        """
+        body = {"limit": int(limit)}
+        if query:
+            body["query"] = query
+        if location_chapter_place_id:
+            body["locationChapterPlaceID"] = location_chapter_place_id
+        if location_current_place_id:
+            body["locationCurrentPlaceID"] = location_current_place_id
+        if event_id:
+            body["eventID"] = event_id
+        if is_dcb is True:
+            body["isDCB"] = True
+        return self._post("/profile-match", body)
 
     def event_meetups(self, event_id):
         """Approved member-organized meetups for an event."""
@@ -1963,10 +2001,16 @@ class DC(Runtime):
         return self._core.event_schedule(event_id)
 
     @skill_command(name="event-agenda",
-                   help="YOUR sessions + meetups for an event. Requires an event ticket.",
-                   args={})
-    def event_agenda(self, event_id):
-        return self._core.event_agenda(event_id)
+                   help="Sessions + meetups on the agenda for an event. "
+                        "By default returns YOUR agenda. Pass --user-id to view "
+                        "another attendee's agenda — useful for planning together "
+                        "(find coffee windows, suggest sessions to overlap). "
+                        "Both you and the target must hold a valid ticket.",
+                   args={
+                       "user-id": {"type": "string", "description": "Optional. View another attendee's agenda by their userID."},
+                   })
+    def event_agenda(self, event_id, user_id=None):
+        return self._core.event_agenda(event_id, user_id=user_id)
 
     @skill_command(name="event-meetups",
                    help="Approved member-organized meetups for an event. Requires an event ticket.",
@@ -2119,6 +2163,32 @@ class DC(Runtime):
     @skill_command(name="place", help="Get place details by Google Place ID", args={})
     def place(self, place_id):
         return self._core.place(place_id)
+
+    # ── Discovery ──────────────────────────────────────────────────
+
+    @skill_command(name="profile-match",
+                   help="Match DCers from a description, or recommend if no query. "
+                        "Profiles only. Filters compose with AND.",
+                   args={
+                       "query":                    {"type": "string", "description": "Free-form description ('DCers in Lisbon who run SaaS'). Omit to get recommendations from your own profile."},
+                       "limit":                    {"type": "integer", "default": 20, "description": "Max results (1-20)."},
+                       "location-chapter-place-id": {"type": "string", "description": "Google Place ID — DCers based here."},
+                       "location-current-place-id": {"type": "string", "description": "Google Place ID — DCers currently here."},
+                       "event-id":                  {"type": "string", "description": "Event ID — DCers attending this event (valid ticket only)."},
+                       "is-dcb":                    {"type": "boolean", "description": "When true, narrow to DC BLACK members only."},
+                   })
+    def profile_match(self, query=None, limit=20,
+                      location_chapter_place_id=None,
+                      location_current_place_id=None,
+                      event_id=None, is_dcb=None):
+        return self._core.profile_match(
+            query=query,
+            limit=limit,
+            location_chapter_place_id=location_chapter_place_id,
+            location_current_place_id=location_current_place_id,
+            event_id=event_id,
+            is_dcb=is_dcb,
+        )
 
     # ── Locator ────────────────────────────────────────────────────
 

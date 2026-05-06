@@ -20,6 +20,41 @@ _Nothing yet._
 
 ---
 
+## [1.10.5] – 2026-05-07
+
+### Added
+- **`POST /profile-match`** — match DCers from a free-form
+  description, or recommend if no `query` is passed. Profiles-only.
+  Optional filters compose with AND:
+   - `query` — free-form description ("DCers in Lisbon who run SaaS")
+   - `locationChapterPlaceID` — narrow to DCers based at this Google Place
+   - `locationCurrentPlaceID` — narrow to DCers currently at this place
+   - `eventID` — narrow to DCers attending the event (valid ticket only)
+   - `isDCB` — DC BLACK members only
+  Hard cap at `limit: 20`. Each result includes `chapter` (base) +
+  `currentLocation` (when travelling).
+- **`GET /events/:eventID/agenda/:userID`** — view another attendee's
+  agenda for a shared event so AI agents can plan together (find
+  coffee windows, suggest sessions to overlap, propose meetups).
+  Both you and the target must hold a valid ticket. Returns the same
+  shape as the self `/agenda` plus the target's mini profile.
+- **`currentLocation` field on every `ApiProfile` response** — built
+  from a member's current location, populated only when different
+  from their base chapter.
+- **New CLI commands**: `dc profile-match [--query …] [--limit N] [--location-chapter-place-id …] [--location-current-place-id …] [--event-id …] [--is-dcb]` and `dc event-agenda <eventID> [--user-id …]`.
+- **New library methods**: `DC.profile_match(...)` and `DC.event_agenda(event_id, user_id=None)`.
+
+### Changed
+- **List/recommendation endpoints now exclude system-test profiles
+  and event-only guest profiles.** New shared `isPubliclyVisible`
+  gate applied to: `/profile-match`, `/events/:eventID/attendees`,
+  session/meetup attendees, `/chapters/:cityID` members,
+  `/trips/overlaps`. Single-profile lookups are unaffected.
+
+Bumped `DC_API_VERSION` to 1.10.5 (matches deployed server).
+
+---
+
 ## [1.10.4] – 2026-05-04
 
 ### Fixed
@@ -387,7 +422,8 @@ Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.10.4...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.10.5...HEAD
+[1.10.5]: https://github.com/dynamitecircle/dc/releases/tag/v1.10.5
 [1.10.4]: https://github.com/dynamitecircle/dc/releases/tag/v1.10.4
 [1.10.2]: https://github.com/dynamitecircle/dc/releases/tag/v1.10.2
 [1.9.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.9.1

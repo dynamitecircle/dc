@@ -1,6 +1,6 @@
 {
   "name": "dc",
-  "version": "1.10.4",
+  "version": "1.10.5",
   "description": "Read and act on your own Dynamite Circle membership data via the public Member API.",
   "entry": "dc.py",
   "env": {

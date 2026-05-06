@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "dc",
   "display_name": "DC Member API",
-  "version": "1.10.4",
+  "version": "1.10.5",
   "description": "Read and act on your own Dynamite Circle membership data via the public Member API.",
   "long_description": "Single-file Python **client** for the public DC Member API at https://api.dynamitecircle.com. Same file runs three ways: CLI, Python library, and MCP server (--mcp flag, opt-in mcp dependency). Compatible with Claude Code, Claude Desktop, Codex CLI, Gemini CLI, Cursor, GitHub Copilot, and any other Agent Skills / MCP-compatible tool. Covers profile (read+update), trips (CRUD), events + RSVP, virtual events + RSVP, tickets, invites, inbox, rooms, chapters, places lookup, locator digest, announcements, and event-day agendas (DCBKK / DCMEX / DC BLACK schedules, meetups, sponsors, session bookmarks).",
   "author": {
