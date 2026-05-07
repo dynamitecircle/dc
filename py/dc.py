@@ -100,7 +100,7 @@ except ImportError:
 # Bump manually when this client catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-DC_API_VERSION = "1.11.1"
+DC_API_VERSION = "1.12.1"
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -1466,6 +1466,49 @@ class _DCCore:
             return self._get(f"/events/{event_id}/agenda/{user_id}")
         return self._get(f"/events/{event_id}/agenda")
 
+    def event_agendas(self, event_id, user_ids):
+        """Bulk fetch agendas for up to 20 attendees in one call.
+
+        Cheaper than fanning out N requests when an LLM compares
+        schedules across several DCers ("what sessions are Lina,
+        Alex, and Jeff all attending?"). Non-attendee userIDs are
+        silently dropped — pass a candidate list without pre-checking
+        each ticket. You must hold a ticket to the event.
+        """
+        if not event_id:
+            raise UsageError("event-agendas requires an event ID")
+        ids = user_ids if isinstance(user_ids, list) else [s.strip() for s in str(user_ids).split(",") if s.strip()]
+        if not ids:
+            raise UsageError("event-agendas requires at least one userID")
+        if len(ids) > 20:
+            raise UsageError("event-agendas accepts at most 20 userIDs per call")
+        return self._get(f"/events/{event_id}/agendas", {"userIDs": ",".join(ids)})
+
+    def event_free_slots(self, event_id, user_ids, min_duration_mins=30, within_day_date=None):
+        """Compute shared free time slots across event attendees.
+
+        Returns the windows where the given attendees are NOT in a
+        bookmarked session or meetup. Use to find a coffee window
+        with one DCer or a junto-style lunch slot for a group. Slots
+        are ranked by overlap (most-shared first). Non-attendee IDs
+        silently dropped. Wall-clock ISO out, paired with the event's
+        IANA timezone.
+        """
+        if not event_id:
+            raise UsageError("event-free-slots requires an event ID")
+        ids = user_ids if isinstance(user_ids, list) else [s.strip() for s in str(user_ids).split(",") if s.strip()]
+        if not ids:
+            raise UsageError("event-free-slots requires at least one userID")
+        if len(ids) > 20:
+            raise UsageError("event-free-slots accepts at most 20 userIDs per call")
+        body = {
+            "userIDs":         ids,
+            "minDurationMins": int(min_duration_mins),
+        }
+        if within_day_date:
+            body["withinDayDate"] = within_day_date
+        return self._post(f"/events/{event_id}/free-slots", body)
+
     def profile_match(self, query=None, limit=20, location_chapter_place_id=None,
                       location_current_place_id=None, event_id=None, is_dcb=None):
         """Match DCers against a description, or recommend if no query.
@@ -2011,6 +2054,32 @@ class DC(Runtime):
                    })
     def event_agenda(self, event_id, user_id=None):
         return self._core.event_agenda(event_id, user_id=user_id)
+
+    @skill_command(name="event-agendas",
+                   help="Bulk fetch up to 20 attendee agendas in one call. Use when comparing "
+                        "schedules across several DCers (\"what sessions are Lina, Alex, and Jeff "
+                        "all attending?\"). Non-attendee userIDs are silently dropped — pass a "
+                        "candidate list without pre-checking each ticket. You must hold a ticket.",
+                   args={
+                       "user-ids": {"type": "string", "required": True, "description": "Comma-separated attendee userIDs (max 20). Non-attendees silently dropped.", "examples": ["940,1673,2572"]},
+                   })
+    def event_agendas(self, event_id, user_ids):
+        return self._core.event_agendas(event_id, user_ids)
+
+    @skill_command(name="event-free-slots",
+                   help="Find shared free time slots across event attendees — windows where they're "
+                        "NOT in a bookmarked session or meetup. Ranked by overlap (most-shared "
+                        "first). Use to find a coffee window with one DCer or a junto-style lunch "
+                        "slot for a group. You must hold a ticket; non-attendee IDs are silently dropped.",
+                   args={
+                       "user-ids":          {"type": "string", "required": True, "description": "Comma-separated attendee userIDs to compare (1-20). Non-attendees silently dropped.", "examples": ["940,1673,2572"]},
+                       "min-duration-mins": {"type": "number", "default": 30, "description": "Minimum slot length in minutes (15-480, default 30)."},
+                       "within-day-date":   {"type": "string", "description": "Optional. Scope to a single event day (YYYY-MM-DD venue-local). Omit for the full event range.", "examples": ["2026-05-06"]},
+                   })
+    def event_free_slots(self, event_id, user_ids, min_duration_mins=30, within_day_date=None):
+        return self._core.event_free_slots(event_id, user_ids,
+                                           min_duration_mins=min_duration_mins,
+                                           within_day_date=within_day_date)
 
     @skill_command(name="event-meetups",
                    help="Approved member-organized meetups for an event. Requires an event ticket.",

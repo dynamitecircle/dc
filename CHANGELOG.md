@@ -20,6 +20,38 @@ _Nothing yet._
 
 ---
 
+## [1.12.1] – 2026-05-08
+
+### Added
+- **`GET /events/:eventID/agendas?userIDs=A,B,C`** — bulk fetch up
+  to 20 attendee agendas in one call. Drop-in for the LLM use-case
+  "compare schedules across several DCers" (find shared sessions,
+  spot meetup overlap) without paying N round-trips. Non-attendee
+  IDs are silently dropped — pass a candidate list without
+  pre-checking each ticket. Caller must hold a valid ticket to the
+  event. New skill command: `dc event-agendas <eventID>
+  --user-ids=A,B,C`.
+- **`POST /events/:eventID/free-slots`** — server-side computation
+  of shared free time windows across event attendees. Body:
+  `{ userIDs[], minDurationMins?, withinDayDate? }`. Returns slots
+  ranked by overlap (most-shared first), each tagged with `freeFor`
+  / `busyFor`. Date math runs server-side once instead of in every
+  LLM caller — the same fake-UTC wall-clock convention as the rest
+  of the events API, paired with the venue IANA timezone. Caller
+  must hold a valid ticket; non-attendee IDs silently dropped. New
+  skill command: `dc event-free-slots <eventID> --user-ids=A,B,C
+  [--min-duration-mins=30] [--within-day-date=2026-05-06]`.
+
+### Why
+- Single-attendee `/agenda/:userID` shipped in 1.10.5; the missing
+  pieces for "plan together with N DCers at an event" were the
+  bulk fetch and the gap-finder. Both now land together so the
+  AI-agent UX for "find me 30 minutes with Peter on Tuesday" or
+  "plan a junto-style lunch with Alex, Lina, and Jeff at DCMEX"
+  works in one or two calls.
+
+---
+
 ## [1.11.1] – 2026-05-07
 
 ### Breaking
