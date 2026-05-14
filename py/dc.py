@@ -100,7 +100,7 @@ except ImportError:
 # Bump manually when this client catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-DC_API_VERSION = "1.12.1"
+DC_API_VERSION = "1.12.5"
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -1509,8 +1509,10 @@ class _DCCore:
             body["withinDayDate"] = within_day_date
         return self._post(f"/events/{event_id}/free-slots", body)
 
-    def profile_match(self, query=None, limit=20, location_chapter_place_id=None,
-                      location_current_place_id=None, event_id=None, is_dcb=None):
+    def profile_match(self, query=None, limit=50, location_chapter_place_id=None,
+                      location_current_place_id=None, event_id=None, is_dcb=None,
+                      industry=None, min_team_size=None, min_revenue=None,
+                      gender=None, no_rerank=None):
         """Match DCers against a description, or recommend if no query.
 
         With `query`: free-form description ("DCers in Lisbon who run SaaS").
@@ -1522,8 +1524,25 @@ class _DCCore:
             location_current_place_id  — DCers currently here
             event_id                   — DCers attending this event
             is_dcb                     — DC BLACK members only
+            industry                   — exact match on PrimaryBusinessIndustry
+                                         (e.g. "SaaS & Tech")
+            min_team_size              — "at least this size" (e.g. "10-14");
+                                         only DCers who set TeamSizePrivacy
+                                         to "all DCers" are matched.
+            min_revenue                — "at least this revenue" (e.g. "$1M+");
+                                         only DCers who set AnnualRevenuePrivacy
+                                         to "all DCers" are matched.
+            gender                     — exact match. "Man" | "Woman" | "Non-binary".
+                                         NOTE: Gender is sparsely populated —
+                                         most DCers leave it blank.
+            no_rerank                  — skip the keyword reranker and return
+                                         results in raw vector-similarity order.
 
         Resolve place IDs via `places-search` first.
+
+        Each result carries `score` (composite, sortable), `vectorScore` (pure
+        semantic similarity 0..1), and `keywordScore` (raw keyword overlap, only
+        when reranker ran). Limit cap 50.
         """
         body = {"limit": int(limit)}
         if query:
@@ -1536,6 +1555,16 @@ class _DCCore:
             body["eventID"] = event_id
         if is_dcb is True:
             body["isDCB"] = True
+        if industry:
+            body["industry"] = industry
+        if min_team_size:
+            body["minTeamSize"] = min_team_size
+        if min_revenue:
+            body["minRevenue"] = min_revenue
+        if gender:
+            body["gender"] = gender
+        if no_rerank is True:
+            body["noRerank"] = True
         return self._post("/profile-match", body)
 
     def event_meetups(self, event_id):
@@ -2237,19 +2266,28 @@ class DC(Runtime):
 
     @skill_command(name="profile-match",
                    help="Match DCers from a description, or recommend if no query. "
-                        "Profiles only. Filters compose with AND.",
+                        "Profiles only. Filters compose with AND. Each result includes "
+                        "`score` (composite, sortable), `vectorScore` (pure semantic similarity), "
+                        "and `keywordScore` (when reranker ran).",
                    args={
                        "query":                    {"type": "string", "description": "Free-form description ('DCers in Lisbon who run SaaS'). Omit to get recommendations from your own profile."},
-                       "limit":                    {"type": "integer", "default": 20, "description": "Max results (1-20)."},
+                       "limit":                    {"type": "integer", "default": 50, "description": "Max results (1-50)."},
                        "location-chapter-place-id": {"type": "string", "description": "Google Place ID — DCers based here."},
                        "location-current-place-id": {"type": "string", "description": "Google Place ID — DCers currently here."},
                        "event-id":                  {"type": "string", "description": "Event ID — DCers attending this event (valid ticket only)."},
                        "is-dcb":                    {"type": "boolean", "description": "When true, narrow to DC BLACK members only."},
+                       "industry":                  {"type": "string", "description": "Exact match on PrimaryBusinessIndustry. e.g. 'SaaS & Tech', 'Marketing Agency', 'Ecommerce & Amazon', 'Coaching', 'Other'."},
+                       "min-team-size":             {"type": "string", "description": "'At least this team size' filter. e.g. '10-14'. Ordered None<1-2<3-5<6-9<10-14<15-19<20-34<35-49<50-74<75-99<100+. Privacy-gated to DCers who set TeamSizePrivacy to all-DCers."},
+                       "min-revenue":               {"type": "string", "description": "'At least this revenue' filter. e.g. '$1M+', '$250K+'. Privacy-gated to DCers who set AnnualRevenuePrivacy to all-DCers."},
+                       "gender":                    {"type": "string", "description": "Exact match. 'Man' | 'Woman' | 'Non-binary'. NOTE: gender is sparsely populated — most DCers leave it blank; use as a 'narrow if set' hint."},
+                       "no-rerank":                 {"type": "boolean", "description": "Skip the keyword reranker and return results in raw vector-similarity order. Useful for fuzzy/semantic queries or A/B comparison."},
                    })
-    def profile_match(self, query=None, limit=20,
+    def profile_match(self, query=None, limit=50,
                       location_chapter_place_id=None,
                       location_current_place_id=None,
-                      event_id=None, is_dcb=None):
+                      event_id=None, is_dcb=None,
+                      industry=None, min_team_size=None, min_revenue=None,
+                      gender=None, no_rerank=None):
         return self._core.profile_match(
             query=query,
             limit=limit,
@@ -2257,6 +2295,11 @@ class DC(Runtime):
             location_current_place_id=location_current_place_id,
             event_id=event_id,
             is_dcb=is_dcb,
+            industry=industry,
+            min_team_size=min_team_size,
+            min_revenue=min_revenue,
+            gender=gender,
+            no_rerank=no_rerank,
         )
 
     # ── Locator ────────────────────────────────────────────────────

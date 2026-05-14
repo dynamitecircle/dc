@@ -20,6 +20,70 @@ _Nothing yet._
 
 ---
 
+## [1.12.5] – 2026-05-14
+
+### Added
+
+- **`POST /profile-match` — real similarity scores + new filters + reranker A/B.**
+  - Each result now carries three scores: `score` (composite, sortable —
+    blend of vector + keyword when reranker ran, raw `vectorScore`
+    otherwise), `vectorScore` (pure semantic 0..1 from Firestore
+    vector search), and `keywordScore` (raw keyword overlap, only when
+    reranker ran). Old "fake" rank-derived scores are gone — these are
+    the real numbers and reflect actual match quality.
+  - Four new filters compose with AND alongside the existing ones:
+    - `industry` — exact match on PrimaryBusinessIndustry
+      (`"SaaS & Tech"`, `"Marketing Agency"`, `"Ecommerce & Amazon"`,
+      `"Coaching"`, `"Other"`, etc.).
+    - `min_team_size` — "at least this size" filter, ordered
+      `None < 1-2 < 3-5 < 6-9 < 10-14 < 15-19 < 20-34 < 35-49 < 50-74 < 75-99 < 100+`.
+      Only matches DCers who set their team-size visibility to "all DCers".
+    - `min_revenue` — "at least this revenue" filter (e.g. `"$1M+"`,
+      `"$250K+"`). Only matches DCers who set their revenue visibility
+      to "all DCers".
+    - `gender` — exact match (`Man`, `Woman`, `Non-binary`). **Note:
+      Gender is sparsely populated — most DCers leave it blank.**
+      Use as a "narrow if set" hint, not a hard requirement.
+  - `no_rerank` flag skips the keyword reranker and returns results
+    in raw vector-similarity order. Useful for fuzzy/semantic queries
+    where exact keyword overlap would add noise, or for A/B comparison
+    against the reranked default.
+  - Result limit cap raised 20 → 50 (default still 20 in the skill).
+
+- **`GET /` is fully self-describing.** Returns `{ name, version, links }`
+  with `links` pointing at `/openapi.json`, `/.well-known/mcp.json`,
+  `/.well-known/security.txt`, the docs page, plus marketing URLs
+  (`site`, `apply`, `dcBlack`). One fetch tells any agent where to go.
+- **`GET /openapi.json`** + **`GET /.well-known/openapi.json`** serve the
+  full OpenAPI 3.1 spec. IANA-registered well-known location plus the
+  canonical short path.
+- **`GET /.well-known/mcp.json`** — Anthropic MCP discovery descriptor
+  (name, transport, install command, auth scheme, openapi pointer).
+- **`GET /.well-known/security.txt`** — RFC 9116 security contact.
+
+### Fixed
+- **Rerank math sign-flip.** The keyword reranker was sorting on raw
+  euclidean distance (lower = closer) with the same direction as
+  similarity (higher = better) — so ties surfaced the FURTHEST
+  candidates, not the closest. Now: distance → similarity via
+  `1 / (1 + d)` before reranking, and the keyword score is normalised
+  per batch so it doesn't swamp the vector signal.
+- **Mode-2 ("DCers you should meet") reranking.** When no `query` is
+  passed and the server builds an implicit query from your profile,
+  the reranker is now applied (previously skipped because metadata
+  was passed as an array).
+- **Locator privacy gate.** `GET /locator/digest` now filters hidden
+  test accounts and guest profiles out of `homeCity.newMembers`,
+  `chapterLeads`, `localMembers`, and every trip/ticket reference.
+
+### Changed
+- `profile.locCurrent` type acknowledges that it can carry a `placeID`
+  (it's a `Place` when derived from `locMobile` / `locBase` / active
+  trip, a bare `Loc` otherwise). No data change; the schema type just
+  matches the docs that have always existed in production.
+
+---
+
 ## [1.12.1] – 2026-05-08
 
 ### Added
