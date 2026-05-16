@@ -22,7 +22,7 @@ python3 py/dc.py --mcp
 
 The server speaks JSON-RPC over stdio. It's not meant to be used directly — wire it into a client below.
 
-## Smoke test (no client needed)
+## Quick check (no client needed)
 
 ```bash
 (
@@ -180,7 +180,7 @@ So `python3 dc.py setup --api-key dk_...` (run once) authorizes all three modes.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `MCP mode requires the optional 'mcp' package` | Not installed | `pip install -r py/requirements.txt` |
-| Tools list is empty in the client | Server didn't start (path wrong, perms) | Run the smoke test above to isolate |
+| Tools list is empty in the client | Server didn't start (path wrong, perms) | Run the quick check above to isolate |
 | `unauthorized` from any tool | `DC_API_KEY` not loaded | Run `setup --api-key dk_...` once at the CLI |
 | Tools list shows but calls hang | Client expects HTTP transport, not stdio | Check the client's transport setting; this server is stdio-only |
 | Different Python found by client | Client's PATH differs from yours | Use an absolute path to `python3` in the args |

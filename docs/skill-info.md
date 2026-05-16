@@ -233,7 +233,7 @@ If `mcp` is not installed → clean install hint, no traceback. CLI and Python-i
 3. Add a `@skill_command`-decorated wrapper to `DC` that delegates to `_core`
 4. Update `SKILL.md` with usage examples
 5. Verify the new endpoint is documented in the live API reference: https://www.dynamitecircle.com/developers/
-6. Smoke-test:
+6. Verify:
    ```bash
    python3 py/dc.py help                    # appears in list
    python3 py/dc.py <new-command> --json    # round-trips

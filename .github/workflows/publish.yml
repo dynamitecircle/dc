@@ -43,7 +43,7 @@ jobs:
           path: dist/
 
   smoke-install:
-    name: Smoke-test pip install
+    name: Test pip install
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
@@ -62,9 +62,9 @@ jobs:
       - name: Install from wheel
         shell: bash
         run: pip install dist/*.whl
-      - name: Import smoke test
+      - name: Import test
         run: python -c "from dynamitecircle import DC, DCError, Result, Runtime, main; print('OK', DC.__name__)"
-      - name: CLI smoke test (no API call)
+      - name: CLI test (no API call)
         shell: bash
         run: |
           dc help | head -5
