@@ -16,7 +16,12 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+
+- **MCP stdio transport hang.** Replaced the Python SDK `stdio_server`
+  helper with a small buffered stdio transport so `dc.py --mcp`
+  responds reliably to `initialize`, `tools/list`, and tool calls on
+  current Python/MCP SDK setups.
 
 ---
 
