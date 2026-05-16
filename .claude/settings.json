@@ -1,12 +1,19 @@
 {
   "permissions": {
     "allow": [
+      "Bash(python3 py/dc.py)",
       "Bash(python3 py/dc.py *)",
+      "Bash(.venv/bin/python3 py/dc.py)",
+      "Bash(.venv/bin/python3 py/dc.py *)",
       "Bash(python3 .claude/skills/dc/dc.py *)",
       "Bash(python3 .agents/skills/dc/dc.py *)",
       "Bash(python3 py/dc.py:*)",
+      "Bash(.venv/bin/python3 py/dc.py:*)",
       "mcp__dc",
       "mcp__dc__*",
+      "WebFetch(domain:api.dynamitecircle.com)",
+      "WebFetch(domain:www.dynamitecircle.com)",
+      "WebFetch(domain:dynamitecircle.com)",
       "Read",
       "Read(./**)",
       "Skill(dc)",
@@ -14,5 +21,17 @@
     ],
     "deny": []
   },
-  "enableAllProjectMcpServers": true
+  "enabledMcpjsonServers": [
+    "dc"
+  ],
+  "enableAllProjectMcpServers": true,
+  "sandbox": {
+    "network": {
+      "allowedDomains": [
+        "api.dynamitecircle.com",
+        "www.dynamitecircle.com",
+        "dynamitecircle.com"
+      ]
+    }
+  }
 }

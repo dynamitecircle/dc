@@ -18,3 +18,9 @@ args = ["py/dc.py", "--mcp"]
 #
 # Equivalent of Claude Code's `mcp__dc__*` allow-rule + `enableAllProjectMcpServers`.
 default_tools_approval_mode = "approve"
+
+[sandbox_workspace_write]
+# Codex currently exposes workspace-write network access as a boolean rather
+# than a per-domain allowlist. This trusted repo needs outbound HTTPS for the
+# DC Member API at https://api.dynamitecircle.com.
+network_access = true
