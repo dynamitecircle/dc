@@ -14,7 +14,69 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
-## [Unreleased]
+## [1.13.1] – 2026-05-19
+
+### Added
+
+- **`dc trip <tripID>`** — single-trip read with the full payload.
+  Returns trip basics (`location`, `dates`, `note`, `roomID`) plus the
+  embedded `points` (up to 20 venue/idea notes with optional Google
+  Place data) AND a fully-enriched `discovery` block:
+  - `discovery.people` — ranked top-10 DCers to meet, each with mini
+    `profile` (userID, userName, displayName, photo, headline), a
+    `score` (higher = better match), `reason` (`local` / `visiting` /
+    `event-attendee`), `overlapDays`, `detail`.
+  - `discovery.fullPool` — every visible DCer travelling or local
+    during the trip window. Same shape as `people` minus `score`.
+  - `discovery.whyToMeet` — AI-written "why you should meet them"
+    paragraphs keyed by userID, each `{ text, generatedAt }`. Only
+    the top-10 picks get entries. Persistent across refreshes.
+  - `discovery.events` — events in the destination city during the
+    trip window.
+  - `discovery.overlappingTrips` — other DCers travelling at the
+    same time/place, with mini `profile` attached (no second fetch
+    needed).
+  - `discovery.generatedAt` — when the discovery cache was last
+    refreshed.
+  Hidden + guest profiles are filtered out from all discovery lists.
+  The `discovery` block is `null` for newly-created trips until the
+  background sync task runs (typically seconds).
+
+- **`dc trip-discovery <tripID> [--include=...]`** — discovery-only
+  read. Same shape as the `discovery` block in the full trip read,
+  without the trip body. Useful when an agent just needs the
+  matchmaking signal.
+  - `--include` accepts a comma-separated subset of
+    `people,fullPool,whyToMeet,events,overlappingTrips`. Default = all
+    five. Common patterns:
+    - `--include=people,whyToMeet` — top-10 picks + their AI paragraphs
+    - `--include=fullPool` — every visible DCer in town
+    - `--include=events` — just events in the destination city
+
+- **`dc trip-refresh <tripID>`** — owner-only trigger to re-enqueue
+  the discovery cache rebuild. Returns 202 immediately; cache
+  refreshes in the background.
+
+- **Trip points on `trip-create` / `trip-update`** — both commands now
+  accept an optional `--points` array (up to 20). Each item is
+  `{note: string (max 280 chars), placeID?: string}`. The optional
+  `placeID` is resolved against Google Places at write time and the
+  full Place object (city, country, lat/lon, name, etc.) is stored
+  on the trip — so reads don't do any lookups. Notes without a
+  `placeID` are valid ("remember to book a coworking space"). On
+  `trip-update`, passing `--points` **replaces** the entire array;
+  pass `[]` to clear.
+
+### Why
+
+The DC web/mobile app now exposes trip "points" and a rich AI
+discovery surface in the trip detail page — places to remember,
+"who should I meet on this trip?" with ranked picks, AI-written
+intros explaining why each pick matters, and overlapping trips with
+attached profiles. This release brings all of that through the Member
+API so AI agents can plan trips, pre-brief a member before they
+travel, and find shared meeting windows without fanning out a dozen
+separate calls.
 
 ### Fixed
 

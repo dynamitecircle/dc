@@ -164,7 +164,7 @@ async def _mcp_stdio_server():
 # Bump manually when this client catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-DC_API_VERSION = "1.12.5"
+DC_API_VERSION = "1.13.1"
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -1681,11 +1681,43 @@ class _DCCore:
         })
         return self._wrap_list(data, "trips")
 
+    def trip(self, trip_id):
+        """Get a single trip — points + enriched discovery block (top-10
+        picks with mini profile + score, fullPool, whyToMeet AI paragraphs,
+        overlapping trips, events in town).
+        """
+        if not trip_id:
+            raise UsageError("trip requires a tripID")
+        return self._get(f"/trips/{trip_id}")
+
+    def trip_discovery(self, trip_id, include=None):
+        """Discovery-only read for a trip. Optional `include` is a comma-
+        separated subset of `people,fullPool,whyToMeet,events,overlappingTrips`
+        (default = all). Useful when you just want the matchmaking signal
+        without the trip body.
+        """
+        if not trip_id:
+            raise UsageError("trip-discovery requires a tripID")
+        params: dict = {}
+        if include:
+            params["include"] = include
+        return self._get(f"/trips/{trip_id}/discovery", params or None)
+
+    def trip_refresh(self, trip_id):
+        """Owner-only: enqueue a background sync to regenerate this trip's
+        discovery cache (recompute people, events, AI blurbs). Spammy
+        triggers coalesce — the response is 202 immediately and the cache
+        updates seconds later.
+        """
+        if not trip_id:
+            raise UsageError("trip-refresh requires a tripID")
+        return self._post(f"/trips/{trip_id}/refresh", {})
+
     def overlaps(self, limit=10, cursor=None):
         data = self._get("/trips/overlaps", {"limit": limit, "cursor": cursor or None})
         return self._wrap_list(data, "overlaps")
 
-    def create_trip(self, start_date="", end_date="", place_id="", event_id=""):
+    def create_trip(self, start_date="", end_date="", place_id="", event_id="", points=None):
         if not start_date or not end_date:
             raise UsageError("trip-create requires --start-date and --end-date")
         if bool(place_id) == bool(event_id):
@@ -1693,11 +1725,12 @@ class _DCCore:
         body: dict = {"startDate": start_date, "endDate": end_date}
         if place_id: body["placeID"] = place_id
         if event_id: body["eventID"] = event_id
+        if points:   body["points"]  = points if isinstance(points, list) else [points]
         result = self._post("/trips", body)
         Runtime.emit("Trip created. Run `trips` to see your upcoming list, or `overlaps` to find DCers visiting at the same time.")
         return result
 
-    def update_trip(self, trip_id, start_date="", end_date="", place_id="", event_id=""):
+    def update_trip(self, trip_id, start_date="", end_date="", place_id="", event_id="", points=None):
         if not trip_id:
             raise UsageError("trip-update requires a tripID")
         body: dict = {}
@@ -1705,8 +1738,11 @@ class _DCCore:
         if end_date:   body["endDate"]   = end_date
         if place_id:   body["placeID"]   = place_id
         if event_id:   body["eventID"]   = event_id
+        if points is not None:
+            # `points` replaces the entire array. Pass [] to clear.
+            body["points"] = points if isinstance(points, list) else [points]
         if not body:
-            raise UsageError("trip-update requires at least one of --start-date, --end-date, --place-id, --event-id")
+            raise UsageError("trip-update requires at least one of --start-date, --end-date, --place-id, --event-id, --points")
         return self._patch(f"/trips/{trip_id}", body)
 
     def delete_trip(self, trip_id):
@@ -2062,6 +2098,32 @@ class DC(Runtime):
     def trips(self, past=False, limit=50, cursor=None):
         return self._core.trips(past=past, limit=limit, cursor=cursor)
 
+    @skill_command(name="trip",
+                   help="Get a single trip — points + enriched discovery "
+                        "(top-10 picks with mini profile + score, fullPool, whyToMeet AI paragraphs, "
+                        "overlapping trips, events in town).",
+                   args={})
+    def trip(self, trip_id):
+        return self._core.trip(trip_id)
+
+    @skill_command(name="trip-discovery",
+                   help="Discovery-only read for a trip — top-10 picks with whyToMeet AI paragraphs, "
+                        "fullPool of every visible DCer in town, events, overlapping trips. "
+                        "Use --include to subset.",
+                   args={
+                       "include": {"type": "string",
+                                   "description": "Optional. Comma-separated subset of `people,fullPool,whyToMeet,events,overlappingTrips`. Default = all five."},
+                   })
+    def trip_discovery(self, trip_id, include=None):
+        return self._core.trip_discovery(trip_id, include=include)
+
+    @skill_command(name="trip-refresh",
+                   help="Owner-only: re-trigger the discovery cache rebuild for a trip "
+                        "(recomputes top picks, AI paragraphs, events, overlapping trips).",
+                   args={})
+    def trip_refresh(self, trip_id):
+        return self._core.trip_refresh(trip_id)
+
     @skill_command(name="overlaps",
                    help="Find DCers whose trips overlap with yours [--limit N] [--cursor TOKEN]",
                    parser=_DCCore._parse_list_args,
@@ -2070,7 +2132,8 @@ class DC(Runtime):
         return self._core.overlaps(limit=limit, cursor=cursor)
 
     @skill_command(name="trip-create",
-                   help="Create a trip (--start-date YYYY-MM-DD --end-date YYYY-MM-DD --place-id PID | --event-id EID)",
+                   help="Create a trip (--start-date YYYY-MM-DD --end-date YYYY-MM-DD --place-id PID | --event-id EID). "
+                        "Optional --points to attach up to 20 venue/idea notes.",
                    parser=_DCCore._parse_trip_create,
                    args={
                        "start-date": {"type": "string", "format": "date", "required": True,
@@ -2081,12 +2144,15 @@ class DC(Runtime):
                                       "description": "Google Place ID — provide either this OR event-id (not both)"},
                        "event-id":   {"type": "string",
                                       "description": "DC event ID — copies location from event. Provide either this OR place-id"},
+                       "points":     {"type": "array",
+                                      "description": "Optional. Up to 20 trip points: list of `{note: str (max 280 chars), placeID?: str}`. The optional placeID is resolved against Google Places."},
                    })
-    def trip_create(self, start_date="", end_date="", place_id="", event_id=""):
-        return self._core.create_trip(start_date=start_date, end_date=end_date, place_id=place_id, event_id=event_id)
+    def trip_create(self, start_date="", end_date="", place_id="", event_id="", points=None):
+        return self._core.create_trip(start_date=start_date, end_date=end_date, place_id=place_id, event_id=event_id, points=points)
 
     @skill_command(name="trip-update",
-                   help="Update a trip by ID — any subset of --start-date, --end-date, --place-id, --event-id",
+                   help="Update a trip by ID — any subset of --start-date, --end-date, --place-id, --event-id, --points. "
+                        "Passing --points replaces the entire array (pass [] to clear).",
                    parser=_DCCore._parse_trip_update,
                    args={
                        "start-date": {"type": "string", "format": "date",
@@ -2095,10 +2161,12 @@ class DC(Runtime):
                                       "description": "New end date (YYYY-MM-DD)"},
                        "place-id":   {"type": "string", "description": "New Google Place ID"},
                        "event-id":   {"type": "string", "description": "New DC event ID"},
+                       "points":     {"type": "array",
+                                      "description": "Optional. Replace the entire points array. Up to 20 items, same shape as `trip-create`. Pass `[]` to clear."},
                    })
-    def trip_update(self, trip_id, start_date="", end_date="", place_id="", event_id=""):
+    def trip_update(self, trip_id, start_date="", end_date="", place_id="", event_id="", points=None):
         return self._core.update_trip(trip_id, start_date=start_date, end_date=end_date,
-                                      place_id=place_id, event_id=event_id)
+                                      place_id=place_id, event_id=event_id, points=points)
 
     @skill_command(name="trip-delete", help="Delete a trip by ID", args={})
     def trip_delete(self, trip_id):
