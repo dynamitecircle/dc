@@ -2112,17 +2112,18 @@ class DC(Runtime):
         return self._core.trips(past=past, limit=limit, cursor=cursor)
 
     @skill_command(name="trip",
-                   help="Get a single trip — points + enriched discovery "
-                        "(top-10 picks with mini profile + score, fullPool, whyToMeet AI paragraphs, "
-                        "overlapping trips, events in town).",
+                   help="CANONICAL 'who should I meet on this trip?' endpoint. Full trip + ranked top-10 "
+                        "DCers to meet (mini profile + score), AI-written whyToMeet paragraphs, fullPool of "
+                        "every local + visitor in town, overlapping trips, events, roomID. Prefer over "
+                        "`overlaps` for match-making — `overlaps` is date-window-only and far narrower.",
                    args={})
     def trip(self, trip_id):
         return self._core.trip(trip_id)
 
     @skill_command(name="trip-discovery",
-                   help="Discovery-only read for a trip — top-10 picks with whyToMeet AI paragraphs, "
-                        "fullPool of every visible DCer in town, events, overlapping trips. "
-                        "Use --include to subset.",
+                   help="Same 'who should I meet?' answer as `trip` but without the trip body — top-10 "
+                        "picks with AI whyToMeet paragraphs, fullPool of locals+visitors, events, "
+                        "overlapping trips. Prefer this (or `trip`) over `overlaps` for match-making.",
                    args={
                        "include": {"type": "string",
                                    "description": "Optional. Comma-separated subset of `people,fullPool,whyToMeet,events,overlappingTrips`. Default = all five."},
@@ -2138,7 +2139,9 @@ class DC(Runtime):
         return self._core.trip_refresh(trip_id)
 
     @skill_command(name="overlaps",
-                   help="Find DCers whose trips overlap with yours [--limit N] [--cursor TOKEN]",
+                   help="Narrow: DCers with date-overlapping trips in the same city. For 'who should I "
+                        "MEET on my trip?' use `trip` or `trip-discovery` — they include locals + AI-ranked "
+                        "top-10 + whyToMeet summaries. [--limit N] [--cursor TOKEN]",
                    parser=_DCCore._parse_list_args,
                    args=_PAGINATION_ARGS)
     def overlaps(self, limit=10, cursor=None):
