@@ -14,6 +14,42 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [1.16.2] – 2026-05-20
+
+### Changed
+
+- **Public "other-person" profile now matches the in-app profile card.**
+  Every DC tier (DC + DC BLACK alike) now sees the same field set on
+  `/profile-match` results, `/events/:eventID/attendees`,
+  `/chapters/:cityID/members`, `/chapters/:cityID/currentVisitors`,
+  `/trips/:tripID/discovery`, and every other endpoint that returns
+  someone else's profile.
+
+  Newly visible fields (were DC-BLACK-only or omitted entirely):
+  `bizName`, `bizUrl`, `bizDescription`, `bizYears`, `bizIndustry`,
+  `goal`, `expertise`, `ama`, `hobbies`, `nickname`, `locations`,
+  `connect`, `revenue`, `teamSize`, and a new `socials` block with
+  `facebook`, `focusmate`, `github`, `instagram`, `linkedin`,
+  `twitter`.
+
+  Privacy-gated fields (`revenue`, `teamSize`, `connect`) only
+  populate when the field owner shared the value with all DCers;
+  otherwise `null`.
+
+  **Not exposed on the other-person view:** `whatsapp`. WhatsApp stays
+  on the member's own `/profile` only — members have not consented
+  to expose it to API consumers.
+
+  **DCB-specific shape removed.** A single `ApiProfile` shape is now
+  returned everywhere — DC and DC BLACK callers get the same surface.
+
+### Added
+
+- **Member API now open to trial DC accounts.** Trial members are
+  eligible from day one (was: blocked until trial period ended).
+  Auto-generated API keys land on first profile sync. Guests and
+  inactive accounts remain blocked.
+
 ## [1.14.1] – 2026-05-19
 
 ### Added
