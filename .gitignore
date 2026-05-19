@@ -27,3 +27,8 @@ Thumbs.db
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea/
+
+# Runtime state — written by Skill.check_and_run_migrations() on first run.
+# Per-install local state; never commit (would push your local migration
+# timestamps to every package consumer).
+metadata/
