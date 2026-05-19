@@ -1827,8 +1827,8 @@ class _DCCore:
     # ── Rooms ─────────────────────────────────────────────────────
 
     def rooms(self, room_type="", limit=50, cursor=None):
-        data = self._get("/rooms", {
-            "type":   room_type or None,
+        path = f"/rooms/inbox/{room_type}" if room_type else "/rooms"
+        data = self._get(path, {
             "limit":  limit,
             "cursor": cursor or None,
         })
@@ -1837,8 +1837,7 @@ class _DCCore:
     def browse_rooms(self, room_type, limit=50, cursor=None):
         if not room_type:
             raise UsageError("browse-rooms requires a type (channel|discussion|activity)")
-        data = self._get("/rooms/browse", {
-            "type":   room_type,
+        data = self._get(f"/rooms/browse/{room_type}", {
             "limit":  limit,
             "cursor": cursor or None,
         })
@@ -2367,8 +2366,7 @@ class DC(Runtime):
                    parser=_DCCore._parse_list_args,
                    args={**_PAGINATION_ARGS,
                          "type": {"type": "string",
-                                  "enum": ["channel", "direct", "group", "discussion", "activity",
-                                           "event", "city", "country", "mastermind"],
+                                  "enum": ["channel", "direct", "group", "discussion", "activity", "event"],
                                   "description": "Filter rooms by type (includes DMs and group DMs)"}})
     def rooms(self, room_type="", limit=50, cursor=None):
         return self._core.rooms(room_type=room_type, limit=limit, cursor=cursor)
