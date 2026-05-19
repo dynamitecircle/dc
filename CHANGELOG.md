@@ -14,6 +14,55 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [1.14.1] – 2026-05-19
+
+### Added
+
+- **`dc room <roomID>`** — single-room metadata read (name, type,
+  description, stats, last activity, scope). Access gate is strict:
+  the caller must be a subscribed member of the room, or the room must
+  be a publicly browsable channel/discussion/activity. Non-members of
+  private rooms, DMs, group DMs, and event rooms get a clear 403.
+- **`dc room-messages <roomID>`** — paginated, **read-only** message
+  history for any room the caller has access to. Newest-first; cursor
+  via `--before=<token>`. Limit 1–100 (default 50). Each entry has
+  `messageID`, `roomID`, `sentAt`, `editedAt`, `isDeleted`, mini
+  `author` block (userID, userName, displayName, photo, profileURL),
+  `text` (possibly sanitized HTML), `type`, `isHTML`, `replyTo`,
+  `reactions`. Sunk and hidden messages are filtered server-side;
+  deleted messages render as tombstones with empty text. Reading does
+  NOT mutate the room's unread state on the caller's profile —
+  agents can scan history without marking messages as read.
+- **`GET /chapters/:cityID` returns `currentVisitors`** — every DCer
+  currently in that chapter's city via an active trip
+  (`startDate <= now <= endDate`). Each entry includes the visitor's
+  mini profile, trip ID, and trip start/end dates. Hidden + guest
+  profiles are filtered. Answers "who is in <city> right now?"
+  without forcing the caller to create their own trip first.
+
+### Changed
+
+- **`dc rooms` is now path-segment filtered.** The optional
+  `--type` flag still works on the client side, but the underlying
+  URL changed from `/rooms?type=X` to `/rooms/inbox/:type` (e.g.
+  `/rooms/inbox/direct`). The all-types call stays at `/rooms` (no
+  filter). Cursor pagination via `--cursor=<token>` is now supported.
+- **`dc browse-rooms` switched to `/rooms/browse/:type`.** Existing
+  callers (the dc-py 1.13.x release) pointed at `/rooms/browse?type=`
+  — this client now uses the new path. Cursor pagination unchanged.
+- **`dc rooms --type=` enum trimmed** to `channel`, `direct`, `group`,
+  `discussion`, `activity`, `event`. Legacy `city` / `country` /
+  `mastermind` types are no longer filterable via this endpoint (the
+  app still classifies them internally; they just don't appear on the
+  public Member-API filter surface).
+- **`/profile-match locationCurrentPlaceID` docs** now flag that this
+  filter is sparsely populated (most DCers leave `currentLocation`
+  null) and point at the trip-discovery flow as the canonical
+  presence query.
+- **Public role-label examples** drop the legacy `"DC Red"` string —
+  responses now show the canonical `"DC Member"` / `"DC Community"`
+  labels per the brand convention.
+
 ## [1.13.1] – 2026-05-19
 
 ### Added
