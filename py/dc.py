@@ -164,7 +164,7 @@ async def _mcp_stdio_server():
 # Bump manually when this client catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-DC_API_VERSION = "1.13.1"
+DC_API_VERSION = "1.14.0"
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -1844,6 +1844,20 @@ class _DCCore:
         })
         return self._wrap_list(data, "rooms")
 
+    def room(self, room_id):
+        if not room_id:
+            raise UsageError("room requires a roomID")
+        return self._get(f"/rooms/{room_id}")
+
+    def room_messages(self, room_id, limit=50, before=None):
+        if not room_id:
+            raise UsageError("room-messages requires a roomID")
+        data = self._get(f"/rooms/{room_id}/messages", {
+            "limit":  limit,
+            "before": before or None,
+        })
+        return self._wrap_list(data, "messages")
+
     # ── Chapters ──────────────────────────────────────────────────
 
     def chapters(self, limit=50, cursor=None):
@@ -2349,12 +2363,13 @@ class DC(Runtime):
     # ── Rooms ──────────────────────────────────────────────────────
 
     @skill_command(name="rooms",
-                   help="List rooms you are subscribed to [--type channel|...] [--limit N] [--cursor TOKEN]",
+                   help="List rooms you are subscribed to [--type channel|direct|...] [--limit N] [--cursor TOKEN]",
                    parser=_DCCore._parse_list_args,
                    args={**_PAGINATION_ARGS,
                          "type": {"type": "string",
-                                  "enum": ["channel", "discussion", "activity"],
-                                  "description": "Filter rooms by type"}})
+                                  "enum": ["channel", "direct", "group", "discussion", "activity",
+                                           "event", "city", "country", "mastermind"],
+                                  "description": "Filter rooms by type (includes DMs and group DMs)"}})
     def rooms(self, room_type="", limit=50, cursor=None):
         return self._core.rooms(room_type=room_type, limit=limit, cursor=cursor)
 
@@ -2364,6 +2379,21 @@ class DC(Runtime):
                    args=_PAGINATION_ARGS)
     def browse_rooms(self, room_type, limit=50, cursor=None):
         return self._core.browse_rooms(room_type, limit=limit, cursor=cursor)
+
+    @skill_command(name="room", help="Get one room's metadata by roomID", args={})
+    def room(self, room_id):
+        return self._core.room(room_id)
+
+    @skill_command(name="room-messages",
+                   help="List messages in a room (read only, newest first, cursor-paginated) [--limit N] [--before TOKEN]",
+                   args={"room_id": {"type": "string", "required": True,
+                                     "description": "Room ID. Discover via `rooms`, `inbox`, `trip` (roomID field), or event rooms."},
+                         "limit":   {"type": "integer", "default": 50,
+                                     "description": "Max messages (1-100)"},
+                         "before":  {"type": "string",
+                                     "description": "Cursor from a previous response's nextCursor to fetch the next older page."}})
+    def room_messages(self, room_id, limit=50, before=None):
+        return self._core.room_messages(room_id, limit=limit, before=before)
 
     # ── Chapters ───────────────────────────────────────────────────
 
