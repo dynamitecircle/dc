@@ -164,7 +164,7 @@ async def _mcp_stdio_server():
 # Bump manually when this client catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-DC_API_VERSION = "1.16.2"
+DC_API_VERSION = "1.17.0"
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -1857,6 +1857,40 @@ class _DCCore:
         })
         return self._wrap_list(data, "messages")
 
+    def room_summary(self, room_id):
+        if not room_id:
+            raise UsageError("room-summary requires a roomID")
+        return self._get(f"/rooms/{room_id}/summary")
+
+    def _room_mutation(self, room_id, action):
+        if not room_id:
+            raise UsageError(f"room-{action} requires a roomID")
+        return self._post(f"/rooms/{room_id}/{action}", {})
+
+    def room_subscribe(self, room_id):
+        return self._room_mutation(room_id, "subscribe")
+
+    def room_unsubscribe(self, room_id):
+        return self._room_mutation(room_id, "unsubscribe")
+
+    def room_mute(self, room_id):
+        return self._room_mutation(room_id, "mute")
+
+    def room_unmute(self, room_id):
+        return self._room_mutation(room_id, "unmute")
+
+    def room_archive(self, room_id):
+        return self._room_mutation(room_id, "archive")
+
+    def room_unarchive(self, room_id):
+        return self._room_mutation(room_id, "unarchive")
+
+    def room_pin(self, room_id):
+        return self._room_mutation(room_id, "pin")
+
+    def room_unpin(self, room_id):
+        return self._room_mutation(room_id, "unpin")
+
     # ── Chapters ──────────────────────────────────────────────────
 
     def chapters(self, limit=50, cursor=None):
@@ -2395,6 +2429,58 @@ class DC(Runtime):
                                      "description": "Cursor from a previous response's nextCursor to fetch the next older page."}})
     def room_messages(self, room_id, limit=50, before=None):
         return self._core.room_messages(room_id, limit=limit, before=before)
+
+    @skill_command(name="room-summary",
+                   help="Get the latest AI summary for a room (daily/weekly digest).",
+                   args={})
+    def room_summary(self, room_id):
+        return self._core.room_summary(room_id)
+
+    @skill_command(name="room-subscribe",
+                   help="Subscribe to a public channel/discussion/quick-question/event room.",
+                   args={})
+    def room_subscribe(self, room_id):
+        return self._core.room_subscribe(room_id)
+
+    @skill_command(name="room-unsubscribe",
+                   help="Unsubscribe from a channel/discussion/quick-question/event room.",
+                   args={})
+    def room_unsubscribe(self, room_id):
+        return self._core.room_unsubscribe(room_id)
+
+    @skill_command(name="room-mute",
+                   help="Mute notifications for a room (room stays in inbox).",
+                   args={})
+    def room_mute(self, room_id):
+        return self._core.room_mute(room_id)
+
+    @skill_command(name="room-unmute", help="Resume notifications for a muted room.", args={})
+    def room_unmute(self, room_id):
+        return self._core.room_unmute(room_id)
+
+    @skill_command(name="room-archive",
+                   help="Archive a room — hides from inbox sidebar without unsubscribing.",
+                   args={})
+    def room_archive(self, room_id):
+        return self._core.room_archive(room_id)
+
+    @skill_command(name="room-unarchive",
+                   help="Restore a previously-archived room to the inbox sidebar.",
+                   args={})
+    def room_unarchive(self, room_id):
+        return self._core.room_unarchive(room_id)
+
+    @skill_command(name="room-pin",
+                   help="Pin a room to the top of the inbox. Auto-subscribes if needed.",
+                   args={})
+    def room_pin(self, room_id):
+        return self._core.room_pin(room_id)
+
+    @skill_command(name="room-unpin",
+                   help="Unpin a room. Returns to normal inbox sort order.",
+                   args={})
+    def room_unpin(self, room_id):
+        return self._core.room_unpin(room_id)
 
     # ── Chapters ───────────────────────────────────────────────────
 

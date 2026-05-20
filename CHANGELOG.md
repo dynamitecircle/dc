@@ -14,6 +14,49 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [1.17.0] – 2026-05-20
+
+### Breaking
+
+- **`activity` room-type renamed to `quick-question` on the API wire.**
+  The official in-app label has been "Quick Question" for a while —
+  the API surface now matches. URLs (`/rooms/inbox/quick-question`,
+  `/rooms/browse/quick-question`) and response shapes (`type:
+  "quick-question"`) use the new identifier. Old `activity` paths and
+  type filters now return 400. The internal Firestore tag stays
+  `activity` — this is a wire-format rename only.
+
+### Added
+
+- **`dc room-summary <roomID>`** — get the latest AI-generated summary
+  for any room you can access. Returns a daily or weekly digest with
+  sanitized HTML body, topic tags, recent shared URLs, time-window
+  start/end, message count, and participant count. Rooms without any
+  summaries yet return `aiSummary: null`. The same `aiSummary` block
+  is now embedded directly on `GET /rooms/:roomID` for one-shot reads.
+- **`dc room-subscribe <roomID>`** — subscribe to a public channel,
+  discussion, quick-question room, or event room. Event rooms
+  require a valid ticket. DMs and group DMs are managed in-app only.
+- **`dc room-unsubscribe <roomID>`** — drop a room from your inbox
+  sidebar. Clears the room's badge count to avoid the stuck-red-dot
+  bug.
+- **`dc room-mute <roomID>` / `dc room-unmute <roomID>`** — mute or
+  unmute notifications for a room. Mute is indefinite (until you
+  explicitly unmute); the room stays in your inbox.
+- **`dc room-archive <roomID>` / `dc room-unarchive <roomID>`** —
+  archive hides the room from your inbox sidebar without
+  unsubscribing.
+- **`dc room-pin <roomID>` / `dc room-unpin <roomID>`** — pin to top
+  of inbox. Pinning a subscription-type room auto-subscribes you if
+  you weren't already (mirrors the in-app behavior).
+
+All mutation endpoints mirror the in-app `useSeenService` exactly —
+same transaction semantics, same audit timestamps (`subscribedAt`,
+`unsubscribedAt`, `archivedAt`, `unarchivedAt`, `pinnedAt`,
+`mutedUntilAt`), same auto-subscribe-on-pin behavior. The API and the
+web/mobile clients share the canonical seen-doc shape so state stays
+consistent across surfaces.
+
 ## [1.16.2] – 2026-05-20
 
 ### Changed
