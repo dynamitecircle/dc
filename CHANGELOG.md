@@ -14,6 +14,29 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [1.17.2] – 2026-05-20
+
+### Changed
+
+- **Docs cleanup** — four endpoints had near-empty descriptions that
+  rendered as placeholder cards in the public Scalar docs. Fleshed
+  out so LLM agents and members reading the docs have enough context
+  to choose the right endpoint:
+  - `DELETE /trips/:tripID` — calls out owner-only, irreversible,
+    side-effects (linked chat room destroyed, chapter rollups
+    recomputed).
+  - `GET /virtual-events/:sessionID` — full payload + RSVP state.
+  - `POST /virtual-events/:sessionID/rsvp` — three statuses,
+    idempotency, what each does.
+  - `GET /invites` — documents the three credit sources (`manual`,
+    `permaCode`, `mention`). `mention` noted as a one-line fallback
+    (applicant named you on their application form) and explicitly
+    framed as not reliable — don't count on it.
+
+No client-facing behavior change — pure documentation patch. PyPI
+client tag bumps to keep `DC_API_VERSION` aligned with the deployed
+server so the `X-API-Version` warning stays accurate.
+
 ## [1.17.1] – 2026-05-20
 
 ### Breaking
