@@ -14,6 +14,62 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [1.17.3] – 2026-05-20
+
+### Changed
+
+- **Big docs audit + cleanup — 25 endpoint description issues fixed.**
+  An exhaustive audit of every `registerEndpoint(...)` description
+  against the actual handler code surfaced lies, drift, and gaps that
+  were misleading LLM agents. All landed in one patch:
+
+  **Response-shape lies (8 critical):**
+  - `POST /virtual-events/:sessionID/rsvp` — actual response is
+    `{ sessionID, status, userID }`, not `{ status, joinCall, rsvpAt }`.
+    Docs claimed RSVPing "unlocks the join URL" — it doesn't; `meetUrl`
+    is exposed regardless of RSVP state.
+  - `GET /virtual-events/:sessionID` — dropped false claims about
+    `host`, IANA `timezone`, `recording URL`, and RSVP-gated join URL.
+  - `PATCH /calendar` — returns `{ updated: true }` only, not toggles
+    plus feed URLs.
+  - `GET /inbox/unread` — `limit` is 1-100, not 1-200.
+  - `GET /invites` — `status` enum was missing four real values
+    (`booked-call`, `awaiting-payment-auth`, `invalid`, `qualified`).
+  - `GET /profile` — removed false "DC BLACK members see additional
+    business fields" claim (tier-blind since 1.16.2).
+  - `POST /trips` — per-field text clarified to "pass exactly one of
+    `placeID` or `eventID`" (was "required if the other not provided",
+    which implied both could be passed).
+
+  **Pagination metadata gaps (6 list endpoints):**
+  - `/chapters`, `/events`, `/trips`, `/tickets`, `/invites`,
+    `/virtual-events` — schemas and handlers already supported
+    `cursor` + `nextCursor`. Now documented.
+
+  **Other misleading text (5):**
+  - `/profile-match` — `gender` enum gains `Prefer not to say`;
+    `minTeamSize` notes that the same value exists in the bucket
+    vocabulary but is treated as unknown and filtered out.
+  - `/notifications` — fixed stale reference to non-existent
+    `/profile/locator-settings` (correct path is `/locator/settings`).
+  - `POST /invites` — documented actual response shape (nested
+    under `referral`, `referralID` not `inviteID`).
+  - `/events/:eventID/agendas` + `/free-slots` — `userIDs` marked
+    required.
+
+  **Thin response shapes + access notes (6):**
+  - `/events/:eventID/attendees` — full profile shape clarified;
+    `limit` corrected to 1-100.
+  - `/chapters/:cityID` — full chapter + `currentVisitors` shapes
+    spelled out.
+  - `/places/:placeID` — full place shape spelled out.
+  - `/events/:eventID/{schedule,agenda,meetups,sponsors,
+    schedule/:sessionID/attendees,meetups/:meetupID/attendees}` —
+    added explicit "Access: caller must hold a valid ticket" note.
+
+No behavior change — pure docs/metadata patch. PyPI tag bump keeps
+`DC_API_VERSION` aligned with the deployed server.
+
 ## [1.17.2] – 2026-05-20
 
 ### Changed
