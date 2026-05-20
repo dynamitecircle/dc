@@ -164,7 +164,7 @@ async def _mcp_stdio_server():
 # Bump manually when this client catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-DC_API_VERSION = "1.17.0"
+DC_API_VERSION = "1.17.1"
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -1857,10 +1857,23 @@ class _DCCore:
         })
         return self._wrap_list(data, "messages")
 
-    def room_summary(self, room_id):
+    def room_summary(self, room_id, summary_type):
         if not room_id:
             raise UsageError("room-summary requires a roomID")
-        return self._get(f"/rooms/{room_id}/summary")
+        if summary_type not in ("daily", "weekly"):
+            raise UsageError("room-summary requires --type daily or weekly")
+        return self._get(f"/rooms/{room_id}/summary/{summary_type}")
+
+    def room_summaries(self, room_id, summary_type, limit=20, cursor=None):
+        if not room_id:
+            raise UsageError("room-summaries requires a roomID")
+        if summary_type not in ("daily", "weekly"):
+            raise UsageError("room-summaries requires --type daily or weekly")
+        data = self._get(f"/rooms/{room_id}/summaries/{summary_type}", {
+            "limit":  limit,
+            "cursor": cursor or None,
+        })
+        return self._wrap_list(data, "summaries")
 
     def _room_mutation(self, room_id, action):
         if not room_id:
@@ -2431,10 +2444,28 @@ class DC(Runtime):
         return self._core.room_messages(room_id, limit=limit, before=before)
 
     @skill_command(name="room-summary",
-                   help="Get the latest AI summary for a room (daily/weekly digest).",
-                   args={})
-    def room_summary(self, room_id):
-        return self._core.room_summary(room_id)
+                   help="Get the latest AI summary of a specific type for a room. Daily and weekly cover different windows — you always ask for one.",
+                   args={
+                       "type": {"type": "string", "required": True,
+                                "enum": ["daily", "weekly"],
+                                "description": "Which summary type to fetch."},
+                   })
+    def room_summary(self, room_id, type):
+        return self._core.room_summary(room_id, type)
+
+    @skill_command(name="room-summaries",
+                   help="Paginate past AI summaries of a specific type (daily or weekly) for a room.",
+                   args={
+                       "type": {"type": "string", "required": True,
+                                "enum": ["daily", "weekly"],
+                                "description": "Which summary type to paginate."},
+                       "limit": {"type": "integer", "default": 20,
+                                 "description": "Max summaries (1-50)."},
+                       "cursor": {"type": "string",
+                                  "description": "Cursor from a previous response's nextCursor."},
+                   })
+    def room_summaries(self, room_id, type, limit=20, cursor=None):
+        return self._core.room_summaries(room_id, type, limit=limit, cursor=cursor)
 
     @skill_command(name="room-subscribe",
                    help="Subscribe to a public channel/discussion/quick-question/event room.",

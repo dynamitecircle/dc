@@ -14,7 +14,7 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
-## [1.17.0] – 2026-05-20
+## [1.17.1] – 2026-05-20
 
 ### Breaking
 
@@ -28,34 +28,44 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ### Added
 
-- **`dc room-summary <roomID>`** — get the latest AI-generated summary
-  for any room you can access. Returns a daily or weekly digest with
-  sanitized HTML body, topic tags, recent shared URLs, time-window
-  start/end, message count, and participant count. Rooms without any
-  summaries yet return `aiSummary: null`. The same `aiSummary` block
-  is now embedded directly on `GET /rooms/:roomID` for one-shot reads.
-- **`dc room-subscribe <roomID>`** — subscribe to a public channel,
-  discussion, quick-question room, or event room. Event rooms
-  require a valid ticket. DMs and group DMs are managed in-app only.
-- **`dc room-unsubscribe <roomID>`** — drop a room from your inbox
-  sidebar. Clears the room's badge count to avoid the stuck-red-dot
-  bug.
-- **`dc room-mute <roomID>` / `dc room-unmute <roomID>`** — mute or
-  unmute notifications for a room. Mute is indefinite (until you
-  explicitly unmute); the room stays in your inbox.
-- **`dc room-archive <roomID>` / `dc room-unarchive <roomID>`** —
-  archive hides the room from your inbox sidebar without
-  unsubscribing.
-- **`dc room-pin <roomID>` / `dc room-unpin <roomID>`** — pin to top
-  of inbox. Pinning a subscription-type room auto-subscribes you if
-  you weren't already (mirrors the in-app behavior).
+- **AI summaries — daily and weekly slots, history pagination.**
+  - `GET /rooms/:roomID` now returns BOTH `aiSummaryDaily` and
+    `aiSummaryWeekly` in distinct slots (either may be `null`). They
+    cover different windows so they never get blended.
+  - **`dc room-summary <roomID> --type daily|weekly`** — fetch the
+    latest single summary of a specific type. Type is required; the
+    type-agnostic call was deliberately removed.
+  - **`dc room-summaries <roomID> --type daily|weekly [--limit N]
+    [--cursor TOKEN]`** — paginate past summaries newest-first.
+    Cursor encodes `sortDateAt`. Useful for catch-up workflows.
+  - Each summary carries: `type`, `summaryID`, sanitized `html`,
+    `topics[]`, `urls[]` with `{label, url, sharedBy}`,
+    `intervalStartAt`, `intervalEndAt`, `generatedAt`,
+    `messageCount`, `participantCount`.
+- **Room state management (writes the per-user `seen` doc).**
+  - **`dc room-subscribe <roomID>`** — subscribe to a public
+    channel, discussion, quick-question room, or event room. Event
+    rooms require a valid ticket. DMs and group DMs are managed
+    in-app only.
+  - **`dc room-unsubscribe <roomID>`** — drop a room from your inbox
+    sidebar. Clears the room's badge count to avoid the
+    stuck-red-dot bug.
+  - **`dc room-mute <roomID>` / `dc room-unmute <roomID>`** — mute is
+    indefinite (until you explicitly unmute); the room stays in your
+    inbox.
+  - **`dc room-archive <roomID>` / `dc room-unarchive <roomID>`** —
+    archive hides the room from your inbox sidebar without
+    unsubscribing.
+  - **`dc room-pin <roomID>` / `dc room-unpin <roomID>`** — pin to
+    top of inbox. Pinning a subscription-type room auto-subscribes
+    you if you weren't already (mirrors the in-app behavior).
 
 All mutation endpoints mirror the in-app `useSeenService` exactly —
 same transaction semantics, same audit timestamps (`subscribedAt`,
 `unsubscribedAt`, `archivedAt`, `unarchivedAt`, `pinnedAt`,
-`mutedUntilAt`), same auto-subscribe-on-pin behavior. The API and the
-web/mobile clients share the canonical seen-doc shape so state stays
-consistent across surfaces.
+`mutedUntilAt`), same auto-subscribe-on-pin behavior. They're also
+wired into the new `sensitiveBurstGuard` rate-limit layer so leaked
+API keys can't be used to abuse the mutation surface.
 
 ## [1.16.2] – 2026-05-20
 
