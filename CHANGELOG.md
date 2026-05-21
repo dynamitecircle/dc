@@ -14,6 +14,36 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [1.19.2] – 2026-05-21
+
+### Added
+
+- **`workflows` command** — calls the new `GET /workflows` endpoint and
+  returns a machine-readable list of common API recipes
+  (who-is-in-city, plan-together-at-event, find-DCers-by-description,
+  manage-inbox, refresh-profile, catch-up-on-channel, etc.). Each
+  recipe carries a goal, an ordered list of `{method, path}` steps,
+  and notes. Designed as the first call an unfamiliar agent makes to
+  the API.
+- **Error responses now carry an optional `hint` field** on the server
+  side. The client surfaces it via `DCError` automatically — when the
+  server includes a hint pointing at a discovery endpoint or follow-up
+  call, it shows up in the exception. No client-side API changes; the
+  field is additive on the wire.
+
+### Changed
+
+- **404s on unknown paths now include a "Did you mean…?" suggestion**
+  (server side). The Levenshtein-based suggester compares the requested
+  path against the live route table — typos like `/place/<id>` get a
+  hint pointing at `/places/<id>`. Surfaces in the `hint` field of the
+  404 payload.
+
+(Versions 1.18.0 → 1.19.1 were server-side only; this is the first
+public client release on the new line.)
+
+---
+
 ## [1.17.3] – 2026-05-20
 
 ### Changed
@@ -824,7 +854,8 @@ Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.10.5...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.19.2...HEAD
+[1.19.2]: https://github.com/dynamitecircle/dc/releases/tag/v1.19.2
 [1.10.5]: https://github.com/dynamitecircle/dc/releases/tag/v1.10.5
 [1.10.4]: https://github.com/dynamitecircle/dc/releases/tag/v1.10.4
 [1.10.2]: https://github.com/dynamitecircle/dc/releases/tag/v1.10.2

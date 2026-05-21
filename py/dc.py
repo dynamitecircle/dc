@@ -164,7 +164,7 @@ async def _mcp_stdio_server():
 # Bump manually when this client catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-DC_API_VERSION = "1.17.3"
+DC_API_VERSION = "1.19.2"
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -1312,6 +1312,21 @@ class _DCCore:
             "checks":      checks,
         }
 
+    # ── Workflows / discovery ───────────────────────────────────────
+
+    def workflows(self):
+        """Machine-readable list of common API recipes (who-is-in-city,
+        plan-together-at-event, etc.). Each entry includes a goal, an
+        ordered list of `{method, path}` steps, and notes. Useful as a
+        starting point for agents new to the API.
+
+        Returns the raw payload — this endpoint is mounted before the
+        normal `{ok, data}` envelope (alongside `/` and `/openapi.json`)
+        because it is part of the public unauthenticated discovery
+        surface.
+        """
+        return HttpClient.get(self._build_url("/workflows"), headers=self._headers())
+
     # ── Profile ─────────────────────────────────────────────────────
 
     def profile(self):
@@ -1983,6 +1998,15 @@ class DC(Runtime):
                    args={})
     def self_test(self):
         return self._core.self_test()
+
+    @skill_command(name="workflows",
+                   help="Machine-readable list of common API recipes "
+                        "(who-is-in-city, plan-together-at-event, etc.). "
+                        "Each entry: goal + ordered {method, path} steps. "
+                        "Good starting point for agents.",
+                   args={})
+    def workflows(self):
+        return self._core.workflows()
 
     # ── Profile ─────────────────────────────────────────────────────
 

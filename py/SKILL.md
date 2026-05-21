@@ -116,6 +116,12 @@ python3 dc.py setup --api-key dk_<api-key>
 
 # Validate env, network, and /profile end-to-end
 python3 dc.py self-test
+
+# Machine-readable recipes — ordered {method, path} steps for common
+# tasks (who's in <city>, plan together at an event, find DCers by
+# description, manage inbox, refresh profile, …). Good first call for
+# an unfamiliar agent.
+python3 dc.py workflows
 ```
 
 ### Profile
