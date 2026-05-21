@@ -14,6 +14,29 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [1.19.3] – 2026-05-21
+
+### Fixed
+
+- **Server-side: did-you-mean 404 suggester is now functional on
+  Express 5.** The previous implementation walked the internal Express
+  router stack to recover all `METHOD path` pairs at startup, but
+  Express 5 nulled `layer.regexp` on mounted sub-routers (the mount
+  prefix moved into a `path-to-regexp` closure on `layer.matchers[0]`)
+  and renamed `app._router` → `app.router`. Result: the route table
+  was empty in production and every 404 fell through to the generic
+  hint. Switched the source-of-truth from the router stack to the
+  docs `endpointRegistry` (every documented endpoint already calls
+  `registerEndpoint(...)`), plus a small static list of unlisted
+  discovery endpoints (`/`, `/ping`, `/health`, `/openapi.json`,
+  `/workflows`, `/security.txt`).
+
+  No client-side change required — the `hint` field on 404 payloads
+  is already surfaced by `DCError`. Bump kept in lockstep with the
+  deployed server version per the triple-lock rule.
+
+---
+
 ## [1.19.2] – 2026-05-21
 
 ### Added
@@ -854,7 +877,8 @@ Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.19.2...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.19.3...HEAD
+[1.19.3]: https://github.com/dynamitecircle/dc/releases/tag/v1.19.3
 [1.19.2]: https://github.com/dynamitecircle/dc/releases/tag/v1.19.2
 [1.10.5]: https://github.com/dynamitecircle/dc/releases/tag/v1.10.5
 [1.10.4]: https://github.com/dynamitecircle/dc/releases/tag/v1.10.4
