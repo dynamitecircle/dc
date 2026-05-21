@@ -14,6 +14,46 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [1.20.1] – 2026-05-22
+
+### Added
+
+- **`warning` field on the response envelope.** Both success (`ok: true`)
+  and error (`ok: false`) payloads now carry an optional top-level
+  `warning` string. Currently used by the server to surface client-version
+  drift notices ("dc-py 1.10.0 is 10 minor versions behind the deployed
+  API…") on every call from an outdated client, alongside the existing
+  HTTP `Warning: 299 …` response header. No client-side parsing change
+  required — clients that ignore the field stay unaffected.
+
+### Changed
+
+- **Hard rename `direct` → `dm` in the room-type vocabulary.** The
+  member-facing room-type values are now `channel`, `dm`, `group`,
+  `discussion`, `quick-question`, `event`. Calls to
+  `GET /rooms/inbox/direct` now return `400 invalid_type` instead of
+  redirecting — there is **no alias**. Update any pinned `?type=direct`
+  filters to `?type=dm`. Internal `RoomType.Direct` is unchanged; this
+  is a pure wire-format rename.
+- **`/profile/limits` 308 redirect removed.** The endpoint moved to
+  `/limits` in 1.11.0; the redirect existed for old clients. Now it
+  returns `404 not_found` with a hint:
+  *Did you mean `GET /limits`?* — `dc-py` has been on `/limits` for
+  several releases so no callable change for current clients.
+- **Smarter 404 "Did you mean…?" suggester.** Adds a suffix-match
+  bonus so `/profile/limits` resolves to `/limits` (previously
+  Levenshtein-only would have suggested `/profile-match`). Same for any
+  `/v2/X/Y` → `/X/Y` style leftover-prefix mistakes.
+
+### Notes
+
+- The deployed server is **`1.20.1`** (deploy script auto-patched the
+  manually-bumped `1.20.0`). The triple-lock is therefore kept at
+  `1.20.1` here so the X-API-Version warning stays silent for
+  up-to-date clients.
+
+---
+
 ## [1.19.3] – 2026-05-21
 
 ### Fixed
@@ -877,7 +917,8 @@ Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.19.3...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.20.1...HEAD
+[1.20.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.20.1
 [1.19.3]: https://github.com/dynamitecircle/dc/releases/tag/v1.19.3
 [1.19.2]: https://github.com/dynamitecircle/dc/releases/tag/v1.19.2
 [1.10.5]: https://github.com/dynamitecircle/dc/releases/tag/v1.10.5
