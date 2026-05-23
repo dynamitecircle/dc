@@ -124,6 +124,73 @@ python3 dc.py self-test
 python3 dc.py workflows
 ```
 
+### Follows (DCers + chapters)
+
+Manage your follow list — the same state the in-app **Follow** buttons
+read and write. Drives the `/locator/digest` `favoritePeople` and
+`favoriteCities` sections, so following someone here means their trip
++ event + ticket activity shows up in your locator digest.
+
+Caps: **150 followed DCers + 50 followed chapters**. Hitting the cap
+returns `409 follow_limit_reached` — unfollow before retrying.
+
+```bash
+# List
+python3 dc.py follows-profiles
+python3 dc.py follows-chapters
+
+# Follow / unfollow a DCer
+python3 dc.py follow-profile 27
+python3 dc.py unfollow-profile 27
+
+# Follow / unfollow a chapter (city hub)
+python3 dc.py follow-chapter ChIJ82ENKDJgHTERIEjiXbIAAQE
+python3 dc.py unfollow-chapter ChIJ82ENKDJgHTERIEjiXbIAAQE
+```
+
+All mutations idempotent. Cannot follow yourself. Target must exist
+(and for profiles: be publicly visible).
+
+### Search
+
+Full-text search across the DC corpus — profiles, rooms, messages
+(incl. your private DMs + group DMs you're a member of), events,
+chapters. Privacy is scoped to your API key's owner.
+
+```bash
+# Cross-resource omni — top-5 of each, grouped by resource
+python3 dc.py search "remote work"
+
+# Scope omni to one DCer's content (profile + their messages, rooms, events, chapter memberships)
+python3 dc.py search "SaaS" --user-id 940
+
+# Search messages — includes your private DMs and group DMs
+python3 dc.py search-messages "hiring in Lisbon"
+python3 dc.py search-messages "budget" --room-id abc123       # scope to one room (you must be a member)
+python3 dc.py search-messages "hiring" --user-id 940          # just one author's messages
+
+# Search profiles (plain full-text; for richer matchmaking, prefer profile-match)
+python3 dc.py search-profiles "SaaS founder"
+
+# Search rooms by name / topic
+python3 dc.py search-rooms "outsourcing"
+python3 dc.py search-rooms "Asia" --type channel
+
+# Search events — no default time filter, pass --since / --until to constrain
+python3 dc.py search-events "DCBKK"
+python3 dc.py search-events "DC" --country TH
+python3 dc.py search-events "retreat" --since 2026-01-01
+
+# Search chapters
+python3 dc.py search-chapters "Bangkok"
+```
+
+**Query syntax (`q=`):** plain words match with prefix + typo
+tolerance. Wrap a phrase in double quotes for an exact ordered match —
+`'"remote work"'`. AND/OR/NOT/parentheses are **not** parsed in `q=` —
+use the structured filter args (`--room-id`, `--user-id`, `--type`,
+`--country`, `--since`, `--until`) for boolean composition.
+
 ### Profile
 
 ```bash

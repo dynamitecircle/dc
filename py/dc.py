@@ -1013,6 +1013,53 @@ class _DCCore:
         return _DCCore._parse_paginated(raw_args)
 
     @staticmethod
+    def _parse_search(raw_args, *, accepted=()):
+        """Generic search parser — positional q + any of the accepted flags.
+        Numeric flags (`limit`, `page`) get coerced to int. Hyphen-named
+        flags map to snake_case kwargs (`--room-id` → `room_id`)."""
+        positionals, flags = ArgHelpers.parse_flags(list(raw_args))
+        kwargs: dict = {}
+        for flag in accepted:
+            if flag not in flags:
+                continue
+            value = flags[flag]
+            key = flag.replace("-", "_")
+            if flag in ("limit", "page"):
+                try:
+                    kwargs[key] = int(value)
+                except (TypeError, ValueError):
+                    pass
+            else:
+                kwargs[key] = str(value).strip()
+        return tuple(positionals), kwargs
+
+    @staticmethod
+    def _parse_search_omni(raw_args):
+        return _DCCore._parse_search(raw_args, accepted=("limit", "user-id"))
+
+    @staticmethod
+    def _parse_search_profiles(raw_args):
+        return _DCCore._parse_search(raw_args, accepted=("limit", "page"))
+
+    @staticmethod
+    def _parse_search_rooms(raw_args):
+        return _DCCore._parse_search(raw_args, accepted=("limit", "page", "type", "user-id"))
+
+    @staticmethod
+    def _parse_search_messages(raw_args):
+        return _DCCore._parse_search(raw_args, accepted=("limit", "page", "room-id", "user-id"))
+
+    @staticmethod
+    def _parse_search_events(raw_args):
+        return _DCCore._parse_search(raw_args, accepted=(
+            "limit", "page", "user-id", "city-id", "country", "since", "until",
+        ))
+
+    @staticmethod
+    def _parse_search_chapters(raw_args):
+        return _DCCore._parse_search(raw_args, accepted=("limit", "page"))
+
+    @staticmethod
     def _parse_trip_create(raw_args):
         positionals, flags = ArgHelpers.parse_flags(list(raw_args))
         kwargs: dict = {}
@@ -1311,6 +1358,145 @@ class _DCCore:
             "displayName": display,
             "checks":      checks,
         }
+
+    # ── Follows (DCers + chapters) ─────────────────────────────────
+
+    def follows_profiles(self):
+        """List the DCers you currently follow. Mini-profile cards.
+        Drives the /locator/digest favoritePeople section."""
+        return self._get("/follows/profiles")
+
+    def follow_profile(self, user_id: str):
+        """Follow a DCer. Idempotent. Cannot follow yourself. Target
+        must exist + be publicly visible. Cap: 150 follows."""
+        if not user_id:
+            raise UsageError("follow-profile requires a userID")
+        return self._post(f"/follows/profiles/{user_id}")
+
+    def unfollow_profile(self, user_id: str):
+        """Unfollow a DCer. Idempotent."""
+        if not user_id:
+            raise UsageError("unfollow-profile requires a userID")
+        return self._delete(f"/follows/profiles/{user_id}")
+
+    def follows_chapters(self):
+        """List the chapters you currently follow. Mini-chapter cards.
+        Drives the /locator/digest favoriteCities section."""
+        return self._get("/follows/chapters")
+
+    def follow_chapter(self, city_id: str):
+        """Follow a chapter (city hub). Idempotent. Cap: 50 follows."""
+        if not city_id:
+            raise UsageError("follow-chapter requires a cityID")
+        return self._post(f"/follows/chapters/{city_id}")
+
+    def unfollow_chapter(self, city_id: str):
+        """Unfollow a chapter. Idempotent."""
+        if not city_id:
+            raise UsageError("unfollow-chapter requires a cityID")
+        return self._delete(f"/follows/chapters/{city_id}")
+
+    # ── Search ──────────────────────────────────────────────────────
+
+    def _search_get(self, path: str, params: dict) -> dict:
+        """Build a /search/... GET with non-empty params only and call _get."""
+        clean = {k: v for k, v in params.items() if v is not None and v != ""}
+
+        return self._get(path, clean if clean else None)
+
+    def search(self, q: str, *, limit: int = 5, user_id: str | None = None):
+        """Cross-resource search across profiles, rooms, messages
+        (incl. private DMs + group DMs you're in), events, chapters
+        in one round trip. Returns the top-N matches per resource,
+        grouped by resource.
+
+        Use this first when you don't yet know which resource carries
+        the answer. Drill into `search_<resource>` for more depth on
+        any one bucket.
+        """
+        if not q:
+            raise UsageError("search requires a query")
+        return self._search_get("/search", {
+            "limit":  limit,
+            "q":      q,
+            "userID": user_id,
+        })
+
+    def search_profiles(self, q: str, *, limit: int = 20, page: int = 1):
+        """Full-text search across DCer profiles. For richer structured
+        matchmaking ('DCers in Lisbon who run SaaS'), prefer
+        `profile_match`."""
+        if not q:
+            raise UsageError("search-profiles requires a query")
+        return self._search_get("/search/profiles", {
+            "limit": limit,
+            "page":  page,
+            "q":     q,
+        })
+
+    def search_rooms(self, q: str, *, limit: int = 20, page: int = 1,
+                     type_: str | None = None, user_id: str | None = None):
+        """Search rooms by name / topic. Optional ?type= filter
+        (channel / dm / group / discussion / quick-question / event)
+        and ?userID= for rooms created by that DCer."""
+        if not q:
+            raise UsageError("search-rooms requires a query")
+        return self._search_get("/search/rooms", {
+            "limit":  limit,
+            "page":   page,
+            "q":      q,
+            "type":   type_,
+            "userID": user_id,
+        })
+
+    def search_messages(self, q: str, *, limit: int = 20, page: int = 1,
+                        room_id: str | None = None, user_id: str | None = None):
+        """Search message bodies across every room you can access —
+        incl. your private DMs and any group DMs you're a member of.
+
+        Scope to one room with `--room-id` (must be a room you're in,
+        else 403). Scope to one author with `--user-id`. The two
+        compose."""
+        if not q:
+            raise UsageError("search-messages requires a query")
+        return self._search_get("/search/messages", {
+            "limit":  limit,
+            "page":   page,
+            "q":      q,
+            "roomID": room_id,
+            "userID": user_id,
+        })
+
+    def search_events(self, q: str, *, limit: int = 20, page: int = 1,
+                      user_id: str | None = None, city_id: str | None = None,
+                      country: str | None = None,
+                      since: str | None = None, until: str | None = None):
+        """Search DC events by name / description / host. Optional
+        filters: ?userID= (host), ?cityID= (Google Place ID),
+        ?country= (ISO alpha-2 like 'TH'), ?since=/?until=
+        (ISO 8601 dates, compose for a window)."""
+        if not q:
+            raise UsageError("search-events requires a query")
+        return self._search_get("/search/events", {
+            "cityID":  city_id,
+            "country": country,
+            "limit":   limit,
+            "page":    page,
+            "q":       q,
+            "since":   since,
+            "until":   until,
+            "userID":  user_id,
+        })
+
+    def search_chapters(self, q: str, *, limit: int = 20, page: int = 1):
+        """Search DC chapters by city or country name."""
+        if not q:
+            raise UsageError("search-chapters requires a query")
+        return self._search_get("/search/chapters", {
+            "limit": limit,
+            "page":  page,
+            "q":     q,
+        })
 
     # ── Workflows / discovery ───────────────────────────────────────
 
@@ -2007,6 +2193,157 @@ class DC(Runtime):
                    args={})
     def workflows(self):
         return self._core.workflows()
+
+    # ── Follows (DCers + chapters) ─────────────────────────────────
+
+    @skill_command(name="follows-profiles",
+                   help="List DCers you currently follow. Mini-profile cards. "
+                        "The same list that drives the /locator/digest "
+                        "favoritePeople section. Cap: 150.",
+                   args={})
+    def follows_profiles(self):
+        return self._core.follows_profiles()
+
+    @skill_command(name="follow-profile",
+                   help="Follow a DCer (idempotent). Target must exist + be "
+                        "publicly visible. You cannot follow yourself. Cap 150 "
+                        "— hitting it returns 409 follow_limit_reached.",
+                   args={})
+    def follow_profile(self, user_id):
+        return self._core.follow_profile(user_id)
+
+    @skill_command(name="unfollow-profile",
+                   help="Unfollow a DCer (idempotent).",
+                   args={})
+    def unfollow_profile(self, user_id):
+        return self._core.unfollow_profile(user_id)
+
+    @skill_command(name="follows-chapters",
+                   help="List chapters (city hubs) you currently follow. "
+                        "Mini-chapter cards. Drives the /locator/digest "
+                        "favoriteCities section. Cap: 50.",
+                   args={})
+    def follows_chapters(self):
+        return self._core.follows_chapters()
+
+    @skill_command(name="follow-chapter",
+                   help="Follow a chapter / city hub (idempotent). Discover "
+                        "valid cityIDs via `chapters` or `places-search` (filter "
+                        "type=city). Cap 50.",
+                   args={})
+    def follow_chapter(self, city_id):
+        return self._core.follow_chapter(city_id)
+
+    @skill_command(name="unfollow-chapter",
+                   help="Unfollow a chapter (idempotent).",
+                   args={})
+    def unfollow_chapter(self, city_id):
+        return self._core.unfollow_chapter(city_id)
+
+    # ── Search ──────────────────────────────────────────────────────
+
+    _SEARCH_PAGE_ARGS: dict = {
+        "limit": {"type": "integer", "description": "Max hits per page (1-100, omni: 1-25)"},
+        "page":  {"type": "integer", "description": "1-indexed page number (default 1)"},
+    }
+
+    @skill_command(name="search",
+                   help="Cross-resource search across profiles, rooms, messages "
+                        "(incl. your private DMs + group DMs), events, chapters. "
+                        "Returns the top-N matches per resource, grouped. Use as "
+                        "the first call when unsure which resource has the answer; "
+                        "drill into search-<resource> for more depth on one bucket. "
+                        "Optional --user-id scopes each resource to that DCer's content.",
+                   parser=_DCCore._parse_search_omni,
+                   args={
+                       "q":       {"type": "string", "required": True,
+                                   "description": "Search text"},
+                       "limit":   {"type": "integer", "description": "Per-resource hits cap (1-25, default 5)"},
+                       "user_id": {"type": "string", "description": "Optional. Scope each resource to this DCer's content"},
+                   })
+    def search(self, q, *, limit=5, user_id=None):
+        return self._core.search(q, limit=limit, user_id=user_id)
+
+    @skill_command(name="search-profiles",
+                   help="Full-text search across DCer profiles. For richer "
+                        "structured matchmaking ('DCers in Lisbon who run "
+                        "SaaS'), prefer `profile-match`.",
+                   parser=_DCCore._parse_search_profiles,
+                   args={"q": {"type": "string", "required": True,
+                               "description": "Search text"},
+                         **_SEARCH_PAGE_ARGS})
+    def search_profiles(self, q, *, limit=20, page=1):
+        return self._core.search_profiles(q, limit=limit, page=page)
+
+    @skill_command(name="search-rooms",
+                   help="Search rooms by name / topic. Optional --type (channel/dm/"
+                        "group/discussion/quick-question/event) and --user-id "
+                        "for rooms created by that DCer.",
+                   parser=_DCCore._parse_search_rooms,
+                   args={
+                       "q":       {"type": "string", "required": True,
+                                   "description": "Search text"},
+                       "type":    {"type": "string",
+                                   "enum": ["channel", "dm", "group", "discussion",
+                                            "quick-question", "event"],
+                                   "description": "Room type filter"},
+                       "user_id": {"type": "string", "description": "Scope to rooms this DCer created"},
+                       **_SEARCH_PAGE_ARGS,
+                   })
+    def search_rooms(self, q, *, limit=20, page=1, type=None, user_id=None):  # pylint: disable=redefined-builtin
+        return self._core.search_rooms(q, limit=limit, page=page, type_=type, user_id=user_id)
+
+    @skill_command(name="search-messages",
+                   help="Search message bodies across every room you can access "
+                        "— incl. your private DMs and group DMs you're in. Scope "
+                        "to one room with --room-id (must be one you're in, else "
+                        "403). Scope to messages by one author with --user-id. "
+                        "Compose both for 'just X's messages in room Y'.",
+                   parser=_DCCore._parse_search_messages,
+                   args={
+                       "q":       {"type": "string", "required": True,
+                                   "description": "Search text"},
+                       "room_id": {"type": "string",
+                                   "description": "Scope to this room (must be one you're a member of)"},
+                       "user_id": {"type": "string",
+                                   "description": "Scope to messages authored by this DCer"},
+                       **_SEARCH_PAGE_ARGS,
+                   })
+    def search_messages(self, q, *, limit=20, page=1, room_id=None, user_id=None):
+        return self._core.search_messages(q, limit=limit, page=page,
+                                          room_id=room_id, user_id=user_id)
+
+    @skill_command(name="search-events",
+                   help="Search DC events. Optional filters: --user-id (host), "
+                        "--city-id (Google Place ID), --country (ISO alpha-2 e.g. "
+                        "'TH'), --since / --until (ISO 8601 dates, compose for "
+                        "a window). No default time filter — pass --since to "
+                        "narrow to upcoming only.",
+                   parser=_DCCore._parse_search_events,
+                   args={
+                       "q":       {"type": "string", "required": True,
+                                   "description": "Search text"},
+                       "user_id": {"type": "string", "description": "Host of the event"},
+                       "city_id": {"type": "string", "description": "Google Place ID of the event city"},
+                       "country": {"type": "string", "description": "ISO 3166-1 alpha-2 country code"},
+                       "since":   {"type": "string", "description": "Events ending on or after this ISO 8601 date"},
+                       "until":   {"type": "string", "description": "Events starting on or before this ISO 8601 date"},
+                       **_SEARCH_PAGE_ARGS,
+                   })
+    def search_events(self, q, *, limit=20, page=1, user_id=None, city_id=None,
+                      country=None, since=None, until=None):
+        return self._core.search_events(q, limit=limit, page=page, user_id=user_id,
+                                        city_id=city_id, country=country,
+                                        since=since, until=until)
+
+    @skill_command(name="search-chapters",
+                   help="Search DC chapters by city or country name.",
+                   parser=_DCCore._parse_search_chapters,
+                   args={"q": {"type": "string", "required": True,
+                               "description": "Search text"},
+                         **_SEARCH_PAGE_ARGS})
+    def search_chapters(self, q, *, limit=20, page=1):
+        return self._core.search_chapters(q, limit=limit, page=page)
 
     # ── Profile ─────────────────────────────────────────────────────
 
