@@ -14,6 +14,41 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [1.22.3] – 2026-05-23
+
+### Added
+
+- **Search — 6 new commands** wrapping the new `/search/*` endpoint family.
+  `dc.search(q, page=1, per_page=20)` runs a multi-resource search across
+  profiles, rooms, messages, events, and chapters in one call. Per-resource
+  commands (`dc.search_profiles`, `dc.search_rooms`, `dc.search_messages`,
+  `dc.search_events`, `dc.search_chapters`) accept the same `q` + pagination
+  arguments plus resource-specific filters: `--room-id` + `--user-id` on
+  messages; `--type` on rooms; `--city-id` / `--country` / `--since` /
+  `--until` on events. 1-indexed pagination via `page` / `per_page`; the
+  response envelope is `{ hits, total, page, hasMore }`. Only the caller's
+  own visible surface is returned — server-side post-filter drops anything
+  the caller can't see, and per-resource serializers whitelist fields.
+- **Follows — 6 new commands.** `dc.follows_profiles()` / `dc.follows_chapters()`
+  return the caller's full follow lists (caps: **150 profiles**, **50
+  chapters**). `dc.follow_profile(userID)` / `dc.follow_chapter(cityID)`
+  add to the list (`409 follow_limit_reached` when the cap is hit, `400
+  self_follow_not_allowed` on self-follow attempts, `404 profile_not_found`
+  for hidden / non-existent users). `dc.unfollow_profile(userID)` /
+  `dc.unfollow_chapter(cityID)` remove. All mutations are protected by
+  `sensitiveBurstGuard`. The follow list is private to the caller — there
+  is no inbound-follower lookup, no follower-count exposure on profiles.
+
+### Changed
+
+- `DC_API_VERSION` bumped from `1.20.1` → `1.22.3` to match the deployed
+  server. Server bumps for search + follows shipped as `1.22.0`, then
+  re-deployed as `1.22.3` after an in-band fix to the OpenAPI generator
+  (missing route-file imports were causing the new endpoints to be absent
+  from the published spec).
+
+---
+
 ## [1.20.1] – 2026-05-22
 
 ### Added
@@ -917,7 +952,8 @@ Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.20.1...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.22.3...HEAD
+[1.22.3]: https://github.com/dynamitecircle/dc/releases/tag/v1.22.3
 [1.20.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.20.1
 [1.19.3]: https://github.com/dynamitecircle/dc/releases/tag/v1.19.3
 [1.19.2]: https://github.com/dynamitecircle/dc/releases/tag/v1.19.2
