@@ -241,6 +241,9 @@ python3 dc.py overlaps
 # Create a trip — provide either --place-id (Google Place ID) OR --event-id
 python3 dc.py trip-create \
   --start-date 2026-12-01 --end-date 2026-12-05 --place-id ChIJ-ZRLfIQzMBQR2bAQQ8sZh90
+python3 dc.py trip-create \
+  --start-date 2026-12-01 --end-date 2026-12-05 --place-id ChIJ-ZRLfIQzMBQR2bAQQ8sZh90 \
+  --points '[{"note":"Coffee near the venue","noteHTML":"<p>Coffee near the venue</p>"}]'
 
 # Or attach to a DC event (location is copied from the event's city)
 python3 dc.py trip-create \
@@ -248,6 +251,7 @@ python3 dc.py trip-create \
 
 # Update / delete a trip
 python3 dc.py trip-update <tripID> --end-date 2026-12-06
+python3 dc.py trip-update <tripID> --points '[]'
 python3 dc.py trip-delete <tripID>
 ```
 

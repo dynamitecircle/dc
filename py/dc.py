@@ -164,7 +164,7 @@ async def _mcp_stdio_server():
 # Bump manually when this client catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-DC_API_VERSION = "1.22.3"
+DC_API_VERSION = "1.22.4"
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -1067,6 +1067,17 @@ class _DCCore:
         if "end-date"   in flags: kwargs["end_date"]   = str(flags["end-date"]).strip()
         if "place-id"   in flags: kwargs["place_id"]   = str(flags["place-id"]).strip()
         if "event-id"   in flags: kwargs["event_id"]   = str(flags["event-id"]).strip()
+        if "points"     in flags:
+            points_raw = str(flags["points"]).strip()
+            if not points_raw or points_raw == "True":
+                raise UsageError("--points must be a JSON array, e.g. '[{\"note\":\"Coffee\",\"noteHTML\":\"<p>Coffee</p>\"}]'.")
+            try:
+                points = json.loads(points_raw)
+            except json.JSONDecodeError as e:
+                raise UsageError(f"--points must be valid JSON: {e}") from e
+            if not isinstance(points, list):
+                raise UsageError("--points must be a JSON array. Pass [] to clear points on trip-update.")
+            kwargs["points"] = points
         return tuple(positionals), kwargs
 
     @staticmethod
@@ -2569,7 +2580,7 @@ class DC(Runtime):
                        "event-id":   {"type": "string",
                                       "description": "DC event ID — copies location from event. Provide either this OR place-id"},
                        "points":     {"type": "array",
-                                      "description": "Optional. Up to 20 trip points: list of `{note: str (max 280 chars), placeID?: str}`. The optional placeID is resolved against Google Places."},
+                                      "description": "Optional. Up to 20 trip points: list of `{note?: str (max 280 chars), noteHTML?: sanitized HTML, placeID?: str}`. The optional placeID is resolved against Google Places."},
                    })
     def trip_create(self, start_date="", end_date="", place_id="", event_id="", points=None):
         return self._core.create_trip(start_date=start_date, end_date=end_date, place_id=place_id, event_id=event_id, points=points)
@@ -2586,7 +2597,7 @@ class DC(Runtime):
                        "place-id":   {"type": "string", "description": "New Google Place ID"},
                        "event-id":   {"type": "string", "description": "New DC event ID"},
                        "points":     {"type": "array",
-                                      "description": "Optional. Replace the entire points array. Up to 20 items, same shape as `trip-create`. Pass `[]` to clear."},
+                                      "description": "Optional. Replace the entire points array. Up to 20 items, same shape as `trip-create` (`note`, `noteHTML`, optional `placeID`). Pass `[]` to clear."},
                    })
     def trip_update(self, trip_id, start_date="", end_date="", place_id="", event_id="", points=None):
         return self._core.update_trip(trip_id, start_date=start_date, end_date=end_date,

@@ -14,6 +14,25 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [1.22.4] - 2026-05-27
+
+### Fixed
+
+- **Trip points CLI drift.** `dc trip-create` and `dc trip-update` now
+  actually parse and forward `--points` as a JSON array. The commands had
+  advertised the flag, but the custom parser was dropping it before the API
+  call.
+- **Member API parity fixes are now version-locked.** Bumped
+  `DC_API_VERSION` from `1.22.3` to `1.22.4` to match the deployed API
+  release that queues profile/calendar sync side effects, makes event
+  bookmark/meetup mutations transactional and idempotent, accepts `noteHTML`
+  on trip points, and returns the standard membership role key `dcc`.
+
+### Changed
+
+- Trip point docs now include the full supported shape:
+  `{note?, noteHTML?, placeID?}`.
+
 ## [1.22.3] – 2026-05-23
 
 ### Added
@@ -952,7 +971,8 @@ Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.22.3...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.22.4...HEAD
+[1.22.4]: https://github.com/dynamitecircle/dc/releases/tag/v1.22.4
 [1.22.3]: https://github.com/dynamitecircle/dc/releases/tag/v1.22.3
 [1.20.1]: https://github.com/dynamitecircle/dc/releases/tag/v1.20.1
 [1.19.3]: https://github.com/dynamitecircle/dc/releases/tag/v1.19.3
