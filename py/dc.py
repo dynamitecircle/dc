@@ -2709,7 +2709,7 @@ class DC(Runtime):
         return self._core.event_rsvp(event_id, status)
 
     @skill_command(name="event-schedule",
-                   help="Full event schedule (sessions, day-grouped). Requires an event ticket.",
+                   help="Full event schedule (sessions, day-grouped). Public — visible to any DCer who can see the event; no ticket needed.",
                    args={})
     def event_schedule(self, event_id):
         return self._core.event_schedule(event_id)
@@ -2753,7 +2753,7 @@ class DC(Runtime):
                                            within_day_date=within_day_date)
 
     @skill_command(name="event-meetups",
-                   help="Approved member-organized meetups for an event. Requires an event ticket.",
+                   help="Approved member-organized meetups for an event. Listing is public; RSVPing to a meetup needs an event ticket.",
                    args={})
     def event_meetups(self, event_id):
         return self._core.event_meetups(event_id)
