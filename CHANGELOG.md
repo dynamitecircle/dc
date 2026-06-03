@@ -14,6 +14,31 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [1.22.5] – 2026-06-03
+
+### Fixed
+
+- **MCP commands rejecting their own `--flag` args.** Any command declared
+  with `@skill_command(args=...)` but no custom `parser=` raised
+  `Command '<name>' does not accept flags` when driven over MCP (the
+  MCP→CLI bridge serializes every kwarg as `--flag value`). Added an
+  auto-parser fallback in the dispatcher that routes declared kebab-case
+  flags to the wrapper's snake_case kwargs with type coercion — fixes
+  `profile-match`, `trip-discovery`, `event-agenda`, `event-free-slots`,
+  `session-bookmark`, `meetup-rsvp`, `room-messages`, `room-summaries`,
+  and makes "declared in `args=` ⇒ accepted on the CLI" a structural
+  invariant.
+- **`event-schedule` / `event-meetups` help corrected.** Both wrongly
+  claimed "Requires an event ticket". The listings are public — only
+  RSVPing to a meetup needs a ticket.
+
+### Changed
+
+- **Version-locked to API 1.22.5.** Bumped `DC_API_VERSION` to match the
+  deployed release: `GET /tickets` now defaults to the tickets you hold
+  (`valid` + `maybe`) and never exposes canceled tickets, and the locator
+  `serializeProfile` path respects the `shareLoc` location opt-out.
+
 ## [1.22.4] - 2026-05-27
 
 ### Fixed
