@@ -408,6 +408,71 @@ class ArgHelpers:
         return positional, flags
 
     @staticmethod
+    def _coerce_flag_value(value, spec, *, name):
+        """Coerce one parsed flag value to the type declared in `spec`.
+
+        `value` is a str (from `--flag value` / `--flag=value`) or `True`
+        (a bare `--flag`, which the MCP bridge emits for a boolean `true`).
+        Unspecified/unknown types pass through as a stripped string.
+        """
+        ftype = (spec or {}).get("type")
+        if ftype == "boolean":
+            if isinstance(value, bool):
+                return value
+            return str(value).strip().lower() in {"1", "true", "yes", "y", "t"}
+        if isinstance(value, bool):
+            # Bare `--flag` on a non-boolean field — pass the bool through.
+            return value
+        sval = str(value).strip()
+        if ftype == "integer":
+            try:
+                return int(sval)
+            except (TypeError, ValueError):
+                raise UsageError(f"--{name} must be an integer (got {sval!r})")
+        if ftype == "number":
+            try:
+                return int(sval) if sval.lstrip("+-").isdigit() else float(sval)
+            except (TypeError, ValueError):
+                raise UsageError(f"--{name} must be a number (got {sval!r})")
+        return sval
+
+    @staticmethod
+    def auto_parse_declared_flags(cmd_name, sig_params, arg_specs, flags):
+        """Route a command's declared `args=` flags to wrapper kwargs.
+
+        The MCP→CLI bridge serializes every non-positional tool input as
+        `--flag value` (or a bare `--flag` for a boolean). A command that
+        declares an `args=` schema but registers no custom `parser=` would
+        otherwise reject its own declared flags (the no-parser branch in
+        `_invoke`), breaking it for every MCP caller. This maps each
+        kebab-case flag to the wrapper's matching snake_case parameter and
+        coerces the value to the declared type. Flags that don't match any
+        parameter still raise UsageError.
+        """
+        named = {
+            p.name for p in sig_params
+            if p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                          inspect.Parameter.KEYWORD_ONLY)
+        }
+        accepts_var_kw = any(
+            p.kind is inspect.Parameter.VAR_KEYWORD for p in sig_params
+        )
+        kwargs: dict = {}
+        unknown: list = []
+        for raw_key, value in flags.items():
+            key = raw_key.replace("-", "_")
+            if key not in named and not accepts_var_kw:
+                unknown.append(raw_key)
+                continue
+            spec = arg_specs.get(raw_key) or arg_specs.get(key) or {}
+            kwargs[key] = ArgHelpers._coerce_flag_value(value, spec, name=raw_key)
+        if unknown:
+            raise UsageError(
+                f"Command '{cmd_name}' does not accept flag(s): {sorted(unknown)}"
+            )
+        return kwargs
+
+    @staticmethod
     def require_args(raw_args, count, usage):
         """Raise UsageError if fewer than `count` positional args were given."""
         if len(raw_args) < count:
@@ -943,15 +1008,25 @@ class Runtime:
                 sig = inspect.signature(fn)
                 params = [p for p in sig.parameters.values() if p.name != "self"]
                 positionals, flags = ArgHelpers.parse_flags(list(raw_args))
-                if flags:
+                arg_specs = cmd.get("args") or {}
+                if flags and not arg_specs:
+                    # No declared flag schema → genuinely positional-only.
                     raise UsageError(
                         f"Command '{cmd['name']}' does not accept flags. Got: {sorted(flags)}"
                     )
+                # Auto-parser fallback: a command with an `args=` schema but no
+                # custom `parser=` still accepts its declared flags. Without
+                # this, every such command breaks over MCP, whose bridge
+                # serializes each kwarg tool input as `--flag value`.
+                kwargs = (
+                    ArgHelpers.auto_parse_declared_flags(cmd["name"], params, arg_specs, flags)
+                    if flags else {}
+                )
                 if len(positionals) > len(params):
                     raise UsageError(
                         f"Command '{cmd['name']}' takes at most {len(params)} args; got {len(positionals)}"
                     )
-                raw = fn(*positionals)
+                raw = fn(*positionals, **kwargs)
         finally:
             _EMIT_SINK.reset(token)
 
