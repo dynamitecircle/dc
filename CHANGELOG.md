@@ -14,7 +14,7 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
-## [Unreleased]
+## [1.22.6] – 2026-06-05
 
 ### Fixed
 
@@ -1024,7 +1024,8 @@ Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.22.5...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.22.6...HEAD
+[1.22.6]: https://github.com/dynamitecircle/dc/releases/tag/v1.22.6
 [1.22.5]: https://github.com/dynamitecircle/dc/releases/tag/v1.22.5
 [1.22.4]: https://github.com/dynamitecircle/dc/releases/tag/v1.22.4
 [1.22.3]: https://github.com/dynamitecircle/dc/releases/tag/v1.22.3
