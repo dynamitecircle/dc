@@ -1176,10 +1176,87 @@ class _DCCore:
         if "full-name" in flags: kwargs["full_name"] = str(flags["full-name"]).strip()
         return tuple(positionals), kwargs
 
+    # ── profile-update field contract ──────────────────────────────
+    # Canonical Member API `/profile` field names. MUST mirror the server's
+    # ProfileUpdateSchema, which is `.strict()` — any unknown key is rejected
+    # with a 400. This dict is the single source of truth for BOTH the parser's
+    # accepted-field set and the MCP `args=` schema (see `profile_update`), so
+    # the two can never drift. field -> (json type, description).
+    _PROFILE_FIELD_SPECS = {
+        "headline":            ("string",  "Short tagline shown on your profile"),
+        "nickname":            ("string",  "Preferred display nickname"),
+        "ama":                 ("string",  "Ask-Me-Anything topic"),
+        "spouseName":          ("string",  "Partner / spouse name"),
+        "hobbies":             ("string",  "Comma-separated hobby list"),
+        "goal":                ("string",  "Your current goal"),
+        "expertise":           ("string",  "Areas of expertise"),
+        "connect":             ("string",  "How DCers can help / connect with you"),
+        "connectIsPrivate":    ("boolean", "Hide the connect field from non-staff DCers"),
+        "locs":                ("string",  "Locations / where you spend time"),
+        "diet":                ("string",  "Dietary preference (server-validated enum)"),
+        "shirtSize":           ("string",  "T-shirt size (server-validated enum)"),
+        "bizName":             ("string",  "Primary business name"),
+        "bizDesc":             ("string",  "Primary business description (HTML allowed)"),
+        "bizWeb":              ("string",  "Primary business website URL"),
+        "bizIndustry":         ("string",  "Business industry (server-validated enum)"),
+        "bizRevenue":          ("string",  "Annual revenue band (server-validated enum)"),
+        "bizRevenueIsPrivate": ("boolean", "Hide annual revenue from non-staff DCers"),
+        "bizTeam":             ("string",  "Team-size band (server-validated enum)"),
+        "bizTeamIsPrivate":    ("boolean", "Hide team size from non-staff DCers"),
+        "bizOther":            ("string",  "Other businesses you run"),
+        "bizPast":             ("string",  "Previous businesses"),
+        "yearsInBiz":          ("string",  "Years in business (server-validated enum)"),
+        "github":              ("string",  "GitHub username — required for private DC repo access"),
+        "linkedin":            ("string",  "LinkedIn handle"),
+        "twitter":             ("string",  "Twitter/X handle"),
+        "instagram":           ("string",  "Instagram handle"),
+        "facebook":            ("string",  "Facebook handle"),
+        "whatsapp":            ("string",  "WhatsApp number with country code (+...)"),
+        "focusmate":           ("string",  "Focusmate handle"),
+    }
+    _PROFILE_FIELDS = frozenset(_PROFILE_FIELD_SPECS)
+    _PROFILE_BOOL_FIELDS = frozenset(k for k, spec in _PROFILE_FIELD_SPECS.items() if spec[0] == "boolean")
+    # Historically the client documented these names; the server never accepted
+    # them (they 400 against the strict schema). Map them to the real fields so
+    # old callers succeed instead of failing.
+    _PROFILE_ALIASES = {
+        "businessDescription": "bizDesc",
+        "businessUrl":         "bizWeb",
+        "industry":            "bizIndustry",
+    }
+
+    @staticmethod
+    def _coerce_bool_flag(name, value):
+        """Coerce a CLI flag value to a bool, or raise UsageError."""
+        sv = str(value).strip().lower()
+        if sv in ("true", "1", "yes"):
+            return True
+        if sv in ("false", "0", "no"):
+            return False
+        raise UsageError(f"--{name} expects true|false (got {value!r})")
+
     @staticmethod
     def _parse_profile_patch(raw_args):
+        """Map --<field> <value> flags to the strict server field set.
+
+        Unknown fields are rejected client-side (the server schema is
+        `.strict()` and would 400 anyway); the three historically
+        mis-documented names are accepted as aliases.
+        """
         _positionals, flags = ArgHelpers.parse_flags(list(raw_args))
-        return tuple(), {"fields": flags}
+        fields: dict = {}
+        for k, v in flags.items():
+            field = _DCCore._PROFILE_ALIASES.get(k, k)
+            if field not in _DCCore._PROFILE_FIELDS:
+                raise UsageError(
+                    f"Unknown profile field --{k}. Valid fields: "
+                    + ", ".join(sorted(_DCCore._PROFILE_FIELDS))
+                )
+            if field in _DCCore._PROFILE_BOOL_FIELDS:
+                fields[field] = _DCCore._coerce_bool_flag(k, v)
+            else:
+                fields[field] = str(v).strip()
+        return tuple(), {"fields": fields}
 
     @staticmethod
     def _parse_notifications_patch(raw_args):
@@ -1227,19 +1304,30 @@ class _DCCore:
                 raise UsageError(f"--{k} expects true|false (got {v!r})")
         return tuple(), {"fields": out}
 
+    _CALENDAR_TOGGLES = frozenset({
+        "includeMyTickets", "includeEventAgenda", "includeVirtualCalls",
+        "includeMyTrips", "includeFlagshipEvents", "includeDCBlackEvents",
+        "includeHomeChapterEvents", "includeFollowedChapterEvents",
+        "includeOtherChapterEvents",
+    })
+
     @staticmethod
     def _parse_calendar_patch(raw_args):
-        """Parse boolean --include* flags into the calendar PATCH body."""
+        """Parse boolean --include* toggles into the calendar PATCH body.
+
+        Only the nine known toggles are accepted — the server schema is
+        strict, so unknown flags are rejected client-side with a clear
+        error instead of a server 400.
+        """
         _positionals, flags = ArgHelpers.parse_flags(list(raw_args))
         out: dict = {}
         for k, v in flags.items():
-            sv = str(v).strip().lower()
-            if sv in ("true", "1", "yes"):
-                out[k] = True
-            elif sv in ("false", "0", "no"):
-                out[k] = False
-            else:
-                raise UsageError(f"--{k} expects true|false (got {v!r})")
+            if k not in _DCCore._CALENDAR_TOGGLES:
+                raise UsageError(
+                    f"Unknown calendar toggle --{k}. Valid toggles: "
+                    + ", ".join(sorted(_DCCore._CALENDAR_TOGGLES))
+                )
+            out[k] = _DCCore._coerce_bool_flag(k, v)
         return tuple(), {"fields": out}
 
     @staticmethod
@@ -2443,26 +2531,15 @@ class DC(Runtime):
         return self._core.profile()
 
     @skill_command(name="profile-update",
-                   help="Update your profile fields (e.g. --headline 'CEO at Acme')",
+                   help="Update your profile. Pass any subset of fields as --<field> <value>, e.g. "
+                        "--headline 'CEO at Acme' --bizName Acme --linkedin myhandle. Run `profile` "
+                        "to see current values. Enum fields (bizIndustry, bizRevenue, bizTeam, diet, "
+                        "shirtSize, yearsInBiz) are validated server-side.",
                    parser=_DCCore._parse_profile_patch,
-                   args={
-                       # _accept_extras tells the schema builder that this command's
-                       # parser accepts arbitrary --<key> <value> flags beyond the
-                       # documented examples below.
-                       "_accept_extras":     {"additional": True},
-                       "headline":           {"type": "string", "description": "Short tagline shown on your profile"},
-                       "businessDescription": {"type": "string", "description": "Description of your business (HTML allowed)"},
-                       "businessUrl":        {"type": "string", "description": "Your business website URL"},
-                       "industry":           {"type": "string", "description": "Industry tag"},
-                       "github":             {"type": "string",
-                                              "description": "Your GitHub username — required for access to private DC repos"},
-                       "linkedin":           {"type": "string", "description": "LinkedIn profile URL"},
-                       "twitter":            {"type": "string", "description": "Twitter/X profile URL"},
-                       "instagram":          {"type": "string", "description": "Instagram handle"},
-                       "facebook":           {"type": "string", "description": "Facebook profile URL"},
-                       "whatsapp":           {"type": "string", "description": "WhatsApp number with country code"},
-                       "hobbies":            {"type": "string", "description": "Comma-separated hobby list"},
-                   })
+                   # Built from the single source of truth so the MCP schema
+                   # always matches the parser's accepted field set.
+                   args={field: {"type": ftype, "description": desc}
+                         for field, (ftype, desc) in _DCCore._PROFILE_FIELD_SPECS.items()})
     def profile_update(self, fields: dict):
         return self._core.update_profile(fields or {})
 

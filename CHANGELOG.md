@@ -14,6 +14,32 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **`profile-update` advertised field names that 400.** The MCP/CLI schema
+  documented `businessDescription`, `businessUrl`, and `industry` — none of
+  which exist in the server's strict `/profile` schema, so they failed with a
+  400. Reworked the blind passthrough into an explicit, validated field map
+  covering all 30 real API fields (correct names, boolean coercion for the
+  `*IsPrivate` flags); the three legacy names are now accepted as aliases.
+  Unknown fields are rejected client-side with the valid list.
+- **`trip-create` / `trip-update` silently dropped top-level `--note`.** The
+  server accepts a trip caption (`note`) on create + update, but the client
+  never sent it through the parser, wrapper, MCP schema, or request body.
+  Now fully wired. (HS 3339048660)
+- **`calendar-update` forwarded unknown toggles to the server.** Now validated
+  client-side against the nine known feed toggles, with a clear error.
+
+### Added
+
+- **Offline test suite** (`tests/`, pytest) — parser, request-body, and MCP
+  schema-contract tests that run with no network, wired into CI as a gate
+  before build/publish. The schema-contract tests assert each closed-set
+  command's MCP `args=` matches its parser's accepted fields, so the
+  "documented-but-wrong field name" bug class cannot reship.
+
 ## [1.22.5] – 2026-06-03
 
 ### Fixed

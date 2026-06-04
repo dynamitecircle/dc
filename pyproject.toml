@@ -44,6 +44,9 @@ dynamic = ["version"]
 # `pip install dynamitecircle[mcp]` enables --mcp server mode.
 # CLI / library use needs nothing beyond the stdlib.
 mcp = ["mcp>=0.9.0"]
+# `pip install dynamitecircle[test]` for the offline test suite (dev only —
+# tests/ is excluded from the wheel + sdist).
+test = ["pytest>=7.0"]
 
 [project.scripts]
 # After `pip install dynamitecircle`, users get a `dc` command on PATH.
@@ -78,6 +81,7 @@ bypass-selection = true
 # Source dist includes the full repo. only-include + bypass-selection
 # avoids hatch's auto-package-discovery which doesn't recognize our
 # non-standard layout (single-file at py/dc.py rather than py/<pkg>/).
+# `tests/` is intentionally omitted — it's a dev-only offline suite.
 bypass-selection = true
 only-include = [
   "py",
@@ -88,3 +92,12 @@ only-include = [
   "manifest.json",
   "pyproject.toml",
 ]
+
+# ---------------------------------------------------------------------------
+# Test config — offline suite under tests/ (never ships in the package)
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["py"]
+addopts = "-q"
