@@ -34,11 +34,13 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ### Added
 
-- **Offline test suite** (`tests/`, pytest) — parser, request-body, and MCP
-  schema-contract tests that run with no network, wired into CI as a gate
-  before build/publish. The schema-contract tests assert each closed-set
-  command's MCP `args=` matches its parser's accepted fields, so the
-  "documented-but-wrong field name" bug class cannot reship.
+- **Offline test suite** (`tests/`, pytest) — runs with no network, wired
+  into CI as a gate before build/publish. Covers **every registered command**
+  (parametrized registration + binding checks: each command exposes a typed
+  `args=` schema and every declared flag is accepted by its arg-binding),
+  plus per-command parser, request-body, and schema-contract tests. Together
+  they lock both bug classes shut: "command rejects its own declared flag"
+  and "documented-but-wrong field name."
 
 ## [1.22.5] – 2026-06-03
 
