@@ -14,6 +14,26 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [1.23.3] – 2026-06-13
+
+### Fixed
+
+- **Help text wrongly claimed several event commands require a ticket.**
+  Mirroring the server `1.23.3` ticket-gating relax, `event-sponsors`,
+  `event-agendas`, and the `--user-id` form of `event-agenda` (viewing another
+  attendee's agenda) are now open to any DCer — their help + argument
+  descriptions no longer say "requires a ticket". Your OWN `event-agenda`,
+  `event-free-slots`, `session-bookmark`, and `meetup-rsvp` stay ticket-gated
+  (unchanged). No client behavior change — the server enforces access; this only
+  corrects the advertised help so agents don't pre-filter on a ticket they don't
+  need.
+
+### Note
+
+Version jumps `1.22.6 → 1.23.3` to realign with the live Member API version (the
+`1.23.0`–`1.23.2` server releases — service-layer refactor + in-process MCP
+cutover — were server-only with no client surface change, so no client release).
+
 ## [1.22.6] – 2026-06-05
 
 ### Fixed
@@ -1024,7 +1044,8 @@ Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.22.6...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.23.3...HEAD
+[1.23.3]: https://github.com/dynamitecircle/dc/releases/tag/v1.23.3
 [1.22.6]: https://github.com/dynamitecircle/dc/releases/tag/v1.22.6
 [1.22.5]: https://github.com/dynamitecircle/dc/releases/tag/v1.22.5
 [1.22.4]: https://github.com/dynamitecircle/dc/releases/tag/v1.22.4
