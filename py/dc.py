@@ -1897,8 +1897,9 @@ class _DCCore:
         With no user_id (default): returns YOUR agenda.
         With user_id: returns another attendee's agenda — useful when
         AI agents want to plan together (find a coffee window with a
-        DCer, suggest sessions to overlap, etc.). Both you and the
-        target must hold a valid ticket to the event.
+        DCer, suggest sessions to overlap, etc.). YOUR own agenda needs
+        your event ticket; another attendee's agenda is open to any DCer
+        (the target must hold a ticket, else there's no agenda → 404).
         """
         if not event_id:
             raise UsageError("event-agenda requires an event ID")
@@ -1913,7 +1914,7 @@ class _DCCore:
         schedules across several DCers ("what sessions are Lina,
         Alex, and Jeff all attending?"). Non-attendee userIDs are
         silently dropped — pass a candidate list without pre-checking
-        each ticket. You must hold a ticket to the event.
+        each ticket. Open to any DCer.
         """
         if not event_id:
             raise UsageError("event-agendas requires an event ID")
@@ -2803,7 +2804,9 @@ class DC(Runtime):
                         "By default returns YOUR agenda. Pass --user-id to view "
                         "another attendee's agenda — useful for planning together "
                         "(find coffee windows, suggest sessions to overlap). "
-                        "Both you and the target must hold a valid ticket.",
+                        "Your OWN agenda requires your event ticket; viewing another "
+                        "attendee's agenda (--user-id) is open to any DCer — only the "
+                        "target must hold a ticket (else there's no agenda).",
                    args={
                        "user-id": {"type": "string", "description": "Optional. View another attendee's agenda by their userID."},
                    })
@@ -2814,7 +2817,7 @@ class DC(Runtime):
                    help="Bulk fetch up to 20 attendee agendas in one call. Use when comparing "
                         "schedules across several DCers (\"what sessions are Lina, Alex, and Jeff "
                         "all attending?\"). Non-attendee userIDs are silently dropped — pass a "
-                        "candidate list without pre-checking each ticket. You must hold a ticket.",
+                        "candidate list without pre-checking each ticket. Open to any DCer.",
                    args={
                        "user-ids": {"type": "string", "required": True, "description": "Comma-separated attendee userIDs (max 20). Non-attendees silently dropped.", "examples": ["940,1673,2572"]},
                    })
@@ -2843,7 +2846,7 @@ class DC(Runtime):
         return self._core.event_meetups(event_id)
 
     @skill_command(name="event-sponsors",
-                   help="Event sponsors, ordered by tier. Requires an event ticket.",
+                   help="Event sponsors, ordered by tier. Public — visible to any DCer.",
                    args={})
     def event_sponsors(self, event_id):
         return self._core.event_sponsors(event_id)
