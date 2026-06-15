@@ -14,6 +14,33 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [2.0.1] – 2026-06-16
+
+### Changed
+
+- **BREAKING — formal field names, no aliases, no back-compat.** Renamed to
+  match the Member API v2 rename:
+  - Profile: `bizDesc`→`businessDescription`, `bizName`→`businessName`,
+    `bizWeb`→`businessWebsite`, `bizIndustry`→`businessIndustry`,
+    `bizRevenue`→`annualRevenue` (+`annualRevenueIsPrivate`), `bizTeam`→`teamSize`
+    (+`teamSizeIsPrivate`), `bizOther`→`otherBusinesses`,
+    `bizPast`→`previousBusinesses`, `yearsInBiz`→`yearsInBusiness`,
+    `ama`→`askMeAnythingTopics`, `connect`→`peopleOfInterest`
+    (+`peopleOfInterestIsPrivate`), `locs`→`relevantLocations`,
+    `goal`→`currentChallenge`, `whatsapp`→`whatsApp`.
+  - Matchmaker: `industry`→`businessIndustry`, `minRevenue`→`minAnnualRevenue`,
+    `noRerank`→`skipReranking`.
+  - Event free-slots: `minDurationMins`→`minDurationMinutes`,
+    `withinDayDate`→`eventDayDate` (response `durationMins`→`durationMinutes`).
+- **Removed the legacy field aliases** (`businessDescription`→`bizDesc`, etc.) —
+  the server now accepts the formal names natively.
+
+### Added
+
+- Property **discoverability**: an unknown field on any endpoint now returns a
+  fuzzy `Unknown field 'X' — did you mean 'Y'?` error with the valid-field list,
+  instead of a bare rejection.
+
 ## [1.23.3] – 2026-06-13
 
 ### Fixed
@@ -1044,7 +1071,8 @@ Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v1.23.3...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v2.0.1...HEAD
+[2.0.1]: https://github.com/dynamitecircle/dc/releases/tag/v2.0.1
 [1.23.3]: https://github.com/dynamitecircle/dc/releases/tag/v1.23.3
 [1.22.6]: https://github.com/dynamitecircle/dc/releases/tag/v1.22.6
 [1.22.5]: https://github.com/dynamitecircle/dc/releases/tag/v1.22.5
