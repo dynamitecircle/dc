@@ -10,20 +10,26 @@ def _fields(args):
 
 
 def test_correct_api_field_names():
-    assert _fields(["--bizDesc=We build things", "--headline=CEO"]) == {
-        "bizDesc":  "We build things",
-        "headline": "CEO",
+    assert _fields(["--businessDescription=We build things", "--headline=CEO"]) == {
+        "businessDescription": "We build things",
+        "headline":            "CEO",
     }
 
 
-def test_legacy_aliases_resolve_to_real_fields():
-    # These three names were historically documented but 400 against the
-    # strict server schema. They must now map to the real fields.
-    assert _fields(["--businessDescription=x", "--businessUrl=https://a.com", "--industry=Software"]) == {
-        "bizDesc":     "x",
-        "bizWeb":      "https://a.com",
-        "bizIndustry": "Software",
+def test_formal_business_names_accepted():
+    # v2.0: the formal names are canonical and map to themselves (the old
+    # bizDesc/businessUrl/industry aliases were removed).
+    assert _fields(["--businessDescription=x", "--businessWebsite=https://a.com", "--businessIndustry=Software"]) == {
+        "businessDescription": "x",
+        "businessWebsite":     "https://a.com",
+        "businessIndustry":    "Software",
     }
+
+
+def test_old_field_name_is_rejected():
+    # The pre-v2 abbreviations no longer exist; the strict parser rejects them.
+    with pytest.raises(dc.UsageError):
+        _fields(["--bizDesc=x"])
 
 
 def test_unknown_field_is_rejected():
@@ -32,15 +38,15 @@ def test_unknown_field_is_rejected():
 
 
 def test_boolean_fields_coerced():
-    assert _fields(["--connectIsPrivate=true", "--bizRevenueIsPrivate=false"]) == {
-        "connectIsPrivate":    True,
-        "bizRevenueIsPrivate": False,
+    assert _fields(["--peopleOfInterestIsPrivate=true", "--annualRevenueIsPrivate=false"]) == {
+        "peopleOfInterestIsPrivate": True,
+        "annualRevenueIsPrivate":    False,
     }
 
 
 def test_bad_boolean_value_rejected():
     with pytest.raises(dc.UsageError):
-        _fields(["--connectIsPrivate=maybe"])
+        _fields(["--peopleOfInterestIsPrivate=maybe"])
 
 
 def test_every_declared_field_is_accepted():
