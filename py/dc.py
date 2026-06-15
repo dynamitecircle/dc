@@ -164,7 +164,7 @@ async def _mcp_stdio_server():
 # Bump manually when this client catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-DC_API_VERSION = "1.23.3"
+DC_API_VERSION = "2.0.1"
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -1183,47 +1183,42 @@ class _DCCore:
     # accepted-field set and the MCP `args=` schema (see `profile_update`), so
     # the two can never drift. field -> (json type, description).
     _PROFILE_FIELD_SPECS = {
-        "headline":            ("string",  "Short tagline shown on your profile"),
-        "nickname":            ("string",  "Preferred display nickname"),
-        "ama":                 ("string",  "Ask-Me-Anything topic"),
-        "spouseName":          ("string",  "Partner / spouse name"),
-        "hobbies":             ("string",  "Comma-separated hobby list"),
-        "goal":                ("string",  "Your current goal"),
-        "expertise":           ("string",  "Areas of expertise"),
-        "connect":             ("string",  "How DCers can help / connect with you"),
-        "connectIsPrivate":    ("boolean", "Hide the connect field from non-staff DCers"),
-        "locs":                ("string",  "Locations / where you spend time"),
-        "diet":                ("string",  "Dietary preference (server-validated enum)"),
-        "shirtSize":           ("string",  "T-shirt size (server-validated enum)"),
-        "bizName":             ("string",  "Primary business name"),
-        "bizDesc":             ("string",  "Primary business description (HTML allowed)"),
-        "bizWeb":              ("string",  "Primary business website URL"),
-        "bizIndustry":         ("string",  "Business industry (server-validated enum)"),
-        "bizRevenue":          ("string",  "Annual revenue band (server-validated enum)"),
-        "bizRevenueIsPrivate": ("boolean", "Hide annual revenue from non-staff DCers"),
-        "bizTeam":             ("string",  "Team-size band (server-validated enum)"),
-        "bizTeamIsPrivate":    ("boolean", "Hide team size from non-staff DCers"),
-        "bizOther":            ("string",  "Other businesses you run"),
-        "bizPast":             ("string",  "Previous businesses"),
-        "yearsInBiz":          ("string",  "Years in business (server-validated enum)"),
-        "github":              ("string",  "GitHub username — required for private DC repo access"),
-        "linkedin":            ("string",  "LinkedIn handle"),
-        "twitter":             ("string",  "Twitter/X handle"),
-        "instagram":           ("string",  "Instagram handle"),
-        "facebook":            ("string",  "Facebook handle"),
-        "whatsapp":            ("string",  "WhatsApp number with country code (+...)"),
-        "focusmate":           ("string",  "Focusmate handle"),
+        "headline":                  ("string",  "Short tagline shown on your profile"),
+        "nickname":                  ("string",  "Preferred display nickname"),
+        "askMeAnythingTopics":       ("string",  "Topics other members can ask you about"),
+        "spouseName":                ("string",  "Partner / spouse name"),
+        "hobbies":                   ("string",  "Comma-separated hobby list"),
+        "currentChallenge":          ("string",  "Your current business challenge or goal"),
+        "expertise":                 ("string",  "Areas of expertise"),
+        "peopleOfInterest":          ("string",  "What kinds of DCers you want to connect with"),
+        "peopleOfInterestIsPrivate": ("boolean", "Hide your people-of-interest answer from non-staff DCers"),
+        "relevantLocations":         ("string",  "Cities / regions you frequently visit"),
+        "diet":                      ("string",  "Dietary preference (server-validated enum)"),
+        "shirtSize":                 ("string",  "T-shirt size (server-validated enum)"),
+        "businessName":              ("string",  "Primary business name"),
+        "businessDescription":       ("string",  "Primary business description (HTML allowed)"),
+        "businessWebsite":           ("string",  "Primary business website URL"),
+        "businessIndustry":          ("string",  "Business industry (server-validated enum)"),
+        "annualRevenue":             ("string",  "Annual revenue band (server-validated enum)"),
+        "annualRevenueIsPrivate":    ("boolean", "Hide annual revenue from non-staff DCers"),
+        "teamSize":                  ("string",  "Team-size band (server-validated enum)"),
+        "teamSizeIsPrivate":         ("boolean", "Hide team size from non-staff DCers"),
+        "otherBusinesses":           ("string",  "Other businesses you run"),
+        "previousBusinesses":        ("string",  "Previous businesses"),
+        "yearsInBusiness":           ("string",  "Years in business (server-validated enum)"),
+        "github":                    ("string",  "GitHub username — required for private DC repo access"),
+        "linkedin":                  ("string",  "LinkedIn handle"),
+        "twitter":                   ("string",  "Twitter/X handle"),
+        "instagram":                 ("string",  "Instagram handle"),
+        "facebook":                  ("string",  "Facebook handle"),
+        "whatsApp":                  ("string",  "WhatsApp number with country code (+...)"),
+        "focusmate":                 ("string",  "Focusmate handle"),
     }
     _PROFILE_FIELDS = frozenset(_PROFILE_FIELD_SPECS)
     _PROFILE_BOOL_FIELDS = frozenset(k for k, spec in _PROFILE_FIELD_SPECS.items() if spec[0] == "boolean")
-    # Historically the client documented these names; the server never accepted
-    # them (they 400 against the strict schema). Map them to the real fields so
-    # old callers succeed instead of failing.
-    _PROFILE_ALIASES = {
-        "businessDescription": "bizDesc",
-        "businessUrl":         "bizWeb",
-        "industry":            "bizIndustry",
-    }
+    # v2.0 formal field names are canonical and sent as-is. No aliases: an
+    # unknown field gets the server's "did you mean 'X'?" discoverability error.
+    _PROFILE_ALIASES = {}
 
     @staticmethod
     def _coerce_bool_flag(name, value):
@@ -1944,10 +1939,10 @@ class _DCCore:
             raise UsageError("event-free-slots accepts at most 20 userIDs per call")
         body = {
             "userIDs":         ids,
-            "minDurationMins": int(min_duration_mins),
+            "minDurationMinutes": int(min_duration_mins),
         }
         if within_day_date:
-            body["withinDayDate"] = within_day_date
+            body["eventDayDate"] = within_day_date
         return self._post(f"/events/{event_id}/free-slots", body)
 
     def profile_match(self, query=None, limit=50, location_chapter_place_id=None,
@@ -1997,15 +1992,15 @@ class _DCCore:
         if is_dcb is True:
             body["isDCB"] = True
         if industry:
-            body["industry"] = industry
+            body["businessIndustry"] = industry
         if min_team_size:
             body["minTeamSize"] = min_team_size
         if min_revenue:
-            body["minRevenue"] = min_revenue
+            body["minAnnualRevenue"] = min_revenue
         if gender:
             body["gender"] = gender
         if no_rerank is True:
-            body["noRerank"] = True
+            body["skipReranking"] = True
         return self._post("/profile-match", body)
 
     def event_meetups(self, event_id):
@@ -2533,9 +2528,9 @@ class DC(Runtime):
 
     @skill_command(name="profile-update",
                    help="Update your profile. Pass any subset of fields as --<field> <value>, e.g. "
-                        "--headline 'CEO at Acme' --bizName Acme --linkedin myhandle. Run `profile` "
-                        "to see current values. Enum fields (bizIndustry, bizRevenue, bizTeam, diet, "
-                        "shirtSize, yearsInBiz) are validated server-side.",
+                        "--headline 'CEO at Acme' --businessName Acme --linkedin myhandle. Run `profile` "
+                        "to see current values. Enum fields (businessIndustry, annualRevenue, teamSize, diet, "
+                        "shirtSize, yearsInBusiness) are validated server-side.",
                    parser=_DCCore._parse_profile_patch,
                    # Built from the single source of truth so the MCP schema
                    # always matches the parser's accepted field set.
