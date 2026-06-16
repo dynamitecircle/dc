@@ -92,6 +92,7 @@ only-include = [
   "CHANGELOG.md",
   "LICENSE",
   "manifest.json",
+  "server.json",
   "pyproject.toml",
 ]
 

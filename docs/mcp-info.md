@@ -22,7 +22,7 @@ One-click badges (hosted MCP):
 &nbsp;
 [![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_DC-007ACC?logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=dc&config=%7B%22url%22%3A%22https%3A%2F%2Fapi.dynamitecircle.com%2Fmcp%22%7D)
 
-Discovery metadata is published at [`/.well-known/mcp.json`](https://api.dynamitecircle.com/.well-known/mcp.json); the OAuth protected-resource descriptor is at `/.well-known/oauth-protected-resource`.
+Discovery metadata is published at [`/.well-known/mcp.json`](https://api.dynamitecircle.com/.well-known/mcp.json); the OAuth protected-resource descriptor is at `/.well-known/oauth-protected-resource`. The server is also listed in the [Official MCP Registry](https://registry.modelcontextprotocol.io) as `io.github.dynamitecircle/dc` (which feeds VS Code, Smithery, PulseMCP, and others).
 
 ## Local server (this client)
 

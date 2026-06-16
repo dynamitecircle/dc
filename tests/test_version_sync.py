@@ -6,6 +6,7 @@ Two other files carry a hand-maintained copy of the same version:
 
 - ``manifest.json`` — the MCPB manifest ``version`` field
 - ``py/config.json`` — the skill metadata ``version`` field
+- ``server.json`` — the MCP Registry metadata ``version`` field
 
 Neither is wired to the constant, so bumping ``DC_API_VERSION`` without
 updating them would ship a mismatched manifest / metadata. This test fails
@@ -42,4 +43,12 @@ def test_config_version_matches_constant():
     assert config == dc.DC_API_VERSION, (
         f"py/config.json version {config!r} != DC_API_VERSION {dc.DC_API_VERSION!r}. "
         "Bump py/config.json to match py/dc.py."
+    )
+
+
+def test_server_json_version_matches_constant():
+    server = _read_json_version("server.json")
+    assert server == dc.DC_API_VERSION, (
+        f"server.json version {server!r} != DC_API_VERSION {dc.DC_API_VERSION!r}. "
+        "Bump server.json to match py/dc.py."
     )

@@ -56,6 +56,11 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 - **`.mcpb` bundle** — the release workflow now builds a `dc.mcpb` (one-click
   Claude Desktop install) via `mcpb pack` and attaches it to the GitHub release;
   `.mcpbignore` keeps the bundle lean.
+- **Official MCP Registry** — add `server.json` (`io.github.dynamitecircle/dc`,
+  listing the hosted streamable-HTTP endpoint) and a separate, isolated
+  `publish-mcp.yml` workflow that publishes it via GitHub OIDC on `v*` tags.
+  The registry feeds VS Code, Smithery, PulseMCP, and others. `server.json`
+  version is guarded by `tests/test_version_sync.py`.
 
 ## [2.0.1] – 2026-06-16
 
