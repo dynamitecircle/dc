@@ -376,6 +376,50 @@ def _build_input_schema(arg_specs: dict | None, *, positional: list[str] | None 
     return schema
 
 
+# ── MCP tool annotations ───────────────────────────────────────────────
+#
+# Commands that MUTATE the caller's DC account data. Everything else is a
+# read. Mirrors the hosted MCP server's method-based annotations (where every
+# GET is readOnly) so the two surfaces advertise the same safety hints — which
+# lets clients auto-approve reads and flag writes. Names are the kebab CLI
+# command names. `setup` writes the local .env.dc (still a mutation, but local,
+# not network — see openWorldHint below).
+# Derived from the actual HTTP verbs each command issues (POST/PATCH/PUT/DELETE
+# = write; GET = read), verified by tests/test_annotations.py which re-derives
+# this set from the source and fails on drift. `setup` is the one local-only
+# write (it persists .env.dc; no network).
+_WRITE_COMMANDS = frozenset({
+    "setup",
+    "profile-update", "profile-match",
+    "trip-create", "trip-update", "trip-delete", "trip-refresh",
+    "event-rsvp", "virtual-event-rsvp", "session-bookmark", "meetup-rsvp",
+    "event-free-slots",
+    "follow-profile", "unfollow-profile", "follow-chapter", "unfollow-chapter",
+    "invite-create", "calendar-update", "notifications-update",
+    "locator-settings-update", "report-issue",
+})
+# Irreversible data removal — sets destructiveHint. (Un-toggles like
+# `unfollow-*` / `room-unsubscribe` are reversible, so NOT destructive.)
+_DESTRUCTIVE_COMMANDS = frozenset({"trip-delete"})
+# Purely local commands — no outbound network, so openWorldHint is False.
+_LOCAL_COMMANDS = frozenset({"setup", "workflows"})
+
+
+def _tool_annotations(command_name: str) -> dict:
+    """MCP annotation hints for a command (accepts snake or kebab name).
+
+    Returns a plain dict of the hint fields so it's unit-testable without the
+    `mcp` package; `run_mcp` wraps it in `mcp.types.ToolAnnotations`.
+    """
+    kebab = command_name.replace("_", "-")
+    is_write = kebab in _WRITE_COMMANDS
+    return {
+        "readOnlyHint":    not is_write,
+        "destructiveHint": kebab in _DESTRUCTIVE_COMMANDS,
+        "openWorldHint":   kebab not in _LOCAL_COMMANDS,
+    }
+
+
 # ── Argument helpers ───────────────────────────────────────────────────
 
 class ArgHelpers:
@@ -3168,13 +3212,17 @@ class DC(Runtime):
                     and p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD,
                                    inspect.Parameter.POSITIONAL_ONLY)
                 ]
+                description = cmd["help"] or f"DC command: {name}"
+                if name in _WRITE_COMMANDS:
+                    description += "\n\n⚠️ Write operation: mutates your DC account data."
                 tools.append(_mcp_types.Tool(
                     # MCP tool names are snake_case (e.g. `trip_create`), so a
                     # client sees `mcp__dc__trip_create`. The CLI keeps its
                     # kebab command name (`dc trip-create`).
                     name=name.replace("-", "_"),
-                    description=cmd["help"] or f"DC command: {name}",
+                    description=description,
                     inputSchema=_build_input_schema(cmd.get("args"), positional=positional),
+                    annotations=_mcp_types.ToolAnnotations(**_tool_annotations(name)),
                 ))
             return tools
 
@@ -3238,6 +3286,16 @@ class DC(Runtime):
                     type="text",
                     text=f"📣 emit:\n{emitted}",
                 ))
+            # When the result is a JSON object (the standard list envelope
+            # `{items, count, cursor, has_more}` or a single record), also
+            # return it as `structuredContent` so structure-aware clients can
+            # consume it without re-parsing the text. We deliberately do NOT
+            # declare an `outputSchema` on the tools: the SDK would then
+            # strictly validate every response (including error/edge shapes)
+            # against it. Lists/scalars stay text-only. Returning a 2-tuple
+            # `(content, structured)` is the SDK's combined-content contract.
+            if isinstance(data, dict):
+                return content, data
             return content
 
         async def _main():

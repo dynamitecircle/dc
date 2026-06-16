@@ -16,6 +16,20 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ## [Unreleased]
 
+### Added
+
+- **MCP tool annotations** — every tool now advertises `readOnlyHint` /
+  `destructiveHint` / `openWorldHint`, so clients can auto-approve reads and
+  flag writes. The read/write split is derived from each command's actual HTTP
+  verb and guarded by a test that re-derives it from source (no silent drift).
+  Write tools also carry a "⚠️ Write operation" note in their description,
+  mirroring the hosted MCP server.
+- **Structured tool output** — object results (the list envelope
+  `{items, count, cursor, has_more}` and single records) are also returned as
+  MCP `structuredContent`, so structure-aware clients don't have to re-parse
+  the text. No `outputSchema` is declared (it would strictly validate every
+  response shape); lists/scalars remain text-only.
+
 ### Changed
 
 - **BREAKING (MCP interface) — tool names and fields are now snake_case.**
