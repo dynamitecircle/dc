@@ -42,11 +42,11 @@
     "platforms": ["darwin", "linux", "win32"],
     "runtimes": {
       "python": ">=3.9"
-    },
-    "mcp": ">=0.9.0"
+    }
   },
   "user_config": {
     "DC_API_KEY": {
+      "title": "DC Member API Key",
       "type": "string",
       "description": "Your DC Member API key (format: dk_<api-key>). Generate from your DC profile dropdown → DC Member API Key.",
       "required": true,
