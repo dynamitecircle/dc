@@ -16,6 +16,8 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ## [Unreleased]
 
+## [2.0.4] – 2026-06-16
+
 ### Added
 
 - **MCP tool annotations** — every tool now advertises `readOnlyHint` /
@@ -1119,7 +1121,8 @@ Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v2.0.4...HEAD
+[2.0.4]: https://github.com/dynamitecircle/dc/compare/v2.0.1...v2.0.4
 [2.0.1]: https://github.com/dynamitecircle/dc/releases/tag/v2.0.1
 [1.23.3]: https://github.com/dynamitecircle/dc/releases/tag/v1.23.3
 [1.22.6]: https://github.com/dynamitecircle/dc/releases/tag/v1.22.6
