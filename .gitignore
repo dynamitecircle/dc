@@ -13,6 +13,9 @@ __pycache__/
 .venv*
 *.egg-info/
 dist/
+
+# MCPB bundle — built in CI (publish.yml) + attached to releases; never commit
+*.mcpb
 build/
 
 # Node (in case any tool ships a sub-app)
