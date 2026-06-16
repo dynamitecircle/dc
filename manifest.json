@@ -32,12 +32,6 @@
       "args": ["${__dirname}/py/dc.py", "--mcp"]
     }
   },
-  "capabilities": {
-    "tools": true,
-    "resources": false,
-    "prompts": false,
-    "sampling": false
-  },
   "compatibility": {
     "platforms": ["darwin", "linux", "win32"],
     "runtimes": {
@@ -50,7 +44,7 @@
       "type": "string",
       "description": "Your DC Member API key (format: dk_<api-key>). Generate from your DC profile dropdown → DC Member API Key.",
       "required": true,
-      "secret": true
+      "sensitive": true
     }
   }
 }
