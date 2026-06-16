@@ -1,47 +1,90 @@
 ---
 name: dc
-description: Read and act on your own Dynamite Circle membership data via the public Member API — profile (read+update), trips (CRUD), events + RSVP, virtual events + RSVP, tickets, invites (send), inbox, rooms, chapters, places lookup, locator digest. Self-contained single-file Python client.
+description: Read and act on your own Dynamite Circle membership data via the public Member API — profile (read+update), trips (CRUD), events + RSVP, virtual events + RSVP, tickets, invites (send), inbox, rooms, chapters, places lookup, locator digest. Self-contained single-file Python client (CLI / library / MCP), or a hosted MCP endpoint with zero install.
 tags: dc, dynamite-circle
 ---
 
 # DC Member API Skill
 
-A self-contained Python client for the public DC Member API at
-`https://api.dynamitecircle.com`. Read-only and write access to your own
-membership data — your profile, trips, events, tickets, invites, inbox,
-rooms, chapters, and locator digest.
+Read and act on your own Dynamite Circle membership data via the public DC
+Member API at `https://api.dynamitecircle.com` — your profile, trips, events,
+tickets, invites, inbox, rooms, chapters, announcements, and locator digest.
+Reads and writes are always scoped to **you** (the owner of the API key).
 
-Single file, stdlib-only, works the same from Claude Code, Codex, Gemini
-CLI, and GitHub Copilot.
+There are two ways to use it, and **one of them needs nothing installed**:
 
-## Setup
+| Path | What it is | Pick it when |
+|---|---|---|
+| **Local client** (this file) | One stdlib-only Python file: a CLI (`dc …`), a Python library (`from dynamitecircle import DC`), and a local stdio MCP server (`dc --mcp`) | You're an agent that can run Python or shell — you get a CLI, scriptable library calls, and a local server you can pin/run offline |
+| **Hosted MCP** | A remote MCP endpoint: `https://api.dynamitecircle.com/mcp` (Streamable HTTP) | You're an MCP-capable chat app and want zero install + always-current tools (no updates to manage) |
+
+**Rule of thumb for an agent:** if you can execute commands, prefer the local
+client (richest: CLI + library + MCP, works offline, version-pinnable). If
+you're a hosted assistant that only speaks MCP, use the hosted URL. Both
+authenticate with the same `dk_` key.
+
+## Install the local client
+
+Three ways to get the client, from quickest to most isolated:
+
+```bash
+# A) PyPI — quickest. Gives you the `dc` command + the importable library.
+pip install dynamitecircle            # CLI + library
+pip install 'dynamitecircle[mcp]'     # + local MCP server (dc --mcp)
+
+# B) uvx — no install, auto-updates on every run (great for an MCP config)
+uvx --from 'dynamitecircle[mcp]' dc --help
+
+# C) Clone — full repo (MCP config, docs, vendor via submodule/subtree)
+git clone https://github.com/dynamitecircle/dc.git && cd dc
+```
+
+> **Command form in this doc:** examples use the installed `dc` command. From
+> a clone, replace `dc` with `python3 py/dc.py` (e.g. `python3 py/dc.py profile`).
+
+## Setup (get + save your key)
 
 Each member needs their own personal API key. Generate one from the DC
-profile dropdown → **DC Member API Key**. Keys look like
-`dk_<api-key>` and are revocable from the same dropdown.
-
-Save it with the built-in `setup` command:
+profile dropdown → **DC Member API Key**. Keys look like `dk_<api-key>` and
+are revocable from the same dropdown.
 
 ```bash
-python3 py/dc.py setup --api-key dk_<api-key>
+# Save it (writes .env.dc next to the client, chmod 600, gitignored)
+dc setup --api-key dk_<api-key>
+
+# Verify env, key shape, a live /profile call, and MCP schemas — all green
+dc self-test
 ```
 
-This writes the key to `py/.env.dc` (chmod 600). The file
-is gitignored.
+`self-test` should end with `connected as userID[<id>] <Your Name>`.
 
-Verify the setup:
+Alternatively, set `DC_API_KEY` in the environment instead of running `setup`
+— an explicit env var always wins over `.env.dc`. This is how the hosted MCP
+and ephemeral `uvx` installs receive the key (e.g. the `env` block of an MCP
+server config).
+
+## Discovering endpoints
+
+You don't need to memorize the surface — discover it live:
 
 ```bash
-python3 py/dc.py self-test
+# Every command + a one-line description
+dc help
+
+# Full detail for one command (flags, args, examples)
+dc help trips
+
+# Machine-readable recipes: ordered {method, path} steps for common goals
+# (who's in <city>, plan together at an event, find DCers by description,
+# manage inbox, refresh profile…). Best first call for an unfamiliar agent.
+dc workflows
 ```
 
-Runs four checks: `env`, `keyShape`, `profile` (live API call), and `mcpSchemas` (every command declares an explicit `args=` schema for MCP clients). Expected output: all four green with `connected as userID[<id>] <Your Name>`.
+Authoritative references:
 
-## Endpoints
-
-The skill wraps the public Member API. Full live reference:
-
-**`https://www.dynamitecircle.com/developers/`**
+- **`https://www.dynamitecircle.com/developers/`** — full human reference, every endpoint/param/response, regenerated on every deploy (always current)
+- **`https://api.dynamitecircle.com/openapi.json`** — the OpenAPI spec (machine-readable)
+- **`https://api.dynamitecircle.com/.well-known/mcp.json`** — MCP discovery descriptor (transport, auth, install)
 
 ## Pagination
 
@@ -71,10 +114,10 @@ are passed through under an `extra` key.
 ## Output formats
 
 ```bash
-python3 dc.py profile             # text (pretty JSON)
-python3 dc.py profile --json      # explicit JSON
-python3 dc.py profile --python    # Python repr
-python3 dc.py --format python profile
+dc profile             # text (pretty JSON)
+dc profile --json      # explicit JSON
+dc profile --python    # Python repr
+dc --format python profile
 ```
 
 ## Version warnings
@@ -100,7 +143,7 @@ running the API on `localhost:8083`):
 
 ```bash
 # CLI
-python3 dc.py --api-url http://localhost:8083 profile
+dc --api-url http://localhost:8083 profile
 
 # Python
 DC(api_url="http://localhost:8083")
@@ -112,16 +155,16 @@ DC(api_url="http://localhost:8083")
 
 ```bash
 # Save your DC API key to .env.dc
-python3 dc.py setup --api-key dk_<api-key>
+dc setup --api-key dk_<api-key>
 
 # Validate env, network, and /profile end-to-end
-python3 dc.py self-test
+dc self-test
 
 # Machine-readable recipes — ordered {method, path} steps for common
 # tasks (who's in <city>, plan together at an event, find DCers by
 # description, manage inbox, refresh profile, …). Good first call for
 # an unfamiliar agent.
-python3 dc.py workflows
+dc workflows
 ```
 
 ### Follows (DCers + chapters)
@@ -136,16 +179,16 @@ returns `409 follow_limit_reached` — unfollow before retrying.
 
 ```bash
 # List
-python3 dc.py follows-profiles
-python3 dc.py follows-chapters
+dc follows-profiles
+dc follows-chapters
 
 # Follow / unfollow a DCer
-python3 dc.py follow-profile 27
-python3 dc.py unfollow-profile 27
+dc follow-profile 27
+dc unfollow-profile 27
 
 # Follow / unfollow a chapter (city hub)
-python3 dc.py follow-chapter ChIJ82ENKDJgHTERIEjiXbIAAQE
-python3 dc.py unfollow-chapter ChIJ82ENKDJgHTERIEjiXbIAAQE
+dc follow-chapter ChIJ82ENKDJgHTERIEjiXbIAAQE
+dc unfollow-chapter ChIJ82ENKDJgHTERIEjiXbIAAQE
 ```
 
 All mutations idempotent. Cannot follow yourself. Target must exist
@@ -159,30 +202,30 @@ chapters. Privacy is scoped to your API key's owner.
 
 ```bash
 # Cross-resource omni — top-5 of each, grouped by resource
-python3 dc.py search "remote work"
+dc search "remote work"
 
 # Scope omni to one DCer's content (profile + their messages, rooms, events, chapter memberships)
-python3 dc.py search "SaaS" --user-id 940
+dc search "SaaS" --user-id 940
 
 # Search messages — includes your private DMs and group DMs
-python3 dc.py search-messages "hiring in Lisbon"
-python3 dc.py search-messages "budget" --room-id abc123       # scope to one room (you must be a member)
-python3 dc.py search-messages "hiring" --user-id 940          # just one author's messages
+dc search-messages "hiring in Lisbon"
+dc search-messages "budget" --room-id abc123       # scope to one room (you must be a member)
+dc search-messages "hiring" --user-id 940          # just one author's messages
 
 # Search profiles (plain full-text; for richer matchmaking, prefer profile-match)
-python3 dc.py search-profiles "SaaS founder"
+dc search-profiles "SaaS founder"
 
 # Search rooms by name / topic
-python3 dc.py search-rooms "outsourcing"
-python3 dc.py search-rooms "Asia" --type channel
+dc search-rooms "outsourcing"
+dc search-rooms "Asia" --type channel
 
 # Search events — no default time filter, pass --since / --until to constrain
-python3 dc.py search-events "DCBKK"
-python3 dc.py search-events "DC" --country TH
-python3 dc.py search-events "retreat" --since 2026-01-01
+dc search-events "DCBKK"
+dc search-events "DC" --country TH
+dc search-events "retreat" --since 2026-01-01
 
 # Search chapters
-python3 dc.py search-chapters "Bangkok"
+dc search-chapters "Bangkok"
 ```
 
 **Query syntax (`q=`):** plain words match with prefix + typo
@@ -195,18 +238,18 @@ use the structured filter args (`--room-id`, `--user-id`, `--type`,
 
 ```bash
 # Your own profile
-python3 dc.py profile
+dc profile
 
 # Update profile fields
-python3 dc.py profile-update --headline 'CEO at Acme'
+dc profile-update --headline 'CEO at Acme'
 
 # Set your GitHub username — required to be granted access to the
 # private dc repo (active DC member with GitHub username on
 # profile)
-python3 dc.py profile-update --github octocat
+dc profile-update --github octocat
 
 # Show your effective rate limits (per-minute, per-day) + current usage
-python3 dc.py limits
+dc limits
 ```
 
 ### Announcements
@@ -217,59 +260,59 @@ DC-scope announcements; DCB / Accel / Admin members additionally see DC BLACK.
 
 ```bash
 # Mixed newest-first feed across all visible channels (cursor-paginated)
-python3 dc.py announcements
-python3 dc.py announcements --limit 25
-python3 dc.py announcements --limit 10 --cursor <token>
+dc announcements
+dc announcements --limit 25
+dc announcements --limit 10 --cursor <token>
 
 # Quick "what's new across DC?" — one most-recent announcement per channel
-python3 dc.py announcements-latest
+dc announcements-latest
 ```
 
 ### Trips
 
 ```bash
 # Upcoming trips (cursor-paginated)
-python3 dc.py trips
-python3 dc.py trips --limit 10 --cursor <token>
+dc trips
+dc trips --limit 10 --cursor <token>
 
 # Past trips
-python3 dc.py trips --past
+dc trips --past
 
 # Trip overlaps — DCers whose trips overlap with yours in the same city
-python3 dc.py overlaps
+dc overlaps
 
 # Create a trip — provide either --place-id (Google Place ID) OR --event-id
-python3 dc.py trip-create \
+dc trip-create \
   --start-date 2026-12-01 --end-date 2026-12-05 --place-id ChIJ-ZRLfIQzMBQR2bAQQ8sZh90
-python3 dc.py trip-create \
+dc trip-create \
   --start-date 2026-12-01 --end-date 2026-12-05 --place-id ChIJ-ZRLfIQzMBQR2bAQQ8sZh90 \
   --points '[{"note":"Coffee near the venue","noteHTML":"<p>Coffee near the venue</p>"}]'
 
 # Or attach to a DC event (location is copied from the event's city)
-python3 dc.py trip-create \
+dc trip-create \
   --start-date 2026-11-01 --end-date 2026-11-05 --event-id sWnllj1DW2jLMZ1n2KWB
 
 # Update / delete a trip
-python3 dc.py trip-update <tripID> --end-date 2026-12-06
-python3 dc.py trip-update <tripID> --points '[]'
-python3 dc.py trip-delete <tripID>
+dc trip-update <tripID> --end-date 2026-12-06
+dc trip-update <tripID> --points '[]'
+dc trip-delete <tripID>
 ```
 
 ### Events (in-person)
 
 ```bash
 # Upcoming / past, cursor-paginated
-python3 dc.py events
-python3 dc.py events --past --limit 5
+dc events
+dc events --past --limit 5
 
 # Single event
-python3 dc.py event <eventID>
+dc event <eventID>
 
 # Attendees (cursor-paginated)
-python3 dc.py event-attendees <eventID> --limit 50
+dc event-attendees <eventID> --limit 50
 
 # RSVP — yes | maybe | no
-python3 dc.py event-rsvp <eventID> --status yes
+dc event-rsvp <eventID> --status yes
 ```
 
 #### Event extras (require an event ticket)
@@ -283,97 +326,97 @@ Always combine `startAt` + `timezone` together when displaying.
 
 ```bash
 # Full schedule — sessions grouped by day
-python3 dc.py event-schedule <eventID>
+dc event-schedule <eventID>
 
 # YOUR agenda (sessions you bookmarked + meetups you joined)
-python3 dc.py event-agenda <eventID>
+dc event-agenda <eventID>
 
 # Approved member-organized meetups
-python3 dc.py event-meetups <eventID>
+dc event-meetups <eventID>
 
 # Sponsors — ordered by tier, then display order
-python3 dc.py event-sponsors <eventID>
+dc event-sponsors <eventID>
 
 # Who else bookmarked a session?
-python3 dc.py session-attendees <eventID> <sessionID>
+dc session-attendees <eventID> <sessionID>
 
 # Who else RSVPd to a meetup?
-python3 dc.py meetup-attendees <eventID> <meetupID>
+dc meetup-attendees <eventID> <meetupID>
 
 # Bookmark / unbookmark a session (default: bookmark)
-python3 dc.py session-bookmark <eventID> <sessionID>
-python3 dc.py session-bookmark <eventID> <sessionID> --bookmarked false
+dc session-bookmark <eventID> <sessionID>
+dc session-bookmark <eventID> <sessionID> --bookmarked false
 
 # Join / leave a meetup (default: join)
-python3 dc.py meetup-rsvp <eventID> <meetupID>
-python3 dc.py meetup-rsvp <eventID> <meetupID> --joined false
+dc meetup-rsvp <eventID> <meetupID>
+dc meetup-rsvp <eventID> <meetupID> --joined false
 ```
 
 ### Virtual events (online sessions/calls)
 
 ```bash
 # Upcoming / past
-python3 dc.py virtual-events
-python3 dc.py virtual-events --past
+dc virtual-events
+dc virtual-events --past
 
 # Single session
-python3 dc.py virtual-event <sessionID>
+dc virtual-event <sessionID>
 
 # RSVP
-python3 dc.py virtual-event-rsvp <sessionID> --status maybe
+dc virtual-event-rsvp <sessionID> --status maybe
 ```
 
 ### Tickets
 
 ```bash
 # All your tickets (cursor-paginated)
-python3 dc.py tickets
+dc tickets
 
 # Filter by status (valid|maybe|refunded|canceled)
-python3 dc.py tickets --status valid
+dc tickets --status valid
 ```
 
 ### Invites
 
 ```bash
 # Your sent invites (cursor-paginated)
-python3 dc.py invites
+dc invites
 
 # Your permanent invite code
-python3 dc.py permacode
+dc permacode
 
 # Send a new invite
-python3 dc.py invite-create --email new@friend.com --full-name 'New Friend'
+dc invite-create --email new@friend.com --full-name 'New Friend'
 ```
 
 ### Inbox
 
 ```bash
 # Unread messages summary (rooms list + totalUnread under .extra)
-python3 dc.py inbox
+dc inbox
 ```
 
 ### Rooms
 
 ```bash
 # Rooms you are subscribed to
-python3 dc.py rooms
-python3 dc.py rooms --type channel
+dc rooms
+dc rooms --type channel
 
 # Browse public rooms (type required: channel|discussion|activity)
-python3 dc.py browse-rooms channel
-python3 dc.py browse-rooms channel --limit 20 --cursor <token>
+dc browse-rooms channel
+dc browse-rooms channel --limit 20 --cursor <token>
 ```
 
 ### Chapters (city hubs)
 
 ```bash
 # All DC chapters (cursor-paginated, sorted by member count)
-python3 dc.py chapters
-python3 dc.py chapters --limit 5 --cursor <token>
+dc chapters
+dc chapters --limit 5 --cursor <token>
 
 # Single chapter (cityID == Google Place ID) — includes up to 100 members
-python3 dc.py chapter ChIJ82ENKDJgHTERIEjiXbIAAQE
+dc chapter ChIJ82ENKDJgHTERIEjiXbIAAQE
 ```
 
 ### Places (Google Places lookup)
@@ -382,53 +425,75 @@ Helpers for resolving a Google Place ID before creating a trip.
 
 ```bash
 # Search for a place by name
-python3 dc.py places-search --q 'Tokyo Japan' --limit 5
+dc places-search --q 'Tokyo Japan' --limit 5
 
 # Verify a placeID
-python3 dc.py place ChIJ51cu8IcbXWARiRtXIothAS4
+dc place ChIJ51cu8IcbXWARiRtXIothAS4
 ```
 
 ### Locator
 
 ```bash
 # Full weekly digest (favorites, home city, attending, who's coming where)
-python3 dc.py locator
+dc locator
 
 # Just one or more sections
-python3 dc.py locator --sections homeCity,favoriteCities
+dc locator --sections homeCity,favoriteCities
 ```
 
-## MCP server (optional)
+## MCP server
 
-The same file can run as an MCP server. Tools are auto-derived from the
-registered commands.
+Two ways to expose these commands as MCP tools — pick one:
+
+**Hosted (no install, always current):** point your client at
+`https://api.dynamitecircle.com/mcp` (Streamable HTTP; OAuth or `dk_` Bearer).
+For Claude Code: `claude mcp add --transport http dc https://api.dynamitecircle.com/mcp`.
+
+**Local stdio server** (offline-capable, version-pinnable). Tools are
+auto-derived from the registered commands; CLI and library users don't need
+the `mcp` package.
 
 ```bash
-pip install -r py/requirements.txt
-python3 py/dc.py --mcp
+pip install 'dynamitecircle[mcp]' && dc --mcp     # installed
+python3 py/dc.py --mcp                             # from a clone
 ```
 
-Client config (Claude Desktop / Cursor):
+Auto-updating local config (no clone; pulls latest on every launch):
+
+```json
+{
+  "mcpServers": {
+    "dc": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--refresh", "--from", "dynamitecircle[mcp]", "dc", "--mcp"],
+      "env": { "DC_API_KEY": "dk_<api-key>" }
+    }
+  }
+}
+```
+
+Static path config (Claude Desktop / Cursor, from a clone):
 
 ```json
 {
   "mcpServers": {
     "dc": {
       "command": "python3",
-      "args": [".../dc/py/dc.py", "--mcp"]
+      "args": ["/absolute/path/to/dc/py/dc.py", "--mcp"]
     }
   }
 }
 ```
 
-CLI and Python-import users do not need the `mcp` package.
+Full per-client setup: [docs/mcp-info.md](../docs/mcp-info.md).
 
 ## Import usage
 
 ```python
-import sys, os
-sys.path.insert(0, os.path.join(os.path.abspath('.'), '.claude', 'skills', 'dc'))
-from dc import DC
+# Installed from PyPI — import by package name:
+from dynamitecircle import DC
+# From a clone instead:  import sys; sys.path.insert(0, "py"); from dc import DC
 
 dc = DC()
 

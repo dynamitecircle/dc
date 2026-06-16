@@ -1,5 +1,24 @@
 # MCP — Setup for every supported client
 
+There are **two ways** to get DC's tools into an MCP client:
+
+1. **Hosted MCP (no install)** — point your client at the remote endpoint `https://api.dynamitecircle.com/mcp`. Nothing to clone, install, or update; always on the current API version. Best for chat apps (Claude web/Desktop, Cursor, ChatGPT).
+2. **Local server (this client)** — run `dc.py --mcp` as a local stdio server with the `--mcp` flag. Best when you want offline capability, a pinned version, or to develop against a local API. Most of this doc covers this path.
+
+## Hosted MCP (no install)
+
+`https://api.dynamitecircle.com/mcp` (Streamable HTTP). Authenticate with one-click OAuth (reuses your DC login) or a `dk_` API key as a Bearer header.
+
+| Client | How |
+|---|---|
+| **Claude Code** | `claude mcp add --transport http dc https://api.dynamitecircle.com/mcp` |
+| **Claude web / Desktop / mobile** | Settings → Connectors → **Add custom connector** → paste URL → **Connect** → sign in with DC (paid plan; Team/Enterprise admins may need to approve first) |
+| **Cursor / ChatGPT / other MCP apps** | Add a custom / remote MCP connector pointing at the URL above |
+
+Discovery metadata is published at [`/.well-known/mcp.json`](https://api.dynamitecircle.com/.well-known/mcp.json); the OAuth protected-resource descriptor is at `/.well-known/oauth-protected-resource`.
+
+## Local server (this client)
+
 The `dc` skill exposes its commands as [Model Context Protocol](https://modelcontextprotocol.io) tools when run with the `--mcp` flag. The protocol is standard, so the same server works in every MCP-compatible client.
 
 ## One-time install
@@ -21,6 +40,31 @@ python3 py/dc.py --mcp
 ```
 
 The server speaks JSON-RPC over stdio. It's not meant to be used directly — wire it into a client below.
+
+## Auto-updating local server via `uvx` (PyPI)
+
+To run a local stdio server **without a clone** that pulls the latest published client on every launch, use [`uv`](https://docs.astral.sh/uv/)'s `uvx`:
+
+```json
+{
+  "mcpServers": {
+    "dc": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--refresh", "--from", "dynamitecircle[mcp]", "dc", "--mcp"],
+      "env": { "DC_API_KEY": "dk_<api-key>" }
+    }
+  }
+}
+```
+
+Three things make this work:
+
+- **`--from dynamitecircle[mcp]`** — the package is `dynamitecircle` but the console script is `dc`, so you can't write `uvx dynamitecircle`; `--from` names the package (and the `[mcp]` extra installs the MCP dependency) while `dc` is the command to run.
+- **`--refresh`** — forces `uvx` to check PyPI for a newer version instead of reusing its cache. Drop it if you'd rather pin to whatever's cached.
+- **`env.DC_API_KEY`** — an ephemeral `uvx` install has no `py/.env.dc`, so pass the key via the env block. It takes precedence over any `.env.dc` anyway (existing env vars always win).
+
+Same idea with `pipx`: `pipx run --spec 'dynamitecircle[mcp]' dc --mcp` (add `--no-cache` to force the latest).
 
 ## Quick check (no client needed)
 

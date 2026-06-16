@@ -35,9 +35,11 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
   "Topic :: Internet :: WWW/HTTP",
 ]
-# Version is read at build time from py/dc.py so DC_API_VERSION stays the
-# single source of truth (no version-drift between the constant, the
-# manifest, and the wheel metadata).
+# Version is read at build time from py/dc.py so DC_API_VERSION is the
+# single source of truth for the wheel metadata. The two non-package mirrors
+# (manifest.json, py/config.json) are hand-maintained copies — a CI guard in
+# tests/test_version_sync.py fails the build if either drifts from
+# DC_API_VERSION, so bumping the constant forces them to stay in lockstep.
 dynamic = ["version"]
 
 [project.optional-dependencies]

@@ -7,7 +7,7 @@
 # AND an MCP server. The --mcp flag speaks JSON-RPC over stdio.
 # Paths are relative to this project root.
 [mcp_servers.dc]
-command = ".venv/bin/python3"
+command = "python3"
 args = ["py/dc.py", "--mcp"]
 
 # Auto-approve every tool exposed by this server — we vouch for the dc client

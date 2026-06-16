@@ -100,6 +100,31 @@ The same `dc.py` file is shipped as **four** integrations — pick whichever fit
 
 The `mcp` package is **lazy-imported** — Agent Skill / CLI / Python-library users never need it.
 
+### Don't want to install anything? Use the hosted MCP
+
+The DC Member API is **also a hosted MCP server** — a remote endpoint you point your AI app at, with nothing to clone, install, or update:
+
+```
+https://api.dynamitecircle.com/mcp        (Streamable HTTP)
+```
+
+- **Claude Code:** `claude mcp add --transport http dc https://api.dynamitecircle.com/mcp`
+- **Claude (web / Desktop / mobile):** Settings → Connectors → **Add custom connector** → paste the URL → **Connect**
+- **Cursor / ChatGPT / any MCP app:** add a custom / remote MCP connector pointing at the URL above
+
+When prompted, **sign in with your DC account** (one-click OAuth) — or send a `dk_` key as `Authorization: Bearer`. The server is always on the current API version, so there's nothing to keep up to date.
+
+**Hosted MCP vs. this client — which do I want?**
+
+| You want… | Use |
+|---|---|
+| Zero install, always-current, just MCP tools in a chat app | **Hosted MCP** (URL above) |
+| To call DC from your own Python code (`from dynamitecircle import DC`) | **This client** (library) |
+| A local CLI (`dc profile`) or shell scripting | **This client** (CLI) |
+| A local stdio MCP server (offline-capable, pin a version, dev against localhost) | **This client** (`dc --mcp`) |
+
+The rest of this README is about **this client**. For the hosted MCP, the URL above is all you need.
+
 ## Features
 
 - **Full Member API coverage** — read + write across every public endpoint (run `python3 py/dc.py help` for the live list)
@@ -161,7 +186,18 @@ Run `python3 py/dc.py help` for the full command list.
 
 ## Setup per AI tool
 
-### Claude Code
+### Hosted MCP (no install, always current)
+
+Nothing to clone or update — point your tool at the remote endpoint:
+
+```bash
+# Claude Code
+claude mcp add --transport http dc https://api.dynamitecircle.com/mcp
+```
+
+For Claude web / Desktop, Cursor, ChatGPT, and other MCP apps, add a **custom / remote connector** pointing at `https://api.dynamitecircle.com/mcp` (Streamable HTTP). Sign in with your DC account (OAuth) or send a `dk_` key as a Bearer header. Discovery is published at [`/.well-known/mcp.json`](https://api.dynamitecircle.com/.well-known/mcp.json). This is the lowest-effort path; everything below runs the client **locally** instead.
+
+### Claude Code (local client)
 
 `.mcp.json` is already shipped with this repo. Open the repo with `claude`:
 
@@ -177,6 +213,25 @@ pip install -r py/requirements.txt
 ```
 
 Skill discovery (CLI + import) works automatically via `py/SKILL.md`.
+
+#### Auto-updating local MCP via `uvx` (PyPI)
+
+Prefer a local stdio server that **pulls the latest published client on every launch** with no clone to maintain? Use [`uv`](https://docs.astral.sh/uv/)'s `uvx` and pass your key in the `env` block:
+
+```json
+{
+  "mcpServers": {
+    "dc": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["--refresh", "--from", "dynamitecircle[mcp]", "dc", "--mcp"],
+      "env": { "DC_API_KEY": "dk_<api-key>" }
+    }
+  }
+}
+```
+
+Notes: the console script is `dc` (not `dynamitecircle`), so `--from dynamitecircle[mcp]` is required — it both names the package and pulls the optional `mcp` extra. `--refresh` is what makes it auto-update; drop it to let `uvx` cache. The `DC_API_KEY` in `env` wins over any `.env.dc` (an ephemeral `uvx` install has none).
 
 ### Claude Desktop
 
@@ -277,9 +332,19 @@ Non-paginated extras (e.g. `totalUnread` on `inbox`) are passed through under an
 
 ## Use as a Python library
 
+Installed from PyPI (`pip install dynamitecircle`) — import by the package name:
+
+```python
+from dynamitecircle import DC
+
+dc = DC()
+```
+
+Working from a clone instead? Point `sys.path` at the `py/` folder and import as `dc`:
+
 ```python
 import sys
-sys.path.insert(0, "dc")
+sys.path.insert(0, "py")
 from dc import DC
 
 dc = DC()
@@ -313,7 +378,20 @@ The full live reference for the DC Member API — every endpoint, parameter, and
 
 The DC Member API ships new endpoints and refinements regularly. This skill is the official client and we update it whenever the API changes. **Plan for updates** — the skill will warn you on stderr the first time a request returns a server `X-API-Version` newer than `DC_API_VERSION`, and major-version bumps may break older clients.
 
+**The no-maintenance option:** if you use the [hosted MCP](#hosted-mcp-no-install-always-current) (`https://api.dynamitecircle.com/mcp`), there's nothing to update — the server always runs the current API version. The strategies below apply only to the **local client**.
+
 Pick whichever integration style fits your project. From simplest to most isolated:
+
+### 0. PyPI — `pip` / `uvx`
+
+```bash
+pip install dynamitecircle              # CLI + library
+pip install 'dynamitecircle[mcp]'       # + local MCP server (dc --mcp)
+```
+
+Then `dc setup --api-key dk_<api-key>` and `dc self-test`. Update with `pip install --upgrade dynamitecircle`. For a local MCP that auto-updates on every launch, use the [`uvx` config above](#auto-updating-local-mcp-via-uvx-pypi).
+
+Best for: the quickest local install, and the auto-updating `uvx` MCP setup.
 
 ### 1. Plain git clone — quick local use
 
@@ -452,6 +530,9 @@ dc/
 │   └── .env.dc                        # gitignored (created by `setup`)
 │
 │   (Future: go/, node/, rs/ folders for sister clients in other languages)
+│
+├── DC/
+│   └── SKILL.md     → ../py/SKILL.md  # human-friendly skill path (symlink)
 │
 ├── docs/                              # ← REAL design docs (canonical)
 │   ├── skill-info.md                # design rules / architecture

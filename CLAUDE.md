@@ -160,6 +160,9 @@ dc/
 │
 │   (Future: go/, node/, rs/ folders for sister clients in other languages)
 │
+├── DC/
+│   └── SKILL.md     → ../py/SKILL.md  # human-friendly skill path (symlink)
+│
 ├── docs/                              # ← REAL design docs (canonical)
 │   ├── skill-info.md                # design rules / architecture
 │   └── mcp-info.md                                # MCP setup for every supported client

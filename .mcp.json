@@ -2,7 +2,7 @@
   "mcpServers": {
     "dc": {
       "type": "stdio",
-      "command": ".venv/bin/python3",
+      "command": "python3",
       "args": [
         "py/dc.py",
         "--mcp"
