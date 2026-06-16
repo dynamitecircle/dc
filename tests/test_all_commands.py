@@ -54,19 +54,23 @@ def _dummy_for(spec):
 
 
 def _bridge_raw_args(fn, arguments):
-    """Replicate the MCP→CLI bridge's argument serialization (dc.py)."""
+    """Replicate the MCP→CLI bridge's argument serialization (dc.py).
+
+    MCP tool fields are snake_case; the bridge maps them back to kebab CLI
+    flags (`user_id` -> `--user-id`) and snake positionals to positional args.
+    """
     args = dict(arguments)
     raw = []
     for p in _required_positionals(fn):
-        kebab = p.name.replace("_", "-")
-        if kebab in args:
-            raw.append(str(args.pop(kebab)))
+        if p.name in args:
+            raw.append(str(args.pop(p.name)))
     for k, v in args.items():
+        flag = f"--{k.replace('_', '-')}"
         if isinstance(v, bool):
             if v:
-                raw.append(f"--{k}")
+                raw.append(flag)
             continue
-        raw.append(f"--{k}")
+        raw.append(flag)
         raw.append(str(v))
     return raw
 
@@ -94,11 +98,12 @@ def test_declared_flags_accepted_by_binding(name, fn, meta):
     # Real declared flags only — skip schema-builder meta keys (e.g. _accept_extras).
     declared = {k: v for k, v in arg_specs.items() if not k.startswith("_")}
 
+    # An MCP client sends snake_case fields: snake positionals + snake flags.
     arguments = {}
     for p in _required_positionals(fn):
-        arguments[p.name.replace("_", "-")] = "x"
+        arguments[p.name] = "x"
     for k, spec in declared.items():
-        arguments[k] = _dummy_for(spec)
+        arguments[k.replace("-", "_")] = _dummy_for(spec)
 
     raw_args = _bridge_raw_args(fn, arguments)
     parser = meta.get("parser")

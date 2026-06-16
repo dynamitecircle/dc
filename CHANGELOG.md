@@ -14,6 +14,29 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **BREAKING (MCP interface) — tool names and fields are now snake_case.**
+  MCP tool names switched from kebab-case to snake_case
+  (`mcp__dc__trip-create` → `mcp__dc__trip_create`), and tool argument fields
+  likewise (`event-id` → `event_id`, `start-date` → `start_date`). This aligns
+  the agent-facing MCP surface with the snake_case Python library
+  (`dc.trip_create()`) and the prevailing MCP tool-naming convention. The
+  **CLI is unchanged** (`dc trip-create`, `--start-date`). Wildcard allow-rules
+  like `mcp__dc__*` are unaffected; any config pinning a specific kebab tool
+  name must update it. `_call_tool` still accepts the legacy kebab form as a
+  transitional fallback.
+
+### Docs / packaging
+
+- Document the hosted MCP (`https://api.dynamitecircle.com/mcp`) and an
+  auto-updating `uvx` PyPI config; fix the `.venv/bin/python3` configs to bare
+  `python3`; unify `py/SKILL.md` (local client + hosted MCP) and add
+  `DC/SKILL.md`; add `tests/test_version_sync.py` guarding manifest/config
+  drift from `DC_API_VERSION`.
+
 ## [2.0.1] – 2026-06-16
 
 ### Changed

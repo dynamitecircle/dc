@@ -301,8 +301,8 @@ def _build_input_schema(arg_specs: dict | None, *, positional: list[str] | None 
 
     `positional` lists positional args derived from the wrapper signature.
     Each positional arg is exposed as a required named field — agents pass
-    them as named keys (e.g. `{"event-id": "abc"}`) and the dispatcher
-    translates them back to positional CLI args.
+    them as named keys (snake_case, e.g. `{"event_id": "abc"}`) and the
+    dispatcher translates them back to positional CLI args.
 
     Positional names are only auto-included when they don't collide with
     a flag in `arg_specs` and the name doesn't look like a parser-collected
@@ -357,6 +357,14 @@ def _build_input_schema(arg_specs: dict | None, *, positional: list[str] | None 
         isinstance(spec, dict) and spec.get("additional") is True
         for spec in arg_specs.values()
     )
+
+    # MCP tool fields are snake_case (Python / JSON convention). The CLI flags
+    # and the `args=` schema keys stay kebab-case; we convert ONLY here, at the
+    # MCP boundary. `_call_tool` does the reverse (snake field -> kebab flag)
+    # when bridging back to the CLI parser. Command/flag names are lowercase
+    # kebab with no underscores, so the dash<->underscore swap is reversible.
+    properties = {k.replace("-", "_"): v for k, v in properties.items()}
+    required = [r.replace("-", "_") for r in required]
 
     schema: dict = {
         "type":                 "object",
@@ -3161,7 +3169,10 @@ class DC(Runtime):
                                    inspect.Parameter.POSITIONAL_ONLY)
                 ]
                 tools.append(_mcp_types.Tool(
-                    name=name,
+                    # MCP tool names are snake_case (e.g. `trip_create`), so a
+                    # client sees `mcp__dc__trip_create`. The CLI keeps its
+                    # kebab command name (`dc trip-create`).
+                    name=name.replace("-", "_"),
                     description=cmd["help"] or f"DC command: {name}",
                     inputSchema=_build_input_schema(cmd.get("args"), positional=positional),
                 ))
@@ -3169,7 +3180,9 @@ class DC(Runtime):
 
         @server.call_tool()
         async def _call_tool(name: str, arguments: dict):
-            cmd = self._commands.get(name)
+            # Tool names are snake_case (`trip_create`); commands are keyed by
+            # their kebab CLI name (`trip-create`). Accept either form.
+            cmd = self._commands.get(name) or self._commands.get(name.replace("_", "-"))
             if not cmd:
                 return [_mcp_types.TextContent(type="text", text=f"Unknown tool: {name}")]
             try:
@@ -3180,8 +3193,10 @@ class DC(Runtime):
                 # those back into positional CLI args so each command's
                 # parser sees the same shape it does from the CLI.
                 fn_sig = inspect.signature(cmd["fn"])
+                # Positional field names are snake_case in the MCP schema and
+                # match the Python parameter names directly.
                 positional_names = [
-                    p.name.replace("_", "-")
+                    p.name
                     for p in fn_sig.parameters.values()
                     if p.name != "self"
                     and p.default is inspect.Parameter.empty
@@ -3194,13 +3209,15 @@ class DC(Runtime):
                 for pname in positional_names:
                     if pname in args:
                         raw_args.append(str(args.pop(pname)))
-                # Then remaining values as flags
+                # Then remaining values as flags. Snake field -> kebab CLI flag
+                # (e.g. `user_id` -> `--user-id`).
                 for k, v in args.items():
+                    flag = f"--{k.replace('_', '-')}"
                     if isinstance(v, bool):
                         if v:
-                            raw_args.append(f"--{k}")
+                            raw_args.append(flag)
                         continue
-                    raw_args.append(f"--{k}")
+                    raw_args.append(flag)
                     raw_args.append(str(v))
                 result = self._invoke(cmd, raw_args)
             except (UsageError, DCError) as e:
