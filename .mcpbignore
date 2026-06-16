@@ -1,0 +1,20 @@
+# Files excluded from the .mcpb bundle (`mcpb pack`). The bundle only needs
+# manifest.json + py/dc.py (+ README/docs). Everything else is dev/CI noise.
+.git/
+.github/
+.venv/
+dist/
+tests/
+temp/
+node_modules/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+.claude/
+.codex/
+.gemini/
+.agents/
+DC/
+.gitattributes
+.gitignore
+.mcpbignore

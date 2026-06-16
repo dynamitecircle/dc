@@ -50,6 +50,12 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
   `python3`; unify `py/SKILL.md` (local client + hosted MCP) and add
   `DC/SKILL.md`; add `tests/test_version_sync.py` guarding manifest/config
   drift from `DC_API_VERSION`.
+- **One-click install** — "Add to Cursor" and "Install in VS Code" badges for
+  the hosted MCP, a native VS Code section (`.vscode/mcp.json` + `code --add-mcp`),
+  and a `workflows`-first note for the ~80-tool surface.
+- **`.mcpb` bundle** — the release workflow now builds a `dc.mcpb` (one-click
+  Claude Desktop install) via `mcpb pack` and attaches it to the GitHub release;
+  `.mcpbignore` keeps the bundle lean.
 
 ## [2.0.1] – 2026-06-16
 

@@ -13,7 +13,14 @@ There are **two ways** to get DC's tools into an MCP client:
 |---|---|
 | **Claude Code** | `claude mcp add --transport http dc https://api.dynamitecircle.com/mcp` |
 | **Claude web / Desktop / mobile** | Settings → Connectors → **Add custom connector** → paste URL → **Connect** → sign in with DC (paid plan; Team/Enterprise admins may need to approve first) |
+| **VS Code** | `code --add-mcp '{"name":"dc","url":"https://api.dynamitecircle.com/mcp"}'` (or the badge below) |
 | **Cursor / ChatGPT / other MCP apps** | Add a custom / remote MCP connector pointing at the URL above |
+
+One-click badges (hosted MCP):
+
+[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](cursor://anysphere.cursor-deeplink/mcp/install?name=dc&config=eyJ1cmwiOiJodHRwczovL2FwaS5keW5hbWl0ZWNpcmNsZS5jb20vbWNwIn0=)
+&nbsp;
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_DC-007ACC?logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=dc&config=%7B%22url%22%3A%22https%3A%2F%2Fapi.dynamitecircle.com%2Fmcp%22%7D)
 
 Discovery metadata is published at [`/.well-known/mcp.json`](https://api.dynamitecircle.com/.well-known/mcp.json); the OAuth protected-resource descriptor is at `/.well-known/oauth-protected-resource`.
 
@@ -173,6 +180,24 @@ mcp_servers:
 
 `GEMINI.md` (symlinked to `CLAUDE.md`) provides additional context for the assistant.
 
+### VS Code
+
+VS Code has native MCP support and reads `.vscode/mcp.json` (per-workspace) or your user `mcp.json`. For the **hosted** server, the one-click badge above or `code --add-mcp '{"name":"dc","url":"https://api.dynamitecircle.com/mcp"}'` is all you need. For a **local** stdio server, add to `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "dc": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["/absolute/path/to/dc/py/dc.py", "--mcp"]
+    }
+  }
+}
+```
+
+VS Code shows inline **Start / Stop / Restart** actions above each server in that file. It also renders the [MCP registry](https://code.visualstudio.com/docs/agent-customization/mcp-servers) in the Extensions view, so once `dc` is listed there it's installable from inside the editor.
+
 ### Cursor
 
 1. Open Settings → MCP
@@ -181,6 +206,8 @@ mcp_servers:
    - Name: `dc`
    - Command: `python3`
    - Args: `/absolute/path/to/dc/py/dc.py --mcp`
+
+Or use the one-click **Add to Cursor** badge above (hosted MCP).
 
 ### Cline / Continue / Windsurf / Zed
 

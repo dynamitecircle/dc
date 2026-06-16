@@ -86,6 +86,20 @@ Authoritative references:
 - **`https://api.dynamitecircle.com/openapi.json`** — the OpenAPI spec (machine-readable)
 - **`https://api.dynamitecircle.com/.well-known/mcp.json`** — MCP discovery descriptor (transport, auth, install)
 
+> **~80 commands.** That's a lot to scan, and some MCP clients cap how many
+> tools they load. Don't read them all — call **`dc workflows`** first to get
+> the handful of ordered recipes for common goals, then `dc help <command>`
+> for the specific ones you need.
+
+### Read vs. write (MCP annotations)
+
+Every MCP tool is annotated: reads carry `readOnlyHint: true`; writes carry
+`readOnlyHint: false` (and `destructiveHint: true` for `trip_delete`), plus a
+"⚠️ Write operation" note in the description. Reads (`profile`, `trips`,
+`search`, …) are safe to run freely; writes (`trip_create`, `profile_update`,
+`event_rsvp`, …) mutate **your** account. Clients that honor annotations can
+auto-approve reads and prompt on writes.
+
 ## Pagination
 
 Every list-returning command takes the same cursor pagination flags:

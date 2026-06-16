@@ -121,6 +121,14 @@ jobs:
         with:
           name: dist
           path: dist/
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Build .mcpb bundle (one-click Claude Desktop install)
+        run: |
+          npm install -g @anthropic-ai/mcpb
+          mcpb validate manifest.json
+          mcpb pack . dc.mcpb
       - name: Extract release notes from CHANGELOG
         id: notes
         run: |
@@ -144,4 +152,4 @@ jobs:
           gh release create "${GITHUB_REF#refs/tags/}" \
             --title "${GITHUB_REF#refs/tags/}" \
             --notes-file release-notes.md \
-            dist/*.whl dist/*.tar.gz
+            dist/*.whl dist/*.tar.gz dc.mcpb

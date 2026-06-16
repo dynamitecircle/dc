@@ -108,9 +108,15 @@ The DC Member API is **also a hosted MCP server** — a remote endpoint you poin
 https://api.dynamitecircle.com/mcp        (Streamable HTTP)
 ```
 
+[![Add to Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](cursor://anysphere.cursor-deeplink/mcp/install?name=dc&config=eyJ1cmwiOiJodHRwczovL2FwaS5keW5hbWl0ZWNpcmNsZS5jb20vbWNwIn0=)
+&nbsp;
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_DC-007ACC?logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=dc&config=%7B%22url%22%3A%22https%3A%2F%2Fapi.dynamitecircle.com%2Fmcp%22%7D)
+
 - **Claude Code:** `claude mcp add --transport http dc https://api.dynamitecircle.com/mcp`
 - **Claude (web / Desktop / mobile):** Settings → Connectors → **Add custom connector** → paste the URL → **Connect**
-- **Cursor / ChatGPT / any MCP app:** add a custom / remote MCP connector pointing at the URL above
+- **VS Code:** click the badge above, or `code --add-mcp '{"name":"dc","url":"https://api.dynamitecircle.com/mcp"}'`
+- **Cursor:** click the badge above, or add a custom MCP connector pointing at the URL
+- **ChatGPT / any other MCP app:** add a custom / remote MCP connector pointing at the URL above
 
 When prompted, **sign in with your DC account** (one-click OAuth) — or send a `dk_` key as `Authorization: Bearer`. The server is always on the current API version, so there's nothing to keep up to date.
 
@@ -235,7 +241,9 @@ Notes: the console script is `dc` (not `dynamitecircle`), so `--from dynamitecir
 
 ### Claude Desktop
 
-Edit your config file:
+**Easiest — one-click `.mcpb`:** download `dc.mcpb` from the [latest GitHub release](https://github.com/dynamitecircle/dc/releases/latest) and double-click it. Claude Desktop installs the `dc` server and prompts for your `DC_API_KEY` (no JSON editing). Requires Python 3.9+ with the `mcp` package available on your machine (`pip install 'dynamitecircle[mcp]'`). *(Or skip local install entirely and use the [hosted MCP connector](#hosted-mcp-no-install-always-current) above.)*
+
+**Manual** — edit your config file:
 
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Linux: `~/.config/Claude/claude_desktop_config.json`
