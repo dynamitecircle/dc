@@ -77,11 +77,25 @@ Fields:
 
 | Field | Required | Meaning |
 |---|---|---|
-| `name` | MUST | Public command name. Kebab-case. Used in CLI and as MCP tool name |
-| `help` | SHOULD | One-line description for `help` listing |
+| `name` | MUST | Public command name. **Kebab-case** — used verbatim as the CLI command (`dc trip-create`) and converted to snake_case for the MCP tool name (`mcp__dc__trip_create`) |
+| `help` | SHOULD | One-line description for `help` listing (also the MCP tool description) |
 | `parser` | optional | Static method on `_DCCore` that converts raw CLI args → `(args, kwargs)`. Required if the command takes flags |
 
-There are **no** `mode="read"|"write"` labels, no permission gates, no extension hooks. The decorator is intentionally minimal.
+The decorator carries **no** `mode="read"|"write"` label, no permission gates, no extension hooks — it stays minimal. Read/write classification for MCP annotations is derived centrally instead (see Tool naming below).
+
+## Tool naming and casing
+
+Three surfaces, three casings — each idiomatic for its context. Don't "fix" them to match each other:
+
+| Surface | Form | Example |
+|---|---|---|
+| CLI command | kebab-case | `dc trip-create`, `--start-date` |
+| Python method / library | snake_case | `dc.trip_create()` |
+| MCP tool + fields | snake_case | `mcp__dc__trip_create`, field `event_id` |
+
+The MCP layer converts kebab → snake at the boundary (`run_mcp` for tool names, `_build_input_schema` for fields); the CLI parser still gets kebab. Tool names are **noun-first** (`trip_create`, not `create_trip`). This is deliberate: alphabetical tool lists then cluster all operations on the same resource together (`trip_create` / `trip_delete` / `trip_update` / `trips` sit adjacent), which is more discoverable for an agent scanning `tools/list` than a verb-first scheme that scatters them by action. A verb-first reorder was considered and **rejected** for that reason (and to avoid breaking renames across all three surfaces).
+
+**Annotations:** each MCP tool advertises `readOnlyHint` / `destructiveHint` / `openWorldHint`. The read/write split lives in `_WRITE_COMMANDS` (in `dc.py`), derived from each command's actual HTTP verb and guarded by `tests/test_annotations.py`, which re-derives the set from source and fails on drift — so a new write command can't silently ship mislabelled as read-only.
 
 ## Argument parsing
 
@@ -221,8 +235,8 @@ How it works:
 
 1. `_MCP_AVAILABLE` flag set at module load via `try: from mcp.server import Server`
 2. `--mcp` in `sys.argv` → entry point calls `DC().run_mcp()`
-3. `run_mcp()` builds an `mcp.server.Server`, registers `list_tools` (one per `@skill_command`) and `call_tool` (translates MCP args → CLI raw_args, then invokes via `self._invoke`)
-4. Result serialized as `TextContent` (JSON for dicts/lists, str for scalars)
+3. `run_mcp()` builds an `mcp.server.Server`, registers `list_tools` (one per `@skill_command`, each with a snake_case name + `readOnlyHint`/`destructiveHint`/`openWorldHint` annotations) and `call_tool` (translates MCP args → CLI raw_args, then invokes via `self._invoke`)
+4. Result serialized as `TextContent` (JSON for dicts/lists, str for scalars); object results are *also* returned as `structuredContent` for structure-aware clients
 
 If `mcp` is not installed → clean install hint, no traceback. CLI and Python-import users have **zero** dependencies.
 
@@ -231,9 +245,10 @@ If `mcp` is not installed → clean install hint, no traceback. CLI and Python-i
 1. Add the business logic to `_DCCore` (returns plain Python data)
 2. If it takes flags → add a `_parse_*` static method to `_DCCore`
 3. Add a `@skill_command`-decorated wrapper to `DC` that delegates to `_core`
-4. Update `SKILL.md` with usage examples
-5. Verify the new endpoint is documented in the live API reference: https://www.dynamitecircle.com/developers/
-6. Verify:
+4. **If it mutates (POST/PATCH/PUT/DELETE), add its name to `_WRITE_COMMANDS`** in `dc.py` — `tests/test_annotations.py` re-derives writes from the HTTP verbs and fails if you forget, so a write can't ship mislabelled as a safe read
+5. Update `SKILL.md` with usage examples
+6. Verify the new endpoint is documented in the live API reference: https://www.dynamitecircle.com/developers/
+7. Verify:
    ```bash
    python3 py/dc.py help                    # appears in list
    python3 py/dc.py <new-command> --json    # round-trips
@@ -246,7 +261,7 @@ These were design choices. **Do not add them without a discussion**:
 
 - ❌ Telemetry / usage tracking
 - ❌ Error logging to disk (`.errors.jsonl`)
-- ❌ Read/write mode labels on commands
+- ❌ Read/write **gates** (permission enforcement) — note: read/write *annotations* for MCP clients DO exist (advisory hints derived from HTTP verbs), but nothing in the client blocks a write
 - ❌ Extension hooks (`@skill_extension`)
 - ❌ Owner-binding / runtime metadata
 - ❌ Lint rules / sweep / pulse
