@@ -20,6 +20,7 @@ build/
 
 # Node (in case any tool ships a sub-app)
 node_modules/
+.npm-cache/
 
 # OS
 .DS_Store

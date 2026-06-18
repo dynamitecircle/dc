@@ -1,0 +1,80 @@
+# Build the TypeScript client on every push/PR, publish to npm on every v* tag.
+#
+# Uses npm Trusted Publishing / GitHub OIDC. No npm token is stored in GitHub.
+# To enable CI publishes, configure npm Trusted Publishing for:
+#   package=@dynamitecircle/dc, owner=dynamitecircle, repo=dc,
+#   workflow=publish-npm.yml, environment=npm.
+
+name: Publish to npm
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build and test TypeScript client
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.14.0"
+      - name: Install dependencies
+        run: npm ci
+      - name: Build and test
+        run: npm run check
+
+  smoke-pack:
+    name: Verify npm package contents
+    needs: test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.14.0"
+          registry-url: "https://registry.npmjs.org"
+      - name: Install dependencies
+        run: npm ci
+      - name: Dry-run pack
+        run: npm pack --dry-run
+
+  publish:
+    name: Publish TypeScript client to npm
+    needs: [test, smoke-pack]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/@dynamitecircle/dc
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: ts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.14.0"
+          registry-url: "https://registry.npmjs.org"
+      - name: Install npm with Trusted Publishing support
+        run: npm install --global npm@11.5.1
+      - name: Install dependencies
+        run: npm ci
+      - name: Publish via npm Trusted Publishing
+        run: npm publish --access public --provenance

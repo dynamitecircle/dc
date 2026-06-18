@@ -6,7 +6,7 @@ This package is a library only. It does not include the Python client's CLI,
 Agent Skill, or MCP server.
 
 ```bash
-pnpm add @dynamitecircle/dc
+npm install @dynamitecircle/dc
 ```
 
 ```ts
@@ -33,6 +33,18 @@ TypeScript projects; do not expose a `dk_...` key in browser JavaScript.
 The package version matches the pinned Member API contract in
 `../contracts/openapi.json`. Contract tests verify that this TypeScript client,
 the Python client, and the pinned OpenAPI snapshot all stay in step.
+
+## Publishing
+
+The package is published from GitHub Actions on `v*` tags via npm Trusted
+Publishing. Configure the trusted publisher in npm for:
+
+- Package: `@dynamitecircle/dc`
+- Owner/repo: `dynamitecircle/dc`
+- Workflow: `publish-npm.yml`
+- Environment: `npm`
+
+Local publishing should only be used as a fallback.
 
 ## Types
 
