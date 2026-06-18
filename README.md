@@ -1,11 +1,15 @@
-# DC Official Client
+# DC Official Clients
 
-The official Python client for the [Dynamite Circle Member API](https://www.dynamitecircle.com/developers/) — your own profile, trips, events, virtual events, tickets, invites, inbox, rooms, chapters, places lookup, and the weekly locator digest.
+Official clients for the [Dynamite Circle Member API](https://www.dynamitecircle.com/developers/) — your own profile, trips, events, virtual events, tickets, invites, inbox, rooms, chapters, places lookup, and the weekly locator digest.
 
-A single self-contained file. Zero dependencies (stdlib only). Works as a CLI, a Python library, **and** a [Model Context Protocol](https://modelcontextprotocol.io) server. Compatible with Claude Code, Claude Desktop, Codex CLI, Gemini CLI, Cursor, GitHub Copilot, and every other Agent Skills / MCP-compatible tool.
+The Python client is a single self-contained file. Zero dependencies (stdlib only). Works as a CLI, a Python library, **and** a [Model Context Protocol](https://modelcontextprotocol.io) server. Compatible with Claude Code, Claude Desktop, Codex CLI, Gemini CLI, Cursor, GitHub Copilot, and every other Agent Skills / MCP-compatible tool.
+
+The TypeScript client is an npm library for trusted server-side TypeScript projects. It is not a CLI and not an MCP server.
 
 ```
-py/dc.py    ← one file, three integration modes
+py/dc.py       ← Python: CLI + library + MCP server
+ts/src/        ← TypeScript: npm library
+contracts/     ← pinned OpenAPI contract shared by both clients
 ```
 
 ## About the Dynamite Circle
@@ -99,6 +103,21 @@ The same `dc.py` file is shipped as **four** integrations — pick whichever fit
 | **MCP server** | Speaks Model Context Protocol over stdio (Claude Desktop, Cursor, Codex MCP, Cline, etc.) | `python3 py/dc.py --mcp` | `pip install mcp` (optional) |
 
 The `mcp` package is **lazy-imported** — Agent Skill / CLI / Python-library users never need it.
+
+### TypeScript npm library
+
+For TypeScript projects, use the package under [`ts/`](ts/):
+
+```ts
+import { DC } from "@dynamitecircle/dc";
+
+const dc = new DC({ apiKey: process.env.DC_API_KEY! });
+
+const profile = await dc.profile.get();
+const trips = await dc.trips.list({ limit: 10 });
+```
+
+Keep `dk_...` API keys server-side. Do not ship a member API key in browser JavaScript.
 
 ### Don't want to install anything? Use the hosted MCP
 
@@ -384,7 +403,7 @@ The full live reference for the DC Member API — every endpoint, parameter, and
 
 ## Staying up to date
 
-The DC Member API ships new endpoints and refinements regularly. This skill is the official client and we update it whenever the API changes. **Plan for updates** — the skill will warn you on stderr the first time a request returns a server `X-API-Version` newer than `DC_API_VERSION`, and major-version bumps may break older clients.
+The DC Member API ships new endpoints and refinements regularly. This skill is the official client and we update it whenever the API changes. **Plan for updates** — the skill will warn you on stderr the first time a request returns an `X-API-Version` newer than `DC_API_VERSION`, and major-version bumps may break older clients.
 
 **The no-maintenance option:** if you use the [hosted MCP](#hosted-mcp-no-install-always-current) (`https://api.dynamitecircle.com/mcp`), there's nothing to update — the server always runs the current API version. The strategies below apply only to the **local client**.
 
@@ -491,7 +510,7 @@ Best for: CI environments, ephemeral containers, scripted setups.
 
 - **Stay current.** The DC Member API ships new endpoints regularly and the client mirrors them; running stale means missing features and (eventually) compatibility warnings on stderr.
 - **Run `self-test` after every update.** Five seconds, catches breakage.
-- **Watch stderr the first time you call any command after updating.** The version-mismatch warning prints once per process when the server is on a newer minor/major.
+- **Watch stderr the first time you call any command after updating.** The version-mismatch warning prints once per process when the API is on a newer minor/major.
 - **Major version bumps may be backwards-incompatible.** Read the release notes on the GitHub repo before pulling across a major boundary.
 
 ## Rate limits
@@ -537,7 +556,16 @@ dc/
 │   ├── .env.dc.example                # template
 │   └── .env.dc                        # gitignored (created by `setup`)
 │
-│   (Future: go/, node/, rs/ folders for sister clients in other languages)
+├── ts/                                # ← TypeScript npm library (@dynamitecircle/dc)
+│   ├── src/                           # hand-written SDK surface
+│   ├── tests/                         # contract + request behavior tests
+│   ├── examples/                      # TypeScript usage examples
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── contracts/                         # pinned API contract shared by clients
+│   ├── openapi.json                   # committed snapshot of /openapi.json
+│   └── operation-map.json             # OpenAPI op → Python command → TS method
 │
 ├── DC/
 │   └── SKILL.md     → ../py/SKILL.md  # human-friendly skill path (symlink)
@@ -563,9 +591,9 @@ dc/
 
 ### About the layout
 
-This is a **monorepo**. The Python client lives at `/py/` so we can add future sister clients (`go/`, `node/`, `rs/`) at the same level — they all wrap the same DC Member API. `/docs/` is shared. The dotfile-prefixed directories (`.claude/`, `.agents/`, `.gemini/`) exist because AI tools auto-discover skills from those specific paths — they're kept hidden but each one **symlinks (or points) straight to the canonical folder**, so you only edit files in one place. Edit `py/dc.py` and Claude Code, Codex, and Gemini CLI all see the same file via their respective discovery directories. Gemini CLI also reads `.agents/skills/` as an alias, so we don't need a redundant `.gemini/skills/` symlink.
+This is a **monorepo**. The Python client lives at `/py/`; the TypeScript client lives at `/ts/`. Both wrap the same DC Member API and are validated against the pinned contract in `/contracts/`. `/docs/` is shared. The dotfile-prefixed directories (`.claude/`, `.agents/`, `.gemini/`) exist because AI tools auto-discover skills from those specific paths — they're kept hidden but each one **symlinks (or points) straight to the canonical folder**, so you only edit files in one place. Edit `py/dc.py` and Claude Code, Codex, and Gemini CLI all see the same file via their respective discovery directories. Gemini CLI also reads `.agents/skills/` as an alias, so we don't need a redundant `.gemini/skills/` symlink.
 
-If you're adding new code or docs, edit `py/` (or `docs/`) directly. The discovery folders take care of themselves.
+If you're adding Python code or skill docs, edit `py/` (or `docs/`) directly. If you're adding TypeScript library code, edit `ts/`. The discovery folders take care of themselves.
 
 ### Pre-approval out of the box
 
@@ -578,4 +606,3 @@ This repo is maintained by the Dynamite Circle team. It's read-only for the publ
 ## License
 
 [MIT](LICENSE) — see the LICENSE file for the full text.
-

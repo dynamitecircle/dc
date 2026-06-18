@@ -1,0 +1,41 @@
+export { DC } from "./client.js";
+export { DCAPIError } from "./errors.js";
+export {
+  DC_API_VERSION,
+  DEFAULT_API_URL,
+  DEFAULT_USER_AGENT,
+} from "./version.js";
+export type { DCAPIErrorPayload } from "./errors.js";
+export type {
+  AnnualRevenue,
+  BusinessIndustry,
+  CalendarUpdateInput,
+  DCClientOptions,
+  Diet,
+  EventFreeSlotsInput,
+  Gender,
+  HTTPMethod,
+  InviteCreateInput,
+  ListOptions,
+  LocatorSettingsUpdateInput,
+  NotificationChannelUpdate,
+  NotificationsUpdateInput,
+  PastListOptions,
+  PathParams,
+  ProfileMatchInput,
+  ProfileUpdateInput,
+  QueryParams,
+  QueryValue,
+  ReportIssueInput,
+  RequestBody,
+  RequestOptions,
+  RSVPStatus,
+  SearchOptions,
+  ShirtSize,
+  TeamSize,
+  TripCreateInput,
+  TripPointInput,
+  TripUpdateInput,
+  VersionDrift,
+  YearsInBusiness,
+} from "./types.js";

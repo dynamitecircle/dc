@@ -35,6 +35,9 @@ def _derive_writes_from_source():
             if (isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
                     and n.value.id == "self" and n.attr in _ALL_VERBS):
                 direct.add(n.attr)
+            if (isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
+                    and n.value.id == "self" and n.attr not in _ALL_VERBS):
+                core.add(n.attr)
             if (isinstance(n, ast.Attribute) and isinstance(n.value, ast.Attribute)
                     and isinstance(n.value.value, ast.Name) and n.value.value.id == "self"
                     and n.value.attr == "_core"):

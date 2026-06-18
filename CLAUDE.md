@@ -1,6 +1,10 @@
 # DC Official — AI Tool Guide
 
-This repo ships **`dc-py`** — a self-contained, single-file Python client for the public **DC Member API** (`https://api.dynamitecircle.com`). It works the same from Claude Code, Codex, Gemini CLI, GitHub Copilot, Cursor, and any other Agent Skills- or MCP-compatible tool.
+This repo ships official clients for the public **DC Member API** (`https://api.dynamitecircle.com`).
+
+- **`py/`** — self-contained, single-file Python client. CLI + Python library + Agent Skill + MCP server.
+- **`ts/`** — TypeScript npm library, published as `@dynamitecircle/dc`. No CLI and no MCP server.
+- **`contracts/`** — pinned OpenAPI snapshot + operation map used to validate Python and TypeScript parity.
 
 ## At a glance
 
@@ -8,6 +12,7 @@ This repo ships **`dc-py`** — a self-contained, single-file Python client for 
 - **Three modes**: CLI, Python import, MCP server (`--mcp` flag)
 - **Stdlib only** for CLI/import. The `mcp` package is **lazy-imported** — only required for `--mcp` mode
 - **Full coverage** — every public Member API endpoint is wrapped (run `help` for the live list)
+- **Pinned contract** — `contracts/openapi.json` and `contracts/operation-map.json` keep Python + TypeScript coverage aligned with the API version
 - **Pre-configured `.mcp.json`** at the repo root — Claude Code auto-loads the server when you `cd` in
 - **Zero internal-only knowhow** — public-grade design with no telemetry, no usage tracking, no error capture, no extension hooks, no read/write gates
 
@@ -158,7 +163,16 @@ dc/
 │   ├── .env.dc.example                # template
 │   └── .env.dc                        # gitignored (created by `setup`)
 │
-│   (Future: go/, node/, rs/ folders for sister clients in other languages)
+├── ts/                                # ← TypeScript npm library (@dynamitecircle/dc)
+│   ├── src/                           # hand-written SDK surface
+│   ├── tests/                         # contract + request behavior tests
+│   ├── examples/                      # TypeScript usage examples
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── contracts/                         # shared API contract
+│   ├── openapi.json                   # pinned /openapi.json snapshot
+│   └── operation-map.json             # OpenAPI op → Python command → TS method
 │
 ├── DC/
 │   └── SKILL.md     → ../py/SKILL.md  # human-friendly skill path (symlink)
@@ -182,7 +196,7 @@ dc/
 └── .gitattributes
 ```
 
-**Layout rationale:** this repo is a monorepo. The Python client lives at `/py/` so future Go / Node / Rust clients can be added at `/go/`, `/node/`, `/rs/` alongside it. `/docs/` is shared. AI-tool discovery directories (`.claude/`, `.agents/`, `.gemini/`) stay hidden but symlink (or point) straight to the real folders, so Claude Code, Codex, Gemini CLI, etc. still auto-discover everything. Gemini CLI also reads `.agents/skills/` as an alias, so we don't need a redundant `.gemini/skills/` symlink.
+**Layout rationale:** this repo is a monorepo. The Python client lives at `/py/`; the TypeScript client lives at `/ts/`; both validate against `/contracts/`. `/docs/` is shared. AI-tool discovery directories (`.claude/`, `.agents/`, `.gemini/`) stay hidden but symlink (or point) straight to the real folders, so Claude Code, Codex, Gemini CLI, etc. still auto-discover everything. Gemini CLI also reads `.agents/skills/` as an alias, so we don't need a redundant `.gemini/skills/` symlink.
 
 **Pre-approval out of the box:** `.claude/settings.json`, `.codex/config.toml`, and `.gemini/settings.json` all auto-approve the `dc` MCP server's tools so users don't get a per-call approval prompt. Anyone uncomfortable with that can override with their personal `.claude/settings.local.json`, `~/.codex/config.toml`, or `~/.gemini/settings.json`.
 

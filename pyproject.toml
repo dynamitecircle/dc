@@ -83,10 +83,14 @@ bypass-selection = true
 # Source dist includes the full repo. only-include + bypass-selection
 # avoids hatch's auto-package-discovery which doesn't recognize our
 # non-standard layout (single-file at py/dc.py rather than py/<pkg>/).
-# `tests/` is intentionally omitted — it's a dev-only offline suite.
+# `tests/` is intentionally omitted — it's a dev-only offline suite. The
+# TypeScript source and pinned contract are included so the sdist reflects the
+# public monorepo shape; the Python wheel remains single-file only.
 bypass-selection = true
 only-include = [
+  "contracts",
   "py",
+  "ts",
   "docs",
   "README.md",
   "CHANGELOG.md",

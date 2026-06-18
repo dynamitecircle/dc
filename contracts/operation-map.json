@@ -1,0 +1,628 @@
+{
+  "operations": [
+    {
+      "operationId": "get_announcements",
+      "method": "GET",
+      "path": "/announcements",
+      "tag": "Announcements",
+      "pythonCommand": "announcements",
+      "typescriptMethod": "announcements.list"
+    },
+    {
+      "operationId": "get_announcements_latest",
+      "method": "GET",
+      "path": "/announcements/latest",
+      "tag": "Announcements",
+      "pythonCommand": "announcements-latest",
+      "typescriptMethod": "announcements.latest"
+    },
+    {
+      "operationId": "get_profile",
+      "method": "GET",
+      "path": "/profile",
+      "tag": "Profile",
+      "pythonCommand": "profile",
+      "typescriptMethod": "profile.get"
+    },
+    {
+      "operationId": "patch_profile",
+      "method": "PATCH",
+      "path": "/profile",
+      "tag": "Profile",
+      "pythonCommand": "profile-update",
+      "typescriptMethod": "profile.update"
+    },
+    {
+      "operationId": "get_trips",
+      "method": "GET",
+      "path": "/trips",
+      "tag": "Trips",
+      "pythonCommand": "trips",
+      "typescriptMethod": "trips.list"
+    },
+    {
+      "operationId": "post_trips",
+      "method": "POST",
+      "path": "/trips",
+      "tag": "Trips",
+      "pythonCommand": "trip-create",
+      "typescriptMethod": "trips.create"
+    },
+    {
+      "operationId": "patch_trips__tripID",
+      "method": "PATCH",
+      "path": "/trips/{tripID}",
+      "tag": "Trips",
+      "pythonCommand": "trip-update",
+      "typescriptMethod": "trips.update"
+    },
+    {
+      "operationId": "delete_trips__tripID",
+      "method": "DELETE",
+      "path": "/trips/{tripID}",
+      "tag": "Trips",
+      "pythonCommand": "trip-delete",
+      "typescriptMethod": "trips.delete"
+    },
+    {
+      "operationId": "get_trips__tripID",
+      "method": "GET",
+      "path": "/trips/{tripID}",
+      "tag": "Trips",
+      "pythonCommand": "trip",
+      "typescriptMethod": "trips.get"
+    },
+    {
+      "operationId": "get_trips_overlaps",
+      "method": "GET",
+      "path": "/trips/overlaps",
+      "tag": "Trips",
+      "pythonCommand": "overlaps",
+      "typescriptMethod": "trips.overlaps"
+    },
+    {
+      "operationId": "post_trips__tripID_refresh",
+      "method": "POST",
+      "path": "/trips/{tripID}/refresh",
+      "tag": "Trips",
+      "pythonCommand": "trip-refresh",
+      "typescriptMethod": "trips.refresh"
+    },
+    {
+      "operationId": "get_trips__tripID_discovery",
+      "method": "GET",
+      "path": "/trips/{tripID}/discovery",
+      "tag": "Trips",
+      "pythonCommand": "trip-discovery",
+      "typescriptMethod": "trips.discovery"
+    },
+    {
+      "operationId": "get_events",
+      "method": "GET",
+      "path": "/events",
+      "tag": "Events",
+      "pythonCommand": "events",
+      "typescriptMethod": "events.list"
+    },
+    {
+      "operationId": "get_events__eventID",
+      "method": "GET",
+      "path": "/events/{eventID}",
+      "tag": "Events",
+      "pythonCommand": "event",
+      "typescriptMethod": "events.get"
+    },
+    {
+      "operationId": "get_events__eventID_attendees",
+      "method": "GET",
+      "path": "/events/{eventID}/attendees",
+      "tag": "Events",
+      "pythonCommand": "event-attendees",
+      "typescriptMethod": "events.attendees"
+    },
+    {
+      "operationId": "post_events__eventID_rsvp",
+      "method": "POST",
+      "path": "/events/{eventID}/rsvp",
+      "tag": "Events",
+      "pythonCommand": "event-rsvp",
+      "typescriptMethod": "events.rsvp"
+    },
+    {
+      "operationId": "get_events__eventID_schedule",
+      "method": "GET",
+      "path": "/events/{eventID}/schedule",
+      "tag": "Events",
+      "pythonCommand": "event-schedule",
+      "typescriptMethod": "events.schedule"
+    },
+    {
+      "operationId": "get_events__eventID_agenda",
+      "method": "GET",
+      "path": "/events/{eventID}/agenda",
+      "tag": "Events",
+      "pythonCommand": "event-agenda",
+      "typescriptMethod": "events.agenda"
+    },
+    {
+      "operationId": "get_events__eventID_agenda__userID",
+      "method": "GET",
+      "path": "/events/{eventID}/agenda/{userID}",
+      "tag": "Events",
+      "pythonCommand": "event-agenda",
+      "typescriptMethod": "events.userAgenda"
+    },
+    {
+      "operationId": "get_events__eventID_schedule__sessionID_attendees",
+      "method": "GET",
+      "path": "/events/{eventID}/schedule/{sessionID}/attendees",
+      "tag": "Events",
+      "pythonCommand": "session-attendees",
+      "typescriptMethod": "events.sessionAttendees"
+    },
+    {
+      "operationId": "get_events__eventID_meetups",
+      "method": "GET",
+      "path": "/events/{eventID}/meetups",
+      "tag": "Events",
+      "pythonCommand": "event-meetups",
+      "typescriptMethod": "events.meetups"
+    },
+    {
+      "operationId": "get_events__eventID_meetups__meetupID_attendees",
+      "method": "GET",
+      "path": "/events/{eventID}/meetups/{meetupID}/attendees",
+      "tag": "Events",
+      "pythonCommand": "meetup-attendees",
+      "typescriptMethod": "events.meetupAttendees"
+    },
+    {
+      "operationId": "get_events__eventID_sponsors",
+      "method": "GET",
+      "path": "/events/{eventID}/sponsors",
+      "tag": "Events",
+      "pythonCommand": "event-sponsors",
+      "typescriptMethod": "events.sponsors"
+    },
+    {
+      "operationId": "post_events__eventID_schedule__sessionID_bookmark",
+      "method": "POST",
+      "path": "/events/{eventID}/schedule/{sessionID}/bookmark",
+      "tag": "Events",
+      "pythonCommand": "session-bookmark",
+      "typescriptMethod": "events.sessionBookmark"
+    },
+    {
+      "operationId": "post_events__eventID_meetups__meetupID_rsvp",
+      "method": "POST",
+      "path": "/events/{eventID}/meetups/{meetupID}/rsvp",
+      "tag": "Events",
+      "pythonCommand": "meetup-rsvp",
+      "typescriptMethod": "events.meetupRsvp"
+    },
+    {
+      "operationId": "get_events__eventID_agendas",
+      "method": "GET",
+      "path": "/events/{eventID}/agendas",
+      "tag": "Events",
+      "pythonCommand": "event-agendas",
+      "typescriptMethod": "events.agendas"
+    },
+    {
+      "operationId": "post_events__eventID_free-slots",
+      "method": "POST",
+      "path": "/events/{eventID}/free-slots",
+      "tag": "Events",
+      "pythonCommand": "event-free-slots",
+      "typescriptMethod": "events.freeSlots"
+    },
+    {
+      "operationId": "get_virtual-events",
+      "method": "GET",
+      "path": "/virtual-events",
+      "tag": "Virtual Events",
+      "pythonCommand": "virtual-events",
+      "typescriptMethod": "virtualEvents.list"
+    },
+    {
+      "operationId": "get_virtual-events__sessionID",
+      "method": "GET",
+      "path": "/virtual-events/{sessionID}",
+      "tag": "Virtual Events",
+      "pythonCommand": "virtual-event",
+      "typescriptMethod": "virtualEvents.get"
+    },
+    {
+      "operationId": "post_virtual-events__sessionID_rsvp",
+      "method": "POST",
+      "path": "/virtual-events/{sessionID}/rsvp",
+      "tag": "Virtual Events",
+      "pythonCommand": "virtual-event-rsvp",
+      "typescriptMethod": "virtualEvents.rsvp"
+    },
+    {
+      "operationId": "get_tickets",
+      "method": "GET",
+      "path": "/tickets",
+      "tag": "Tickets",
+      "pythonCommand": "tickets",
+      "typescriptMethod": "tickets.list"
+    },
+    {
+      "operationId": "get_invites",
+      "method": "GET",
+      "path": "/invites",
+      "tag": "Invites",
+      "pythonCommand": "invites",
+      "typescriptMethod": "invites.list"
+    },
+    {
+      "operationId": "post_invites",
+      "method": "POST",
+      "path": "/invites",
+      "tag": "Invites",
+      "pythonCommand": "invite-create",
+      "typescriptMethod": "invites.create"
+    },
+    {
+      "operationId": "get_invites_permacode",
+      "method": "GET",
+      "path": "/invites/permacode",
+      "tag": "Invites",
+      "pythonCommand": "permacode",
+      "typescriptMethod": "invites.permacode"
+    },
+    {
+      "operationId": "get_inbox_unread",
+      "method": "GET",
+      "path": "/inbox/unread",
+      "tag": "Inbox",
+      "pythonCommand": "inbox",
+      "typescriptMethod": "inbox.unread"
+    },
+    {
+      "operationId": "get_rooms",
+      "method": "GET",
+      "path": "/rooms",
+      "tag": "Rooms",
+      "pythonCommand": "rooms",
+      "typescriptMethod": "rooms.list"
+    },
+    {
+      "operationId": "get_rooms_inbox__type",
+      "method": "GET",
+      "path": "/rooms/inbox/{type}",
+      "tag": "Rooms",
+      "pythonCommand": "rooms",
+      "typescriptMethod": "rooms.inbox"
+    },
+    {
+      "operationId": "get_rooms_browse__type",
+      "method": "GET",
+      "path": "/rooms/browse/{type}",
+      "tag": "Rooms",
+      "pythonCommand": "browse-rooms",
+      "typescriptMethod": "rooms.browse"
+    },
+    {
+      "operationId": "get_rooms__roomID",
+      "method": "GET",
+      "path": "/rooms/{roomID}",
+      "tag": "Rooms",
+      "pythonCommand": "room",
+      "typescriptMethod": "rooms.get"
+    },
+    {
+      "operationId": "get_rooms__roomID_summary__type",
+      "method": "GET",
+      "path": "/rooms/{roomID}/summary/{type}",
+      "tag": "Rooms",
+      "pythonCommand": "room-summary",
+      "typescriptMethod": "rooms.summary"
+    },
+    {
+      "operationId": "get_rooms__roomID_summaries__type",
+      "method": "GET",
+      "path": "/rooms/{roomID}/summaries/{type}",
+      "tag": "Rooms",
+      "pythonCommand": "room-summaries",
+      "typescriptMethod": "rooms.summaries"
+    },
+    {
+      "operationId": "get_rooms__roomID_messages",
+      "method": "GET",
+      "path": "/rooms/{roomID}/messages",
+      "tag": "Rooms",
+      "pythonCommand": "room-messages",
+      "typescriptMethod": "rooms.messages"
+    },
+    {
+      "operationId": "post_rooms__roomID_subscribe",
+      "method": "POST",
+      "path": "/rooms/{roomID}/subscribe",
+      "tag": "Rooms",
+      "pythonCommand": "room-subscribe",
+      "typescriptMethod": "rooms.subscribe"
+    },
+    {
+      "operationId": "post_rooms__roomID_unsubscribe",
+      "method": "POST",
+      "path": "/rooms/{roomID}/unsubscribe",
+      "tag": "Rooms",
+      "pythonCommand": "room-unsubscribe",
+      "typescriptMethod": "rooms.unsubscribe"
+    },
+    {
+      "operationId": "post_rooms__roomID_mute",
+      "method": "POST",
+      "path": "/rooms/{roomID}/mute",
+      "tag": "Rooms",
+      "pythonCommand": "room-mute",
+      "typescriptMethod": "rooms.mute"
+    },
+    {
+      "operationId": "post_rooms__roomID_unmute",
+      "method": "POST",
+      "path": "/rooms/{roomID}/unmute",
+      "tag": "Rooms",
+      "pythonCommand": "room-unmute",
+      "typescriptMethod": "rooms.unmute"
+    },
+    {
+      "operationId": "post_rooms__roomID_archive",
+      "method": "POST",
+      "path": "/rooms/{roomID}/archive",
+      "tag": "Rooms",
+      "pythonCommand": "room-archive",
+      "typescriptMethod": "rooms.archive"
+    },
+    {
+      "operationId": "post_rooms__roomID_unarchive",
+      "method": "POST",
+      "path": "/rooms/{roomID}/unarchive",
+      "tag": "Rooms",
+      "pythonCommand": "room-unarchive",
+      "typescriptMethod": "rooms.unarchive"
+    },
+    {
+      "operationId": "post_rooms__roomID_pin",
+      "method": "POST",
+      "path": "/rooms/{roomID}/pin",
+      "tag": "Rooms",
+      "pythonCommand": "room-pin",
+      "typescriptMethod": "rooms.pin"
+    },
+    {
+      "operationId": "post_rooms__roomID_unpin",
+      "method": "POST",
+      "path": "/rooms/{roomID}/unpin",
+      "tag": "Rooms",
+      "pythonCommand": "room-unpin",
+      "typescriptMethod": "rooms.unpin"
+    },
+    {
+      "operationId": "get_locator_digest",
+      "method": "GET",
+      "path": "/locator/digest",
+      "tag": "Locator",
+      "pythonCommand": "locator",
+      "typescriptMethod": "locator.digest"
+    },
+    {
+      "operationId": "get_locator_settings",
+      "method": "GET",
+      "path": "/locator/settings",
+      "tag": "Locator",
+      "pythonCommand": "locator-settings",
+      "typescriptMethod": "locator.settings"
+    },
+    {
+      "operationId": "patch_locator_settings",
+      "method": "PATCH",
+      "path": "/locator/settings",
+      "tag": "Locator",
+      "pythonCommand": "locator-settings-update",
+      "typescriptMethod": "locator.updateSettings"
+    },
+    {
+      "operationId": "get_places_search",
+      "method": "GET",
+      "path": "/places/search",
+      "tag": "Places",
+      "pythonCommand": "places-search",
+      "typescriptMethod": "places.search"
+    },
+    {
+      "operationId": "get_places__placeID",
+      "method": "GET",
+      "path": "/places/{placeID}",
+      "tag": "Places",
+      "pythonCommand": "place",
+      "typescriptMethod": "places.get"
+    },
+    {
+      "operationId": "get_chapters",
+      "method": "GET",
+      "path": "/chapters",
+      "tag": "Chapters",
+      "pythonCommand": "chapters",
+      "typescriptMethod": "chapters.list"
+    },
+    {
+      "operationId": "get_chapters__cityID",
+      "method": "GET",
+      "path": "/chapters/{cityID}",
+      "tag": "Chapters",
+      "pythonCommand": "chapter",
+      "typescriptMethod": "chapters.get"
+    },
+    {
+      "operationId": "get_membership",
+      "method": "GET",
+      "path": "/membership",
+      "tag": "Membership",
+      "pythonCommand": "membership",
+      "typescriptMethod": "membership.get"
+    },
+    {
+      "operationId": "get_membership_invoices",
+      "method": "GET",
+      "path": "/membership/invoices",
+      "tag": "Membership",
+      "pythonCommand": "invoices",
+      "typescriptMethod": "membership.invoices"
+    },
+    {
+      "operationId": "get_notifications",
+      "method": "GET",
+      "path": "/notifications",
+      "tag": "Notifications",
+      "pythonCommand": "notifications",
+      "typescriptMethod": "notifications.get"
+    },
+    {
+      "operationId": "patch_notifications",
+      "method": "PATCH",
+      "path": "/notifications",
+      "tag": "Notifications",
+      "pythonCommand": "notifications-update",
+      "typescriptMethod": "notifications.update"
+    },
+    {
+      "operationId": "get_calendar",
+      "method": "GET",
+      "path": "/calendar",
+      "tag": "Calendar",
+      "pythonCommand": "calendar",
+      "typescriptMethod": "calendar.get"
+    },
+    {
+      "operationId": "patch_calendar",
+      "method": "PATCH",
+      "path": "/calendar",
+      "tag": "Calendar",
+      "pythonCommand": "calendar-update",
+      "typescriptMethod": "calendar.update"
+    },
+    {
+      "operationId": "get_limits",
+      "method": "GET",
+      "path": "/limits",
+      "tag": "Limits",
+      "pythonCommand": "limits",
+      "typescriptMethod": "limits.get"
+    },
+    {
+      "operationId": "get_follows_profiles",
+      "method": "GET",
+      "path": "/follows/profiles",
+      "tag": "Follows",
+      "pythonCommand": "follows-profiles",
+      "typescriptMethod": "follows.profiles.list"
+    },
+    {
+      "operationId": "post_follows_profiles__userID",
+      "method": "POST",
+      "path": "/follows/profiles/{userID}",
+      "tag": "Follows",
+      "pythonCommand": "follow-profile",
+      "typescriptMethod": "follows.profiles.follow"
+    },
+    {
+      "operationId": "delete_follows_profiles__userID",
+      "method": "DELETE",
+      "path": "/follows/profiles/{userID}",
+      "tag": "Follows",
+      "pythonCommand": "unfollow-profile",
+      "typescriptMethod": "follows.profiles.unfollow"
+    },
+    {
+      "operationId": "get_follows_chapters",
+      "method": "GET",
+      "path": "/follows/chapters",
+      "tag": "Follows",
+      "pythonCommand": "follows-chapters",
+      "typescriptMethod": "follows.chapters.list"
+    },
+    {
+      "operationId": "post_follows_chapters__cityID",
+      "method": "POST",
+      "path": "/follows/chapters/{cityID}",
+      "tag": "Follows",
+      "pythonCommand": "follow-chapter",
+      "typescriptMethod": "follows.chapters.follow"
+    },
+    {
+      "operationId": "delete_follows_chapters__cityID",
+      "method": "DELETE",
+      "path": "/follows/chapters/{cityID}",
+      "tag": "Follows",
+      "pythonCommand": "unfollow-chapter",
+      "typescriptMethod": "follows.chapters.unfollow"
+    },
+    {
+      "operationId": "post_profile-match",
+      "method": "POST",
+      "path": "/profile-match",
+      "tag": "Discovery",
+      "pythonCommand": "profile-match",
+      "typescriptMethod": "discovery.profileMatch"
+    },
+    {
+      "operationId": "post_report-issue",
+      "method": "POST",
+      "path": "/report-issue",
+      "tag": "Issues",
+      "pythonCommand": "report-issue",
+      "typescriptMethod": "issues.report"
+    },
+    {
+      "operationId": "get_search",
+      "method": "GET",
+      "path": "/search",
+      "tag": "Search",
+      "pythonCommand": "search",
+      "typescriptMethod": "search.all"
+    },
+    {
+      "operationId": "get_search_profiles",
+      "method": "GET",
+      "path": "/search/profiles",
+      "tag": "Search",
+      "pythonCommand": "search-profiles",
+      "typescriptMethod": "search.profiles"
+    },
+    {
+      "operationId": "get_search_rooms",
+      "method": "GET",
+      "path": "/search/rooms",
+      "tag": "Search",
+      "pythonCommand": "search-rooms",
+      "typescriptMethod": "search.rooms"
+    },
+    {
+      "operationId": "get_search_messages",
+      "method": "GET",
+      "path": "/search/messages",
+      "tag": "Search",
+      "pythonCommand": "search-messages",
+      "typescriptMethod": "search.messages"
+    },
+    {
+      "operationId": "get_search_events",
+      "method": "GET",
+      "path": "/search/events",
+      "tag": "Search",
+      "pythonCommand": "search-events",
+      "typescriptMethod": "search.events"
+    },
+    {
+      "operationId": "get_search_chapters",
+      "method": "GET",
+      "path": "/search/chapters",
+      "tag": "Search",
+      "pythonCommand": "search-chapters",
+      "typescriptMethod": "search.chapters"
+    }
+  ]
+}

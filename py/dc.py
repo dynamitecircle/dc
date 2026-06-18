@@ -394,6 +394,8 @@ _WRITE_COMMANDS = frozenset({
     "trip-create", "trip-update", "trip-delete", "trip-refresh",
     "event-rsvp", "virtual-event-rsvp", "session-bookmark", "meetup-rsvp",
     "event-free-slots",
+    "room-subscribe", "room-unsubscribe", "room-mute", "room-unmute",
+    "room-archive", "room-unarchive", "room-pin", "room-unpin",
     "follow-profile", "unfollow-profile", "follow-chapter", "unfollow-chapter",
     "invite-create", "calendar-update", "notifications-update",
     "locator-settings-update", "report-issue",

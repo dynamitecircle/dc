@@ -3,9 +3,10 @@
 All notable changes to the **`dc` client repo** (formerly `dc-official` /
 `dc-py`) are listed here. The version
 numbers below track `DC_API_VERSION` in [`py/dc.py`](py/dc.py), which is
-deliberately aligned with the DC Member API server version it was last
-verified against. Patch bumps from the server are silent; minor or major
-bumps surface a one-shot stderr warning when this client falls behind.
+deliberately aligned with the DC Member API contract version it was last
+verified against. Python, TypeScript, and the API contract are released
+together on purpose. Patch bumps from the API are silent; minor or major bumps
+surface a one-shot stderr warning when an installed client falls behind.
 
 The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/) for
@@ -15,6 +16,14 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 ---
 
 ## [Unreleased]
+
+### Added
+
+- TypeScript npm library scaffold under `ts/`, published as
+  `@dynamitecircle/dc`, with a hand-written SDK surface for every pinned
+  Member API operation. It is a library only: no CLI and no MCP server.
+- Pinned OpenAPI contract under `contracts/` plus an explicit operation map
+  that validates API operation → Python command → TypeScript method parity.
 
 ## [2.0.4] – 2026-06-16
 
@@ -277,7 +286,7 @@ cutover — were server-only with no client surface change, so no client release
 
   No client-side change required — the `hint` field on 404 payloads
   is already surfaced by `DCError`. Bump kept in lockstep with the
-  deployed server version per the triple-lock rule.
+  deployed API contract version per the triple-lock rule.
 
 ---
 
