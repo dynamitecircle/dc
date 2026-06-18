@@ -1,7 +1,7 @@
 {
   "name": "@dynamitecircle/dc",
   "version": "2.0.4",
-  "description": "Official TypeScript client for the public Dynamite Circle Member API.",
+  "description": "Official TypeScript SDK for the Dynamite Circle Member API: profiles, trips, events, tickets, rooms, chapters, search, and locator data for DC members.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -25,10 +25,17 @@
     "dynamite-circle",
     "dc",
     "membership",
+    "founders",
+    "community",
     "events",
     "dcbkk",
-    "dcmex"
+    "dcmex",
+    "api-client"
   ],
+  "homepage": "https://www.dynamitecircle.com/developers/",
+  "bugs": {
+    "url": "https://github.com/dynamitecircle/dc/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dynamitecircle/dc.git",
