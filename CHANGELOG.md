@@ -15,6 +15,13 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [v1.5.0] - 2026-04-30
+
+### Added
+
+- add announcements + event-extras commands (10 new) (f4f901f)
+
+
 ## [v1.3.0] - 2026-04-30
 
 ### Added
