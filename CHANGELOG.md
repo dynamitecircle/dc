@@ -15,6 +15,11 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [v1.20.1] - 2026-05-22
+
+_No customer-facing changes in this release._
+
+
 ## [v1.19.3] - 2026-05-21
 
 _No customer-facing changes in this release._
