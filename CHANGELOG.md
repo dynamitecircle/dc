@@ -15,6 +15,13 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [v1.23.3] - 2026-06-13
+
+### Fixed
+
+- dc.py help — sponsors/attendee-agenda/agendas are public (not ticket-gated) (9181cc8)
+
+
 ## [v1.22.6] - 2026-06-05
 
 ### Fixed
