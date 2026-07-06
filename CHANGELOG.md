@@ -15,6 +15,14 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [v1.6.1] - 2026-05-02
+
+### Added
+
+- add manifest.json + LICENSE; bump to 1.6.1 (8e949d6)
+- add dc/ symlink shortcut + drop hardcoded command counts (96bc6a3)
+
+
 ## [v1.6.0] - 2026-04-30
 
 _No customer-facing changes in this release._
