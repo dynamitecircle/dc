@@ -15,6 +15,13 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [v1.22.4] - 2026-05-27
+
+### Fixed
+
+- align client with api 1.22.4 (3fe5f91)
+
+
 ## [v1.22.3] - 2026-05-24
 
 ### Added
