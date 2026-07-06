@@ -15,6 +15,28 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [v1.6.2] - 2026-05-02
+
+### Added
+
+- PyPI packaging (`dynamitecircle`) + publish workflow (77aefa4)
+- add Gemini CLI pre-approval (.gemini/settings.json) (fd09acb)
+- pre-approve dc MCP server + skill + CLI for Claude Code & Codex (4d234ec)
+- flip canonical paths to /dc/ and /docs/, rename dc_skill.py → dc.py (42aa541)
+
+### Changed
+
+- monorepo restructure — repo renamed to dc, Python client moved to /py/ (80d7166)
+- SKILL_VERSION → DC_API_VERSION; deduplicate Quick start sections in README (a1e99c6)
+- User-Agent → 'dc-py/<version>' (e1b5a6a)
+- rename Skill base class → Runtime; SkillError → DCError; SkillResult → Result (06a2c44)
+- rename public class DCSkill → DC, rename doc files (bc9d04f)
+
+### Fixed
+
+- use only-include + bypass-selection so sdist ships py/ (c42abed)
+
+
 ## [v1.6.1] - 2026-05-02
 
 ### Added
