@@ -15,6 +15,13 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [v2.0.1] - 2026-06-16
+
+### Added
+
+- v2.0.1 — formal field names (breaking) to match Member API rename (2bb90f2)
+
+
 ## [v1.23.3] - 2026-06-13
 
 ### Fixed
