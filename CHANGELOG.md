@@ -15,6 +15,13 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [v1.22.5] - 2026-06-03
+
+### Fixed
+
+- accept declared args= flags on parser-less commands (MCP bridge) (267fad2)
+
+
 ## [v1.22.4] - 2026-05-27
 
 ### Fixed
