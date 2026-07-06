@@ -15,6 +15,14 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [v1.22.6] - 2026-06-05
+
+### Fixed
+
+- explicit profile-update/calendar parsers + offline test suite (aecaca1)
+- accept top-level --note on trip-create and trip-update (26a9c61)
+
+
 ## [v1.22.5] - 2026-06-03
 
 ### Fixed
