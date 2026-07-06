@@ -15,6 +15,16 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [v2.0.4] - 2026-06-16
+
+### Added
+
+- list in the Official MCP Registry (b2f1d26)
+- one-click install badges, VS Code docs, and .mcpb bundle (6108d51)
+- MCP tool annotations and structured output (9b62eb0)
+- snake_case MCP tool names and fields (f4573f8)
+
+
 ## [v2.0.1] - 2026-06-16
 
 ### Added
