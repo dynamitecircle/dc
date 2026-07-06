@@ -15,6 +15,13 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [v1.6.3] - 2026-05-02
+
+### Fixed
+
+- rewrite CLI smoke step + bump to 1.6.3 (b098dfe)
+
+
 ## [v1.6.2] - 2026-05-02
 
 ### Added
