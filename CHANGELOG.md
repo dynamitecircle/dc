@@ -15,6 +15,14 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [v1.14.1] - 2026-05-19
+
+### Added
+
+- dc-py rooms — path-segment URLs + trim type enum (be09d76)
+- dc 1.14.0 — room + room-messages; rooms enum adds direct/group (a7b8ea9)
+
+
 ## [v1.13.1] - 2026-05-19
 
 ### Fixed
