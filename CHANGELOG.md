@@ -15,6 +15,13 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [v1.3.0] - 2026-04-30
+
+### Added
+
+- add 429 retry handling and `limits` command (02bf994)
+
+
 ## [v1.0.0] - 2026-04-30
 
 _No customer-facing changes in this release._
