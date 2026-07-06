@@ -15,6 +15,13 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [v1.13.1] - 2026-05-19
+
+### Fixed
+
+- stabilize MCP stdio transport (21c8022)
+
+
 ## [v1.12.5] - 2026-05-14
 
 _No customer-facing changes in this release._
