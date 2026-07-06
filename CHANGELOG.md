@@ -15,6 +15,13 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [v1.22.3] - 2026-05-24
+
+### Added
+
+- 6 follow commands + Follows SKILL.md section (no version bump — pending server deploy) (5f19db6)
+
+
 ## [v1.20.1] - 2026-05-22
 
 _No customer-facing changes in this release._
