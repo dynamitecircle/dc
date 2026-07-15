@@ -164,7 +164,7 @@ async def _mcp_stdio_server():
 # Bump manually when this client catches up to a new API version. Sent as
 # the User-Agent on every request; compared against the server's
 # `X-API-Version` header to warn the user when they're behind.
-DC_API_VERSION = "2.0.4"
+DC_API_VERSION = "2.3.1"
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -2221,6 +2221,10 @@ class _DCCore:
             raise UsageError("--status must be yes|maybe|no")
         return self._post(f"/virtual-events/{session_id}/rsvp", {"status": status})
 
+    def virtual_event_attendees(self, session_id, limit=100, cursor=None):
+        data = self._get(f"/virtual-events/{session_id}/attendees", {"limit": limit, "cursor": cursor or None})
+        return self._wrap_list(data, "attendees")
+
     # ── Tickets ────────────────────────────────────────────────────
 
     def tickets(self, status="", limit=50, cursor=None):
@@ -2946,6 +2950,13 @@ class DC(Runtime):
                    args=_RSVP_STATUS_ARG)
     def virtual_event_rsvp(self, session_id, status=""):
         return self._core.virtual_event_rsvp(session_id, status)
+
+    @skill_command(name="virtual-event-attendees",
+                   help="List attendees (RSVP yes/maybe) of a Live Call: <sessionID> [--limit N] [--cursor TOKEN]",
+                   parser=_DCCore._parse_id_with_limit,
+                   args=_PAGINATION_ARGS)
+    def virtual_event_attendees(self, session_id, limit=100, cursor=None):
+        return self._core.virtual_event_attendees(session_id, limit=limit, cursor=cursor)
 
     # ── Tickets ────────────────────────────────────────────────────
 

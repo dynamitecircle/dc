@@ -93,7 +93,7 @@ function fixtureArgs(operation) {
 }
 
 test("package and exported versions match pinned OpenAPI", () => {
-  assert.equal(openapi.info.version, "2.0.4");
+  assert.equal(openapi.info.version, "2.3.1");
   assert.equal(packageJson.version, openapi.info.version);
   assert.equal(DC_API_VERSION, openapi.info.version);
 });
@@ -158,7 +158,7 @@ test("request expands path params, serializes query, and sends auth headers", as
   const headers = new Headers(calls[0].init.headers);
   assert.equal(headers.get("Authorization"), "Bearer dk_test");
   assert.equal(headers.get("Accept"), "application/json");
-  assert.equal(headers.get("User-Agent"), "dc-ts/2.0.4");
+  assert.equal(headers.get("User-Agent"), "dc-ts/2.3.1");
 });
 
 test("request unwraps standard {ok,data} envelopes", async () => {
@@ -230,7 +230,7 @@ test("client reports API major/minor version drift once", async () => {
   const drifts = [];
   const { fetch } = mockFetch(async () => ({
     body: { data: {}, ok: true },
-    headers: { "X-API-Version": "2.1.0" },
+    headers: { "X-API-Version": "2.4.0" },
   }));
   const client = new DC({
     apiKey: "dk_test",
@@ -242,6 +242,6 @@ test("client reports API major/minor version drift once", async () => {
   await client.profile.get();
 
   assert.deepEqual(drifts, [
-    { currentApiVersion: "2.1.0", targetApiVersion: "2.0.4" },
+    { currentApiVersion: "2.4.0", targetApiVersion: "2.3.1" },
   ]);
 });

@@ -378,6 +378,9 @@ dc virtual-event <sessionID>
 
 # RSVP
 dc virtual-event-rsvp <sessionID> --status maybe
+
+# Who's attending a Live Call (RSVP yes/maybe) — paginated, same shape as event-attendees
+dc virtual-event-attendees <sessionID> --limit 50
 ```
 
 ### Tickets

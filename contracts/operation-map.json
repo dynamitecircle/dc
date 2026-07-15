@@ -241,6 +241,14 @@
       "typescriptMethod": "virtualEvents.rsvp"
     },
     {
+      "operationId": "get_virtual-events__sessionID_attendees",
+      "method": "GET",
+      "path": "/virtual-events/{sessionID}/attendees",
+      "tag": "Virtual Events",
+      "pythonCommand": "virtual-event-attendees",
+      "typescriptMethod": "virtualEvents.attendees"
+    },
+    {
       "operationId": "get_tickets",
       "method": "GET",
       "path": "/tickets",

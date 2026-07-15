@@ -16,7 +16,7 @@
     },
     "description": "Programmatic access to your DC membership data — trips, events, profile, announcements, and more.\nDesigned for AI assistants, automation, and personal integrations.\n\n> **For ALL active DC members.** Every active DC member is eligible from day one — DC, DC BLACK, and trial accounts alike.\n\n## What this is for\n\nThe DC Member API is for **personal use** — wiring DC into your own AI assistant, scripting personal automations, pulling your own data into your own dashboards. Think \"give my Claude/Codex/Cursor access to my DC trips and announcements\" or \"auto-update my DC trip when I book a flight.\"\n\n**It is not for:**\n\n- Building apps that other DC members log into (use the official DC app)\n- Crawling, scraping, or bulk-exporting member data\n- Building an alternative DC client\n- Public-facing services running on top of the API\n\nWe **augment, we don't replace** — the API gives you awareness and convenience, then sends you to the app for the real interactions. Human stuff stays in the app: no message content, no DM access, no bulk profile browsing, no discussion threads.\n\n**Rate limits are strict on purpose.** They're sized for personal automation, not application traffic. We'll loosen them once we see real usage patterns — if you hit a wall, email the DC developer team at **bugs+api&#64;dynamitecircle&#46;com** and we'll sort you out.\n\n## Connect to Claude & other AI apps (hosted MCP)\n\nThis API is also a hosted [MCP](https://modelcontextprotocol.io) server — add it as a connector in Claude, Cursor, ChatGPT, or any MCP-compatible app and your assistant can read and act on your DC data directly. **No install.** When prompted, **sign in with your DC account** (one-click OAuth) — or paste a `dk_` API key. Every endpoint below is exposed as a tool.\n\n**Connector URL** (Streamable HTTP): `https://api.dynamitecircle.com/mcp`\n\n- **Claude (web, Desktop & mobile):** Settings → Connectors → **Add custom connector** → paste the URL → **Connect**, then sign in with your DC account. (Paid Claude plan; on Team/Enterprise an admin may need to approve it first.)\n- **Claude Code:** `claude mcp add --transport http dc https://api.dynamitecircle.com/mcp`\n- **Cursor, ChatGPT & other MCP apps:** add a custom / remote MCP connector pointing at the URL above (Streamable HTTP). Discovery is published at `/.well-known/mcp.json`.\n\n**What you can do once connected** — ask in plain language, e.g. \"Which DCBKK sessions have I bookmarked?\", \"Add a trip to Lisbon and show me which DCers will be around\", \"RSVP me to the next Bangkok meetup\", \"Summarize the latest announcements.\" Reads run freely; writes do exactly what the matching endpoint documents. Access is scoped to **you** — the connector only ever sees your own membership data.\n\n## Official client — Agent Skill, CLI, Python library, MCP server\n\nThe fastest way to use this API — and to plug it into Claude Code, Codex CLI, Gemini CLI, Cursor, GitHub Copilot, or Claude Desktop — is the **official DC client**. One self-contained Python file, stdlib only, that ships as **four integrations from the same source**: Agent Skill (auto-discovered via SKILL.md), CLI (`dc …`), Python library (`from dc import DC`), and MCP server (`dc --mcp`, optional `mcp` dep).\n\n**Install via PyPI** (easiest):\n\n```bash\npip install dynamitecircle\ndc setup --api-key dk_your_api_key\ndc self-test\ndc profile\n```\n\nThe package is published on PyPI as [`dynamitecircle`](https://pypi.org/project/dynamitecircle/) — same code as the repo, version-locked to the deployed API.\n\n**Or clone the public repo** at [github.com/dynamitecircle/dc](https://github.com/dynamitecircle/dc) — useful if you want the MCP server config (`.mcp.json` at the repo root auto-registers every endpoint as an `mcp__dc__*` tool when you open the dir in Claude Code), or want to vendor the file via git submodule / subtree:\n\n```bash\ngit clone https://github.com/dynamitecircle/dc.git\ncd dc\npython3 py/dc.py setup --api-key dk_your_api_key\npython3 py/dc.py profile\n```\n\nRun as an MCP server so Claude Desktop / Cursor / Codex MCP / Cline can call every endpoint as a tool:\n\n```bash\npip install dynamitecircle[mcp]\ndc --mcp\n```\n\nCodex CLI and Gemini CLI auto-discover the skill via `AGENTS.md` / `GEMINI.md` (both symlinked to `CLAUDE.md` in the repo). See the [repo README](https://github.com/dynamitecircle/dc#readme) for per-tool setup (Claude Desktop, Codex CLI, Gemini CLI, Cursor) and update strategies (`pip install --upgrade`, git clone, submodule, subtree, symlink).\n\n## Not a DC member yet?\n\nThe Member API is open to active members of [Dynamite Circle](https://www.dynamitecircle.com/?utm_source=dc-developers&utm_medium=dc-body&utm_campaign=learn-more-dc) — a private community for established location-independent founders. [Apply to join](https://dc.dynamitecircle.com/account/apply?utm_source=dc-developers&utm_medium=dc-body&utm_campaign=apply-to-dc) or [learn about DC BLACK](https://www.dynamitecircle.com/dc-black/?utm_source=dc-developers&utm_medium=dc-body&utm_campaign=dc-black-info) (premium tier).\n\n## Authentication\n\nAll requests require an API key. Active members will see the **DC Member API Key** option in their profile dropdown on [dc.dynamitecircle.com](https://dc.dynamitecircle.com/?utm_source=dc-developers&utm_medium=dc-cta&utm_campaign=member-area-keygen) once eligible (currently rolling out to admins and testers first; broader access coming soon).\n\n```\nAuthorization: Bearer dk_your_api_key\n```\n\n## Rate Limits\n\n| Tier | Per Minute | Per Day |\n|------|-----------|---------|\n| DC member | 10 | 300 |\n| DC BLACK member | 60 | 3,000 |\n\nRate limit headers are included on every response:\n`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `X-RateLimit-Daily-Remaining`\n\n## Response Format\n\nAll responses follow this shape:\n```json\n// Success\n{ \"ok\": true, \"data\": { ... } }\n\n// Error\n{ \"ok\": false, \"error\": \"error_code\", \"message\": \"Human-readable message\" }\n```\n\n## Common Workflows\n\nThese are the multi-step recipes the API was designed around. Each one composes a few endpoints into a real member workflow — when an agent reaches for \"how do I X?\", these are the canonical paths.\n\n### 1. \"Who is in <city> right now?\"\n\nDon't hit `GET /chapters/:cityID` alone — that only returns DCers whose **home chapter** is the city, not who is currently visiting. The right two-step:\n\n1. `GET /places/search?q=<city>` → resolve the city placeID.\n2. `POST /trips` with `placeID` + the date window the user is asking about.\n3. `GET /trips/:tripID` → `discovery.fullPool` lists every visible DCer travelling OR local during that window, each with full profile.\n\nFor the home-chapter members only, `GET /chapters/:cityID` returns `members[]` plus `currentVisitors[]` (active trips to the city) without needing to create your own trip — useful as a quick lookup.\n\n### 2. \"Who should I meet on my trip to <city>?\"\n\n1. `GET /trips` → find the tripID (or `POST /trips` to create one).\n2. `GET /trips/:tripID` (or the discovery-only `GET /trips/:tripID/discovery`) — the response embeds a ranked top-10 picks with **AI-written \"why you should meet them\" paragraphs**, the full pool of locals + visitors, and events in town.\n\n**Important:** do NOT use `GET /trips/overlaps` for this question — that's a narrow date-window match only (usually 0-3 people), missing the AI-ranked picks and locals.\n\n### 3. \"Find DCers matching <description>\"\n\n`POST /profile-match` with a free-form `query` (\"DCers in Lisbon who run SaaS, raising a seed round\"). Returns vector-ranked results with `score`, `vectorScore`, and `keywordScore`. Optional structured filters compose with the natural-language query: `locationChapterPlaceID`, `eventID` (DCers attending), `isDCB`, `industry`, `minTeamSize`, `minRevenue`, `gender`. Skip `locationCurrentPlaceID` — that field is sparsely populated; prefer the trip-discovery flow above for presence questions.\n\n### 4. \"Plan together at an event\" (DCMEX, DCBKK, DC Week, etc.)\n\n1. `GET /events/:eventID` → confirm you and the other attendees hold tickets.\n2. `GET /events/:eventID/agendas?userIDs=A,B,C` → fetch multiple attendees' bookmarked sessions + meetup RSVPs in one call.\n3. `POST /events/:eventID/free-slots` with the `userIDs[]` → server returns shared free-time windows, ranked by how many people are free.\n4. `POST /events/:eventID/schedule/:sessionID/bookmark` to coordinate joint session attendance, or `POST /events/:eventID/meetups/:meetupID/rsvp` to commit to a member-organized meetup.\n\n### 5. \"Catch me up on <channel> while I was away\"\n\n1. `GET /rooms` (or `GET /rooms/inbox/channel` to filter) → find the roomID.\n2. `GET /rooms/:roomID/summary/weekly` → the latest AI-written weekly digest (topics, shared URLs, message + participant counts).\n3. `GET /rooms/:roomID/summaries/daily?limit=7` → last 7 daily summaries for finer detail.\n4. `GET /rooms/:roomID/messages?limit=50` → raw message history, newest first, cursor-paginated via `?before=`.\n\n### 6. \"Manage my inbox without leaving my agent\"\n\n- `GET /rooms/inbox/direct` / `/group` / `/channel` — filter by room type.\n- `POST /rooms/:roomID/{subscribe,unsubscribe,mute,unmute,archive,unarchive,pin,unpin}` — all eight mutations are idempotent and mirror the in-app behavior byte-for-byte. Pin auto-subscribes you. Unsubscribe clears the badge.\n- `GET /rooms/browse/channel` — discover public channels you're not yet subscribed to.\n\n### 7. \"Refresh my public-facing profile\"\n\n1. `GET /profile` → see the full editable surface.\n2. `PATCH /profile` with the fields you want to change (`fields.PrimaryBusinessDescription`, `fields.Website`, etc. — sanitized server-side).\n3. `POST /profile-match` (without filters, with no `query`) → see who the matchmaker now recommends for *you* — useful to validate that your edits are landing in the right matches.\n\n### 8. \"Stay on top of new community signal\"\n\n- `GET /announcements/latest` — quick \"what's new across DC?\" — one most-recent broadcast per visible channel.\n- `GET /announcements` — cursor-paginated mixed feed across all visible broadcast channels.\n- `GET /locator/digest` — same data the Friday locator email aggregates: home-city new members, chapter leads, local members, trips, tickets.\n- `GET /inbox/unread` — total unread + per-room breakdown so an agent can prompt \"you have N unread in <room>\".\n\n---\n\n## URL fields — canonical vs `shortURL`\n\nEvery entity that exposes a link (rooms, events, chapters, tickets, locator entries, announcements, profiles) returns two URL fields side-by-side:\n\n- **`*URL`** (e.g. `roomURL`, `eventURL`, `chapterURL`, `profileURL`, `announcementURL`) — canonical link on `dc.dynamitecircle.com`. Use this when storing, indexing, or computing canonical identity.\n- **`shortURL`** — branded `dc.mba/...` short link to the same destination. Use this when the URL is shown to a human (display, copy-to-clipboard, paste into chat/email/SMS). The shortener 301-redirects to the canonical destination, so both URLs resolve identically.\n\nPick one per call site — never both. Default to `shortURL` for visible URLs unless canonical identity matters (SEO `og:url`, link-canonicalization checks, etc.).\n\n---\n\n**Discoverability tip for LLM agents:** every list endpoint that takes pagination uses `?limit=N` and `?cursor=<token>`. State-setting mutations are idempotent; creation endpoints create a new record unless the endpoint explicitly documents an idempotency key. Time-sensitive fields are ISO 8601 (wall-clock-in-venue-timezone for event sessions, see per-endpoint notes). When two endpoints look similar, the description on each one cross-links to the other so you can pick the right one.",
     "title": "DC Member API",
-    "version": "2.0.4"
+    "version": "2.3.1"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -8907,6 +8907,120 @@
             "schema": {
               "default": "1",
               "type": "number"
+            }
+          }
+        ]
+      }
+    },
+    "/virtual-events/{sessionID}/attendees": {
+      "get": {
+        "description": "List the attendees of a Live Call — the DCers who RSVPd `yes` or `maybe` (the same set behind `attendeeCount`, mirroring how `GET /events/:eventID/attendees` counts RSVPs). Profiles use the standard other-person shape (identical to `GET /events/:eventID/attendees` and `GET /profile-match`): public fields plus privacy-gated `annualRevenue` + `teamSize` where the member shares them. Hidden and guest profiles are filtered out.\n\n**Access:** any active DCer who can see the Live Call. DC BLACK-only calls stay tier-gated — DC-tier callers get `tier_restricted` (403).\n\n**Pagination:** page with `?limit=` (1-100, default 100) plus the opaque `?cursor=` from the previous response's `nextCursor` (`null` when there are no more).\n\nSee `GET /virtual-events/:sessionID` for the call itself, and `GET /events/:eventID/attendees` for the in-person equivalent.",
+        "operationId": "get_virtual-events__sessionID_attendees",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "attendees": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "description": "Array of attendee base profiles (RSVP yes or maybe)",
+                      "properties": {
+                        "userID": {
+                          "type": "string",
+                          "description": "Member ID"
+                        },
+                        "userName": {
+                          "type": "string",
+                          "description": "Username (handle)"
+                        },
+                        "displayName": {
+                          "type": "string",
+                          "description": "Display name"
+                        },
+                        "photo": {
+                          "type": "string",
+                          "description": "Profile photo URL"
+                        },
+                        "profileURL": {
+                          "type": "string",
+                          "description": "Profile URL on DC"
+                        },
+                        "headline": {
+                          "type": "string",
+                          "description": "Profile headline"
+                        },
+                        "businessIndustry": {
+                          "type": "string",
+                          "description": "Business industry"
+                        },
+                        "joinedDate": {
+                          "type": "string",
+                          "description": "Join date (YYYY-MM-DD)"
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number",
+                      "description": "Total attendees (RSVP yes or maybe) — matches `attendeeCount`; the visible roster may be slightly smaller when hidden/guest profiles are filtered out."
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Cursor for the next page, or `null` if no more attendees."
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "List Live Call attendees",
+        "tags": [
+          "Live Calls"
+        ],
+        "parameters": [
+          {
+            "description": "The Live Call session ID. Find IDs via `GET /virtual-events`.",
+            "example": "abc123",
+            "in": "path",
+            "name": "sessionID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max results (1-100).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": "100",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Cursor from a previous response's `nextCursor`. Pass to fetch the next page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
             }
           }
         ]

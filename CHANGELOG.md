@@ -15,6 +15,14 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [v2.3.1] - 2026-07-14
+
+### Added
+- **`virtual-event-attendees`** — list the attendees (RSVP `yes`/`maybe`) of a Live Call: `dc virtual-event-attendees <sessionID> [--limit N] [--cursor TOKEN]`. Mirrors `event-attendees` — same paginated envelope, surfaces the true `total` (under `extra`) + `cursor`. TS: `client.virtualEvents.attendees(sessionID, { limit, cursor })`.
+
+### Changed
+- Realigned `DC_API_VERSION` to the deployed Member API contract **2.3.1**. The server added the Live Call attendees endpoint plus cursor pagination and a true aggregate `total` on `GET /events/:eventID/attendees`; the pinned OpenAPI snapshot + operation-map were updated to match (no other client command changes since 2.0.4).
+
 ## [v2.0.4] - 2026-06-16
 
 ### Added
@@ -1344,7 +1352,8 @@ Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v2.0.4...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v2.3.1...HEAD
+[2.3.1]: https://github.com/dynamitecircle/dc/compare/v2.0.4...v2.3.1
 [2.0.4]: https://github.com/dynamitecircle/dc/compare/v2.0.1...v2.0.4
 [2.0.1]: https://github.com/dynamitecircle/dc/releases/tag/v2.0.1
 [1.23.3]: https://github.com/dynamitecircle/dc/releases/tag/v1.23.3

@@ -1,6 +1,6 @@
 {
   "name": "@dynamitecircle/dc",
-  "version": "2.0.4",
+  "version": "2.3.1",
   "description": "Official TypeScript SDK for the Dynamite Circle Member API: profiles, trips, events, tickets, rooms, chapters, search, and locator data for DC members.",
   "license": "MIT",
   "type": "module",

@@ -205,6 +205,11 @@ export class DC {
         body: { status },
         path: { sessionID },
       }),
+    attendees: (sessionID: string, query?: ListOptions) =>
+      this.request("GET", "/virtual-events/{sessionID}/attendees", {
+        path: { sessionID },
+        query,
+      }),
   };
 
   readonly tickets = {
