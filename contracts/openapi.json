@@ -1604,7 +1604,7 @@
     },
     "/events/{eventID}/attendees": {
       "get": {
-        "description": "List the confirmed attendees of an event — DCers holding a `valid` paid ticket OR a `valid`/`maybe` RSVP status. Refunded/canceled tickets are excluded. Hidden and guest profiles are filtered out.\n\nProfiles returned use the same shape as the rest of the API (`GET /profile-match`, `GET /trips/:tripID/discovery`, etc.) — full public-other-person view including businessName, socials, expertise, plus privacy-gated annualRevenue + teamSize where shared.\n\n**Access:** any active DCer can view event attendees, matching the in-app attendee tab.",
+        "description": "List the confirmed attendees of an event — DCers holding a `valid` paid ticket OR a `valid`/`maybe` RSVP status. Refunded/canceled tickets are excluded. Hidden and guest profiles are filtered out.\n\nProfiles returned use the same shape as the rest of the API (`GET /profile-match`, `GET /trips/:tripID/discovery`, etc.) — full public-other-person view including businessName and expertise, plus privacy-gated annualRevenue + teamSize where shared. Social handles are not included.\n\n**Access:** any active DCer can view event attendees, matching the in-app attendee tab.\n\n**Pagination:** newest first; page with `?limit=` (1-100, default 100) plus the opaque `?cursor=` from the previous response's `nextCursor` (`null` when there are no more).",
         "operationId": "get_events__eventID_attendees",
         "responses": {
           "200": {
@@ -2795,7 +2795,7 @@
     },
     "/virtual-events": {
       "get": {
-        "description": "Returns upcoming virtual events (online sessions like Connect Calls, Happy Hour, Welcome Call, plus DC BLACK-only events). Add `?past=true` to include past events.",
+        "description": "Returns upcoming Live Calls (online sessions like Connect Calls, Happy Hour, Welcome Call, plus DC BLACK-only calls). Add `?past=true` to include past calls.",
         "operationId": "get_virtual-events",
         "responses": {
           "200": {
@@ -2930,7 +2930,7 @@
     },
     "/virtual-events/{sessionID}": {
       "get": {
-        "description": "Returns the same payload shape as one entry from `GET /virtual-events` for a single online session — `sessionID`, `name`, `description`, `kind` (which audience tier the session is open to), `scheduledAt` / `scheduledEndAt` (ISO 8601), `duration` in minutes, `attendeeCount`, `isLive`, `meetUrl` (the video-call join link, returned regardless of your RSVP state), `myRsvp` (your current `yes`/`no`/`maybe` or `null`), and `status`.\n\nDC BLACK callers also see DC BLACK-only sessions; DC tier callers get `tier_restricted` (403) on those.",
+        "description": "Returns the same payload shape as one entry from `GET /virtual-events` for a single online Live Call — `sessionID`, `name`, `description`, `kind` (which audience tier the session is open to), `scheduledAt` / `scheduledEndAt` (ISO 8601), `duration` in minutes, `attendeeCount`, `chatRoomID`, `isLive`, `meetUrl` (the video-call join link, returned regardless of your RSVP state), `myRsvp` (your current `yes`/`no`/`maybe` or `null`), and `status`.\n\nDC BLACK callers also see DC BLACK-only sessions; DC tier callers get `tier_restricted` (403) on those.",
         "operationId": "get_virtual-events__sessionID",
         "responses": {
           "200": {
@@ -3042,7 +3042,7 @@
     },
     "/virtual-events/{sessionID}/rsvp": {
       "post": {
-        "description": "RSVP to a virtual (online) event. The user is added to the matching attendance list on the session doc (`participantIDs` for `yes`, `maybeIDs` for `maybe`, `notIDs` for `no`) and removed from the others.\n\nThree statuses:\n- `yes` — you intend to attend; you'll show up in `attendeeCount`.\n- `maybe` — soft attendance signal.\n- `no` — you're declining. Use this to back out after a prior `yes` or `maybe`.\n\n**Note:** the `meetUrl` (join link) on `GET /virtual-events/:sessionID` is **not** gated on your RSVP — it's returned whenever the host has set one, regardless of attendance state. RSVPing is purely an attendance signal.\n\n**Idempotent** — re-RSVPing with the same status is a no-op.",
+        "description": "RSVP to a Live Call. The user is added to the matching attendance list on the session doc (`participantIDs` for `yes`, `maybeIDs` for `maybe`, `notIDs` for `no`) and removed from the others.\n\nThree statuses:\n- `yes` — you intend to attend; you'll show up in `attendeeCount`.\n- `maybe` — soft attendance signal.\n- `no` — you're declining. Use this to back out after a prior `yes` or `maybe`.\n\n**Note:** the `meetUrl` (join link) on `GET /virtual-events/:sessionID` is **not** gated on your RSVP — it's returned whenever the host has set one, regardless of attendance state. RSVPing is purely an attendance signal.\n\n**Idempotent** — re-RSVPing with the same status is a no-op.",
         "operationId": "post_virtual-events__sessionID_rsvp",
         "responses": {
           "200": {
@@ -4304,7 +4304,7 @@
     },
     "/rooms/{roomID}/messages": {
       "get": {
-        "description": "List messages in a room you are a member of. **Read-only — no write side effects, no unread-state mutation, no reactions/posts/edits.** Cursor-paginated newest-first.\n\n**Access:** strict — the caller must be a subscribed member of the room (same `seen` doc check used by the web inbox). For browsable public channels, any DCer can read. Private rooms, DMs (`dm`), group DMs (`group`), event rooms, and city/country/mastermind rooms hard-block non-members with 403. Hidden/deleted/sunk messages are excluded.\n\n**Pagination:** pass `?before=<nextCursor>` from a previous response to fetch the next (older) page. Default page size 50, max 100.\n\n**See also:** For specific content in this room (`did anyone mention X?`), `POST /search/messages` with `q=` and `roomID=` searches body text directly — far faster than paginating with `?before`. This endpoint is the right call when you want a chronological window (last N messages, conversation reconstruction); search is the right call when you want a topic.",
+        "description": "List messages in a room you are a member of. **Read-only — no write side effects, no unread-state mutation, no reactions/posts/edits.** Cursor-paginated newest-first.\n\n**Access:** strict — the caller must be a subscribed member of the room (same `seen` doc check used by the web inbox). For browsable public channels, any DCer can read. Private rooms, DMs (`dm`), group DMs (`group`), event rooms, and city/country/mastermind rooms hard-block non-members with 403. Hidden/deleted/sunk messages are excluded.\n\n**Pagination:** pass `?before=<nextCursor>` from a previous response to fetch the next (older) page. Default page size 50, max 50.\n\n**See also:** For specific content in this room (`did anyone mention X?`), `POST /search/messages` with `q=` and `roomID=` searches body text directly — far faster than paginating with `?before`. This endpoint is the right call when you want a chronological window (last N messages, conversation reconstruction); search is the right call when you want a topic.",
         "operationId": "get_rooms__roomID_messages",
         "responses": {
           "200": {
