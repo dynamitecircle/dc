@@ -223,6 +223,25 @@ export interface NotificationsUpdateInput {
   categories: Record<string, NotificationChannelUpdate>;
 }
 
+export interface AlertCreateInput {
+  name: string;
+  description: string;
+  frequency: AlertFrequency;
+}
+
+export interface AlertUpdateInput {
+  name?: string;
+  description?: string;
+  frequency?: AlertFrequency;
+  active?: boolean;
+}
+
+export type AlertFrequency = "daily" | "weekly";
+
+export interface InterestsUpdateInput {
+  updates: Record<string, { subscribed: boolean }>;
+}
+
 export interface ProfileMatchInput {
   businessIndustry?: BusinessIndustry;
   eventID?: string;

@@ -217,6 +217,7 @@
                       "type": "string",
                       "description": "Primary business industry (predefined bracket).",
                       "enum": [
+                        "AI",
                         "SaaS & Tech",
                         "Marketing Agency",
                         "Productized Services",
@@ -426,6 +427,7 @@
                     "type": "string",
                     "description": "Category your primary business fits into. Must be one of the predefined industries.",
                     "enum": [
+                      "AI",
                       "SaaS & Tech",
                       "Marketing Agency",
                       "Productized Services",
@@ -1655,7 +1657,11 @@
                     },
                     "total": {
                       "type": "number",
-                      "description": "Total attendee count"
+                      "description": "Total confirmed attendees across all pages (the visible roster may be slightly smaller when hidden/guest profiles are filtered out)."
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Cursor for the next page, or `null` if no more attendees."
                     }
                   },
                   "type": "object"
@@ -1697,6 +1703,16 @@
             "schema": {
               "default": "100",
               "type": "number"
+            }
+          },
+          {
+            "description": "Cursor from a previous response's `nextCursor`. Pass to fetch the next page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
             }
           }
         ]
@@ -2808,7 +2824,7 @@
                         "type": "object"
                       },
                       "type": "array",
-                      "description": "Array of virtual events",
+                      "description": "Array of Live Calls",
                       "properties": {
                         "sessionID": {
                           "type": "string",
@@ -2816,7 +2832,7 @@
                         },
                         "name": {
                           "type": "string",
-                          "description": "Event name"
+                          "description": "Live Call name"
                         },
                         "kind": {
                           "type": "string",
@@ -2832,7 +2848,7 @@
                         },
                         "description": {
                           "type": "string",
-                          "description": "Event description"
+                          "description": "Live Call description"
                         },
                         "scheduledAt": {
                           "type": "string",
@@ -2850,9 +2866,13 @@
                           "type": "number",
                           "description": "Number of attendees"
                         },
+                        "chatRoomID": {
+                          "type": "string",
+                          "description": "Linked chat room ID, or null while the room is still being created"
+                        },
                         "isLive": {
                           "type": "boolean",
-                          "description": "Whether the event is currently live"
+                          "description": "Whether the Live Call is currently live"
                         },
                         "myRsvp": {
                           "type": "string",
@@ -2890,13 +2910,13 @@
             "description": "Rate limit exceeded"
           }
         },
-        "summary": "List virtual events",
+        "summary": "List Live Calls",
         "tags": [
-          "Virtual Events"
+          "Live Calls"
         ],
         "parameters": [
           {
-            "description": "Include past events.",
+            "description": "Include past Live Calls.",
             "in": "query",
             "name": "past",
             "required": false,
@@ -2940,7 +2960,7 @@
                   "properties": {
                     "event": {
                       "type": "object",
-                      "description": "Virtual event details. Same shape as one entry from `GET /virtual-events`.",
+                      "description": "Live Call details. Same shape as one entry from `GET /virtual-events`.",
                       "properties": {
                         "sessionID": {
                           "type": "string",
@@ -2948,7 +2968,7 @@
                         },
                         "name": {
                           "type": "string",
-                          "description": "Event name"
+                          "description": "Live Call name"
                         },
                         "kind": {
                           "type": "string",
@@ -2964,7 +2984,7 @@
                         },
                         "description": {
                           "type": "string",
-                          "description": "Event description"
+                          "description": "Live Call description"
                         },
                         "scheduledAt": {
                           "type": "string",
@@ -2982,9 +3002,13 @@
                           "type": "number",
                           "description": "Number of attendees who RSVPd yes"
                         },
+                        "chatRoomID": {
+                          "type": "string",
+                          "description": "Linked chat room ID, or null while the room is still being created"
+                        },
                         "isLive": {
                           "type": "boolean",
-                          "description": "Whether the event is currently live"
+                          "description": "Whether the Live Call is currently live"
                         },
                         "myRsvp": {
                           "type": "string",
@@ -3022,18 +3046,132 @@
             "description": "Rate limit exceeded"
           }
         },
-        "summary": "Get virtual event details",
+        "summary": "Get Live Call details",
         "tags": [
-          "Virtual Events"
+          "Live Calls"
         ],
         "parameters": [
           {
-            "description": "The virtual session ID. Find IDs via `GET /virtual-events`.",
+            "description": "The Live Call session ID. Find IDs via `GET /virtual-events`.",
             "example": "abc123",
             "in": "path",
             "name": "sessionID",
             "required": true,
             "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/virtual-events/{sessionID}/attendees": {
+      "get": {
+        "description": "List the attendees of a Live Call — the DCers who RSVPd `yes` or `maybe` (the same set behind `attendeeCount`, mirroring how `GET /events/:eventID/attendees` counts RSVPs). Profiles use the standard other-person shape (identical to `GET /events/:eventID/attendees` and `GET /profile-match`): public fields plus privacy-gated `annualRevenue` + `teamSize` where the member shares them. Hidden and guest profiles are filtered out.\n\n**Access:** any active DCer who can see the Live Call. DC BLACK-only calls stay tier-gated — DC-tier callers get `tier_restricted` (403).\n\n**Pagination:** page with `?limit=` (1-100, default 100) plus the opaque `?cursor=` from the previous response's `nextCursor` (`null` when there are no more).\n\nSee `GET /virtual-events/:sessionID` for the call itself, and `GET /events/:eventID/attendees` for the in-person equivalent.",
+        "operationId": "get_virtual-events__sessionID_attendees",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "attendees": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "description": "Array of attendee base profiles (RSVP yes or maybe)",
+                      "properties": {
+                        "userID": {
+                          "type": "string",
+                          "description": "Member ID"
+                        },
+                        "userName": {
+                          "type": "string",
+                          "description": "Username (handle)"
+                        },
+                        "displayName": {
+                          "type": "string",
+                          "description": "Display name"
+                        },
+                        "photo": {
+                          "type": "string",
+                          "description": "Profile photo URL"
+                        },
+                        "profileURL": {
+                          "type": "string",
+                          "description": "Profile URL on DC"
+                        },
+                        "headline": {
+                          "type": "string",
+                          "description": "Profile headline"
+                        },
+                        "businessIndustry": {
+                          "type": "string",
+                          "description": "Business industry"
+                        },
+                        "joinedDate": {
+                          "type": "string",
+                          "description": "Join date (YYYY-MM-DD)"
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number",
+                      "description": "Total attendees (RSVP yes or maybe) — matches `attendeeCount`; the visible roster may be slightly smaller when hidden/guest profiles are filtered out."
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Cursor for the next page, or `null` if no more attendees."
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "List Live Call attendees",
+        "tags": [
+          "Live Calls"
+        ],
+        "parameters": [
+          {
+            "description": "The Live Call session ID. Find IDs via `GET /virtual-events`.",
+            "example": "abc123",
+            "in": "path",
+            "name": "sessionID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max results (1-100).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": "100",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Cursor from a previous response's `nextCursor`. Pass to fetch the next page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "default": "",
               "type": "string"
             }
           }
@@ -3090,13 +3228,13 @@
             "description": "Rate limit exceeded"
           }
         },
-        "summary": "RSVP to virtual event",
+        "summary": "RSVP to Live Call",
         "tags": [
-          "Virtual Events"
+          "Live Calls"
         ],
         "parameters": [
           {
-            "description": "The virtual session ID. Find IDs via `GET /virtual-events`.",
+            "description": "The Live Call session ID. Find IDs via `GET /virtual-events`.",
             "example": "abc123",
             "in": "path",
             "name": "sessionID",
@@ -4430,7 +4568,7 @@
             }
           },
           {
-            "description": "Max results (1-100)",
+            "description": "Max results (1-50)",
             "in": "query",
             "name": "limit",
             "required": false,
@@ -7433,7 +7571,7 @@
                             },
                             "includeFlagshipEvents": {
                               "type": "boolean",
-                              "description": "DCBKK + DCMEX flagship events"
+                              "description": "DCBKK, DCMEX, and DCBCN flagship events"
                             },
                             "includeDCBlackEvents": {
                               "type": "boolean",
@@ -8473,7 +8611,7 @@
             }
           },
           {
-            "description": "Max hits per page (1-100).",
+            "description": "Max hits per page (1-50).",
             "in": "query",
             "name": "limit",
             "required": false,
@@ -8912,64 +9050,60 @@
         ]
       }
     },
-    "/virtual-events/{sessionID}/attendees": {
+    "/alerts": {
       "get": {
-        "description": "List the attendees of a Live Call — the DCers who RSVPd `yes` or `maybe` (the same set behind `attendeeCount`, mirroring how `GET /events/:eventID/attendees` counts RSVPs). Profiles use the standard other-person shape (identical to `GET /events/:eventID/attendees` and `GET /profile-match`): public fields plus privacy-gated `annualRevenue` + `teamSize` where the member shares them. Hidden and guest profiles are filtered out.\n\n**Access:** any active DCer who can see the Live Call. DC BLACK-only calls stay tier-gated — DC-tier callers get `tier_restricted` (403).\n\n**Pagination:** page with `?limit=` (1-100, default 100) plus the opaque `?cursor=` from the previous response's `nextCursor` (`null` when there are no more).\n\nSee `GET /virtual-events/:sessionID` for the call itself, and `GET /events/:eventID/attendees` for the in-person equivalent.",
-        "operationId": "get_virtual-events__sessionID_attendees",
+        "description": "Returns the user's alerts, ordered by creation date (newest first). Maximum 50 results.",
+        "operationId": "get_alerts",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "properties": {
-                    "attendees": {
+                    "alerts": {
                       "items": {
                         "type": "object"
                       },
                       "type": "array",
-                      "description": "Array of attendee base profiles (RSVP yes or maybe)",
+                      "description": "Array of the user's alerts",
                       "properties": {
-                        "userID": {
+                        "alertID": {
                           "type": "string",
-                          "description": "Member ID"
+                          "description": "Alert ID"
                         },
-                        "userName": {
+                        "name": {
                           "type": "string",
-                          "description": "Username (handle)"
+                          "description": "Alert name"
                         },
-                        "displayName": {
+                        "description": {
                           "type": "string",
-                          "description": "Display name"
+                          "description": "Alert description"
                         },
-                        "photo": {
+                        "frequency": {
                           "type": "string",
-                          "description": "Profile photo URL"
+                          "description": "Delivery frequency",
+                          "enum": [
+                            "daily",
+                            "weekly"
+                          ]
                         },
-                        "profileURL": {
-                          "type": "string",
-                          "description": "Profile URL on DC"
+                        "active": {
+                          "type": "boolean",
+                          "description": "Whether the alert is currently active"
                         },
-                        "headline": {
+                        "createdAt": {
                           "type": "string",
-                          "description": "Profile headline"
+                          "description": "ISO 8601 — when the alert was created"
                         },
-                        "businessIndustry": {
+                        "updatedAt": {
                           "type": "string",
-                          "description": "Business industry"
+                          "description": "ISO 8601 — when the alert was last updated"
                         },
-                        "joinedDate": {
+                        "lastDeliveredAt": {
                           "type": "string",
-                          "description": "Join date (YYYY-MM-DD)"
+                          "description": "ISO 8601 — when the last digest was delivered (null if never delivered)"
                         }
                       }
-                    },
-                    "total": {
-                      "type": "number",
-                      "description": "Total attendees (RSVP yes or maybe) — matches `attendeeCount`; the visible roster may be slightly smaller when hidden/guest profiles are filtered out."
-                    },
-                    "nextCursor": {
-                      "type": "string",
-                      "description": "Cursor for the next page, or `null` if no more attendees."
                     }
                   },
                   "type": "object"
@@ -8988,42 +9122,344 @@
             "description": "Rate limit exceeded"
           }
         },
-        "summary": "List Live Call attendees",
+        "summary": "List your alerts",
         "tags": [
-          "Live Calls"
+          "Alerts"
+        ]
+      },
+      "post": {
+        "description": "Create a new alert. The system will search for matching content and deliver digests on the configured frequency. Maximum 10 active alerts per user.",
+        "operationId": "post_alerts",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "description": "Always `true` on success"
+                    },
+                    "data": {
+                      "type": "object",
+                      "description": "The created alert data",
+                      "properties": {
+                        "alertID": {
+                          "type": "string",
+                          "description": "The new alert ID"
+                        }
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Create an alert",
+        "tags": [
+          "Alerts"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Alert name (max 100 chars)"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "Alert description — what the alert should look for (max 500 chars)"
+                  },
+                  "frequency": {
+                    "type": "string",
+                    "description": "Digest delivery frequency",
+                    "enum": [
+                      "daily",
+                      "weekly"
+                    ]
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "name",
+                  "description",
+                  "frequency"
+                ]
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/alerts/{alertID}": {
+      "patch": {
+        "description": "Update one or more fields on an existing alert. Only provide the fields you want to change.",
+        "operationId": "patch_alerts__alertID",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "description": "Always `true` on success"
+                    },
+                    "alert": {
+                      "type": "object",
+                      "description": "The updated alert"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Update an alert",
+        "tags": [
+          "Alerts"
         ],
         "parameters": [
           {
-            "description": "The Live Call session ID. Find IDs via `GET /virtual-events`.",
+            "description": "The alert ID to update",
             "example": "abc123",
             "in": "path",
-            "name": "sessionID",
+            "name": "alertID",
             "required": true,
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "description": "Max results (1-100).",
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": "100",
-              "type": "number"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "New alert name"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "New alert description"
+                  },
+                  "frequency": {
+                    "type": "string",
+                    "description": "New delivery frequency",
+                    "enum": [
+                      "daily",
+                      "weekly"
+                    ]
+                  },
+                  "active": {
+                    "type": "boolean",
+                    "description": "Whether the alert is active"
+                  }
+                },
+                "type": "object"
+              }
             }
           },
+          "required": true
+        }
+      },
+      "delete": {
+        "description": "Soft-delete an alert by setting `active: false`. The alert's history is preserved for past digests. Use `PATCH /alerts/:alertID` with `active: true` to reactivate.",
+        "operationId": "delete_alerts__alertID",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "description": "Always `true` on success"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Deactivate an alert",
+        "tags": [
+          "Alerts"
+        ],
+        "parameters": [
           {
-            "description": "Cursor from a previous response's `nextCursor`. Pass to fetch the next page.",
-            "in": "query",
-            "name": "cursor",
-            "required": false,
+            "description": "The alert ID to delete",
+            "example": "abc123",
+            "in": "path",
+            "name": "alertID",
+            "required": true,
             "schema": {
-              "default": "",
               "type": "string"
             }
           }
         ]
+      }
+    },
+    "/interests": {
+      "get": {
+        "description": "Returns the user's interests configuration — the set of tags they have subscribed or unsubscribed from. Returns an empty `{ tags: {}, createdAt: null, updatedAt: null }` shape when no config exists yet.",
+        "operationId": "get_interests",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "tags": {
+                      "type": "object",
+                      "description": "Map of interest tag slug → tag state",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "Display name of the interest"
+                        },
+                        "subscribed": {
+                          "type": "boolean",
+                          "description": "Whether the user is currently subscribed"
+                        },
+                        "subscribedAt": {
+                          "type": "string",
+                          "description": "ISO 8601 — when the user last subscribed"
+                        },
+                        "unsubscribedAt": {
+                          "type": "string",
+                          "description": "ISO 8601 — when the user last unsubscribed (null if never unsubscribed)"
+                        }
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "description": "ISO 8601 — when the config was first created"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "description": "ISO 8601 — when the config was last updated"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Get your interests config",
+        "tags": [
+          "Interests"
+        ]
+      },
+      "post": {
+        "description": "Subscribe or unsubscribe from interest tags in a single call. Pass a `updates` map of `{ slug: { subscribed: boolean } }` with up to 20 entries. Slugs that are not in the known interest definitions are silently ignored at the name-lookup step (the subscription is still recorded).",
+        "operationId": "post_interests",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "description": "Always `true` on success"
+                    },
+                    "updated": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "description": "List of slugs that were updated"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Subscribe or unsubscribe from interests",
+        "tags": [
+          "Interests"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "updates": {
+                    "type": "object",
+                    "description": "Map of interest tag slug → `{ subscribed: boolean }`. Max 20 entries. Keys must match `/^[a-z0-9-]+$/`."
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "updates"
+                ]
+              }
+            }
+          },
+          "required": true
+        }
       }
     }
   },
@@ -9052,7 +9488,7 @@
       "name": "Events"
     },
     {
-      "name": "Virtual Events"
+      "name": "Live Calls"
     },
     {
       "name": "Tickets"
@@ -9098,6 +9534,12 @@
     },
     {
       "name": "Search"
+    },
+    {
+      "name": "Alerts"
+    },
+    {
+      "name": "Interests"
     }
   ]
 }

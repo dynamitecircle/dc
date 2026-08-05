@@ -6,9 +6,12 @@ import {
 } from "./version.js";
 import type {
   DCClientOptions,
+  AlertCreateInput,
+  AlertUpdateInput,
   CalendarUpdateInput,
   EventFreeSlotsInput,
   HTTPMethod,
+  InterestsUpdateInput,
   InviteCreateInput,
   ListOptions,
   LocatorSettingsUpdateInput,
@@ -331,6 +334,25 @@ export class DC {
           path: { cityID },
         }),
     },
+  };
+
+  readonly alerts = {
+    list: () => this.request("GET", "/alerts"),
+    create: (body: AlertCreateInput) => this.request("POST", "/alerts", { body }),
+    update: (alertID: string, body: AlertUpdateInput) =>
+      this.request("PATCH", "/alerts/{alertID}", {
+        body,
+        path: { alertID },
+      }),
+    remove: (alertID: string) =>
+      this.request("DELETE", "/alerts/{alertID}", {
+        path: { alertID },
+      }),
+  };
+
+  readonly interests = {
+    get: () => this.request("GET", "/interests"),
+    update: (body: InterestsUpdateInput) => this.request("POST", "/interests", { body }),
   };
 
   readonly discovery = {

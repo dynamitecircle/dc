@@ -399,6 +399,7 @@ _WRITE_COMMANDS = frozenset({
     "follow-profile", "unfollow-profile", "follow-chapter", "unfollow-chapter",
     "invite-create", "calendar-update", "notifications-update",
     "locator-settings-update", "report-issue",
+    "alerts-create", "alerts-update", "alerts-delete", "interests-update",
 })
 # Irreversible data removal — sets destructiveHint. (Un-toggles like
 # `unfollow-*` / `room-unsubscribe` are reversible, so NOT destructive.)
@@ -1795,6 +1796,55 @@ class _DCCore:
             raise UsageError("notifications-update requires at least one field")
         return self._patch("/notifications", fields)
 
+    # ── Alerts ──────────────────────────────────────────────────────
+
+    def alerts(self):
+        """List your alerts, newest first. Max 50 results."""
+        return self._get("/alerts")
+
+    def create_alert(self, name: str, description: str, frequency: str):
+        """Create an alert. The system searches for matching content and
+        delivers digests on the configured frequency."""
+        if not name:
+            raise UsageError("alerts-create requires --name")
+        if not description:
+            raise UsageError("alerts-create requires --description")
+        if not frequency:
+            raise UsageError("alerts-create requires --frequency (daily|weekly)")
+        return self._post("/alerts", {
+            "description": description,
+            "frequency":   frequency,
+            "name":        name,
+        })
+
+    def update_alert(self, alert_id: str, fields: dict):
+        """Update one or more fields on an alert. Only send what changes."""
+        if not alert_id:
+            raise UsageError("alerts-update requires an alertID")
+        if not fields:
+            raise UsageError("alerts-update requires at least one field to change")
+        return self._patch(f"/alerts/{alert_id}", fields)
+
+    def delete_alert(self, alert_id: str):
+        """Deactivate an alert (soft delete — history is preserved).
+        Reactivate with alerts-update --active."""
+        if not alert_id:
+            raise UsageError("alerts-delete requires an alertID")
+        return self._delete(f"/alerts/{alert_id}")
+
+    # ── Interests ───────────────────────────────────────────────────
+
+    def interests(self):
+        """Read your interests config — which tags you are subscribed to."""
+        return self._get("/interests")
+
+    def update_interests(self, updates: dict):
+        """Subscribe/unsubscribe interest tags in one call. Pass a map of
+        `{slug: {"subscribed": bool}}`, max 20 entries."""
+        if not updates:
+            raise UsageError("interests-update requires an updates map")
+        return self._post("/interests", {"updates": updates})
+
     # ── Locator (Friday email) ──────────────────────────────────────
 
     def locator_settings(self):
@@ -2643,6 +2693,92 @@ class DC(Runtime):
                    })
     def notifications_update(self, fields: dict):
         return self._core.update_notifications(fields or {})
+
+    # ── Alerts ──────────────────────────────────────────────────────
+
+    @skill_command(name="alerts",
+                   help="List your alerts — saved searches that deliver a "
+                        "digest of matching new content on a daily or weekly "
+                        "cadence. Newest first, max 50.",
+                   args={})
+    def alerts(self):
+        return self._core.alerts()
+
+    @skill_command(name="alerts-create",
+                   help="Create an alert. Describe what it should look for in "
+                        "plain language; digests arrive daily or weekly.",
+                   args={
+                       "name":        {"type": "string", "required": True,
+                                       "description": "Alert name (max 100 chars)"},
+                       "description": {"type": "string", "required": True,
+                                       "description": "What the alert should look for (max 500 chars)"},
+                       "frequency":   {"type": "string", "required": True,
+                                       "description": "Digest cadence: daily or weekly"},
+                   })
+    def alerts_create(self, name, description, frequency):
+        return self._core.create_alert(name, description, frequency)
+
+    @skill_command(name="alerts-update",
+                   help="Update an alert. Send only the fields that change. "
+                        "Use --active true to reactivate a deactivated alert.",
+                   args={
+                       "alert-id":    {"type": "string", "required": True,
+                                       "description": "The alertID to update"},
+                       "name":        {"type": "string", "description": "New alert name"},
+                       "description": {"type": "string", "description": "New alert description"},
+                       "frequency":   {"type": "string", "description": "New cadence: daily or weekly"},
+                       "active":      {"type": "boolean", "description": "Whether the alert is active"},
+                   })
+    def alerts_update(self, alert_id, name=None, description=None, frequency=None, active=None):
+        fields = {
+            "active":      active,
+            "description": description,
+            "frequency":   frequency,
+            "name":        name,
+        }
+        return self._core.update_alert(alert_id, {k: v for k, v in fields.items() if v is not None})
+
+    @skill_command(name="alerts-delete",
+                   help="Deactivate an alert. Soft delete — past digest history "
+                        "is preserved and `alerts-update --active true` brings it back.",
+                   args={
+                       "alert-id": {"type": "string", "required": True,
+                                    "description": "The alertID to deactivate"},
+                   })
+    def alerts_delete(self, alert_id):
+        return self._core.delete_alert(alert_id)
+
+    # ── Interests ───────────────────────────────────────────────────
+
+    @skill_command(name="interests",
+                   help="Read your interests config — which interest tags you "
+                        "are subscribed to, and when each was last changed.",
+                   args={})
+    def interests(self):
+        return self._core.interests()
+
+    @skill_command(name="interests-update",
+                   help="Subscribe or unsubscribe interest tags. Pass repeated "
+                        "--subscribe/--unsubscribe slugs; max 20 per call.",
+                   args={
+                       "subscribe":   {"type": "string",
+                                       "description": "Comma-separated interest slugs to subscribe to",
+                                       "examples": ["ai,saas"]},
+                       "unsubscribe": {"type": "string",
+                                       "description": "Comma-separated interest slugs to unsubscribe from",
+                                       "examples": ["crypto"]},
+                   })
+    def interests_update(self, subscribe=None, unsubscribe=None):
+        def _slugs(value):
+            return [s.strip() for s in (value or "").split(",") if s.strip()]
+
+        updates = {}
+        for slug in _slugs(subscribe):
+            updates[slug] = {"subscribed": True}
+        # Unsubscribe wins on a slug passed to both — the safer direction.
+        for slug in _slugs(unsubscribe):
+            updates[slug] = {"subscribed": False}
+        return self._core.update_interests(updates)
 
     # ── Locator (Friday email) ──────────────────────────────────────
 

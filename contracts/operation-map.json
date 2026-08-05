@@ -631,6 +631,54 @@
       "tag": "Search",
       "pythonCommand": "search-chapters",
       "typescriptMethod": "search.chapters"
+    },
+    {
+      "operationId": "get_alerts",
+      "method": "GET",
+      "path": "/alerts",
+      "tag": "Alerts",
+      "pythonCommand": "alerts",
+      "typescriptMethod": "alerts.list"
+    },
+    {
+      "operationId": "post_alerts",
+      "method": "POST",
+      "path": "/alerts",
+      "tag": "Alerts",
+      "pythonCommand": "alerts-create",
+      "typescriptMethod": "alerts.create"
+    },
+    {
+      "operationId": "patch_alerts__alertID",
+      "method": "PATCH",
+      "path": "/alerts/{alertID}",
+      "tag": "Alerts",
+      "pythonCommand": "alerts-update",
+      "typescriptMethod": "alerts.update"
+    },
+    {
+      "operationId": "delete_alerts__alertID",
+      "method": "DELETE",
+      "path": "/alerts/{alertID}",
+      "tag": "Alerts",
+      "pythonCommand": "alerts-delete",
+      "typescriptMethod": "alerts.remove"
+    },
+    {
+      "operationId": "get_interests",
+      "method": "GET",
+      "path": "/interests",
+      "tag": "Interests",
+      "pythonCommand": "interests",
+      "typescriptMethod": "interests.get"
+    },
+    {
+      "operationId": "post_interests",
+      "method": "POST",
+      "path": "/interests",
+      "tag": "Interests",
+      "pythonCommand": "interests-update",
+      "typescriptMethod": "interests.update"
     }
   ]
 }
