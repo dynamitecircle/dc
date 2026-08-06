@@ -1,5 +1,7 @@
 # DC Official Clients
 
+[![MCP Queen operational grade](https://mcpqueen.com/badge/io.github.dynamitecircle/dc.svg)](https://mcpqueen.com/s/io.github.dynamitecircle/dc)
+
 Official clients for the [Dynamite Circle Member API](https://www.dynamitecircle.com/developers/) — your own profile, trips, events, virtual events, tickets, invites, inbox, rooms, chapters, places lookup, and the weekly locator digest.
 
 The Python client is a single self-contained file. Zero dependencies (stdlib only). Works as a CLI, a Python library, **and** a [Model Context Protocol](https://modelcontextprotocol.io) server. Compatible with Claude Code, Claude Desktop, Codex CLI, Gemini CLI, Cursor, GitHub Copilot, and every other Agent Skills / MCP-compatible tool.
