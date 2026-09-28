@@ -21,6 +21,7 @@ from textual.widgets import Static
 from .data import DataClient, Fetched
 from .layout import layout_mode
 from .screens import SECTIONS, DCScreen, HomeScreen, PlaceholderScreen, StatusBar
+from .theme import DC_THEME
 
 WEB_APP = "https://dc.dynamitecircle.com"
 
@@ -91,13 +92,20 @@ class DCApp(App):
     ]
 
     CSS = """
-    Screen { layout: vertical; }
+    Screen { layout: vertical; background: $background; }
+    * { scrollbar-size: 1 1; scrollbar-color: $panel-lighten-2; scrollbar-color-hover: $primary;
+        scrollbar-color-active: $primary; scrollbar-background: $background; }
+    Header { background: $surface; color: $text; }
+    HeaderIcon { display: none; }
+    Header HeaderTitle { color: $primary; text-style: bold; }
+    Footer { background: $surface; }
     #body { height: 1fr; }
-    #main { width: 1fr; height: 1fr; padding: 0 1; }
-    #detail { width: 45%; height: 1fr; border-left: solid $primary; padding: 0 1; }
+    #main { width: 1fr; height: 1fr; padding: 1 1 0 1; }
+    Screen.compact #main { padding: 0; }
+    #detail { width: 45%; height: 1fr; border-left: solid $panel-lighten-2; padding: 0 1; }
     Screen.wide #detail { width: 55%; }
-    StatusBar { height: 1; background: $primary-background; color: $text; padding: 0 1; }
-    .section-title { text-style: bold; }
+    StatusBar { height: 1; background: $surface; color: $text-muted; padding: 0 1; }
+    .section-title { text-style: bold; color: $primary; }
     .muted { color: $text-muted; }
     .warn { color: $warning; }
     """
@@ -116,6 +124,8 @@ class DCApp(App):
     # ── Lifecycle ─────────────────────────────────────────────────────
 
     def on_mount(self) -> None:
+        self.register_theme(DC_THEME)
+        self.theme = "dc"
         start = self.argv[0] if self.argv and self.argv[0] in self.SCREENS else "home"
         self.push_screen(start)
         self.bootstrap()

@@ -164,36 +164,55 @@ class HomeScreen(DCScreen):
 
     DEFAULT_CSS = """
     #home-grid { height: auto; }
-    #home-grid > .home-col { width: 1fr; height: auto; margin: 0 1 0 0; }
+    #home-grid > .home-col { width: 1fr; height: auto; }
+    HomeScreen.wide #home-grid > #home-col-main { width: 3fr; margin: 0 1 0 0; }
+    HomeScreen.wide #home-grid > #home-col-side { width: 2fr; }
     """
 
-    COLUMNS = {"compact": 1, "single": 2, "split": 2, "wide": 3}
+    #: One column up to 139 cols, read top-down in this order.
+    ORDER_SINGLE = ["p-inbox", "p-announcements", "p-tickets", "p-trips", "p-locator", "p-me"]
+    #: Wide terminals: content on the left, status on the right — grouped by
+    #: what they are, not dealt out round-robin.
+    ORDER_WIDE = {
+        "home-col-main": ["p-announcements", "p-tickets", "p-trips"],
+        "home-col-side": ["p-inbox", "p-locator", "p-me"],
+    }
 
     PANELS: List[Tuple[str, str, Tuple[Tuple[str, ...], ...]]] = [
         # (panel id, title, commands the panel needs)
         ("p-inbox",         "Inbox",            (("inbox",),)),
         ("p-announcements", "Announcements",    (("announcements-latest",),)),
-        ("p-tickets",       "Tickets & events", (("tickets",), ("events",))),
+        ("p-tickets",       "Upcoming",         (("tickets",), ("events",))),
         ("p-trips",         "Trips",            (("trips",),)),
         ("p-locator",       "Locator",          (("locator",),)),
         ("p-me",            "Me",               (("profile",), ("membership",), ("limits",))),
     ]
+    TITLES = {pid: title for pid, title, _ in PANELS}
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._rendered: Dict[str, Tuple[List[str], str]] = {}
+        self._results: Dict[str, List[Fetched]] = {}   # last fetched data per card, re-rendered on relayout
         self._columns = 0
 
     # ── build / relayout ──────────────────────────────────────────────
 
+    @staticmethod
+    def _columns_for(mode: str) -> int:
+        return 2 if mode == "wide" else 1
+
     def populate(self) -> None:
-        self._build(self.COLUMNS.get(layout_mode(self.app.size.width), 1), then_fetch=True)
+        self._build(self._columns_for(layout_mode(self.app.size.width)), then_fetch=True)
 
     def set_layout_mode(self, mode: str) -> None:
         super().set_layout_mode(mode)
-        wanted = self.COLUMNS.get(mode, 1)
-        if self._columns and wanted != self._columns:
+        wanted = self._columns_for(mode)
+        if not self._columns:
+            return
+        if wanted != self._columns:
             self._build(wanted)
+        else:
+            for pid, results in list(self._results.items()):
+                self._render_into(pid, results)
 
     def _build(self, columns: int, then_fetch: bool = False) -> None:
         """(Re)build the column layout. Removal of the old cards is asynchronous
@@ -207,14 +226,17 @@ class HomeScreen(DCScreen):
         await pane.remove_children()
         row = Horizontal(id="home-grid")
         await pane.mount(row)
-        cols = [Vertical(classes="home-col") for _ in range(columns)]
-        await row.mount(*cols)
-        for i, (pid, title, _) in enumerate(self.PANELS):
-            panel = Panel(title, id=pid)
-            await cols[i % columns].mount(panel)
-            if pid in self._rendered:
-                lines, subtitle = self._rendered[pid]
-                panel.set_lines(lines, subtitle=subtitle)
+        if columns == 2:
+            plan = [(Vertical(id=col_id, classes="home-col"), pids) for col_id, pids in self.ORDER_WIDE.items()]
+        else:
+            plan = [(Vertical(id="home-col-main", classes="home-col"), self.ORDER_SINGLE)]
+        await row.mount(*[col for col, _ in plan])
+        for col, pids in plan:
+            for pid in pids:
+                panel = Panel(self.TITLES[pid], id=pid)
+                await col.mount(panel)
+                if pid in self._results:
+                    self._render_into(pid, self._results[pid])   # re-render for the new width
         if then_fetch:
             self.refresh_data(force=False)
 
@@ -230,7 +252,7 @@ class HomeScreen(DCScreen):
 
     def show_unread(self, fetched: Fetched) -> None:
         """The app-level tick keeps the inbox warm; repaint that card only."""
-        self._paint("p-inbox", *self._render_inbox([fetched]))
+        self._render_into("p-inbox", [fetched])
 
     def current_url(self) -> str:
         return WEB_APP + "/inbox"
@@ -248,12 +270,12 @@ class HomeScreen(DCScreen):
     # ── painting (UI thread) ──────────────────────────────────────────
 
     def _render_into(self, panel_id: str, results: List[Fetched]) -> None:
+        self._results[panel_id] = results
         renderer = getattr(self, "_render_" + panel_id[2:])
         lines, subtitle = renderer(results)
         self._paint(panel_id, lines, subtitle)
 
     def _paint(self, panel_id: str, lines: List[str], subtitle: str) -> None:
-        self._rendered[panel_id] = (lines, subtitle)
         try:
             self.query_one("#%s" % panel_id, Panel).set_lines(lines, subtitle=subtitle)
         except Exception:  # noqa: BLE001 — card rebuilt mid-flight; replayed by _build
@@ -269,8 +291,10 @@ class HomeScreen(DCScreen):
         return self.app.layout_mode_name == "compact"  # type: ignore[attr-defined]
 
     def _card_width(self) -> int:
-        cols = max(1, self._columns)
-        return max(24, (self.app.size.width - 4) // cols - 4)
+        width = self.app.size.width - 6
+        if self._columns == 2:
+            width = width * 3 // 5          # the main column is 3fr of 5
+        return max(24, width)
 
     # ── renderers: (results) -> (lines, subtitle) ─────────────────────
 
@@ -281,9 +305,9 @@ class HomeScreen(DCScreen):
         if total is None:
             total = sum(int(r.get("badgeCount") or 0) for r in rooms)
         width = self._card_width()
-        lines = ["[b]%3d[/b]  %s  [dim]%s[/dim]" % (
-                    int(r.get("badgeCount") or 0),
+        lines = ["[b]%s[/b]  [$primary]%d[/]  [dim]%s[/dim]" % (
                     _escape(trunc(r.get("roomName") or r.get("roomID", ""), max(12, width - 16))),
+                    int(r.get("badgeCount") or 0),
                     r.get("roomType") or "")
                  for r in rooms[:8]]
         return lines or ["[green]all caught up[/green]"], _subtitle(plural(int(total), "unread"), f)
@@ -293,13 +317,21 @@ class HomeScreen(DCScreen):
         data = _dict(f)
         items = [a for a in (data.get("announcements") or []) if isinstance(a, dict)]
         width = self._card_width()
+        compact = self._compact()
         lines = []
         for a in items[:6]:
             author = a.get("author") if isinstance(a.get("author"), dict) else {}
             who = author.get("displayName") or author.get("userName") or "DC"
             text = strip_markdown(a.get("content"))
-            lines.append("[b]%s[/b] [dim]%s[/dim]\n  %s" % (
-                _escape(trunc(who, 24)), fmt_date(a.get("createdAt")), _escape(trunc(text, max(30, width * 2 - 6)))))
+            when = fmt_date(a.get("createdAt"))
+            if compact:
+                # two lines: who · when, then a one-line preview
+                lines.append("[b]%s[/b] [dim]%s[/dim]\n  %s" % (
+                    _escape(trunc(who, 24)), when, _escape(trunc(text, max(20, width - 4)))))
+            else:
+                # one line per announcement: date · who · preview, never wrapped
+                head = "[dim]%-6s[/dim] [b]%s[/b]  " % (when, _escape(trunc(who, 18)))
+                lines.append(head + _escape(trunc(text, max(20, width - 8 - min(18, len(who)) - 2))))
         return lines or ["[dim]no announcements[/dim]"], _subtitle(plural(len(items), "channel"), f)
 
     def _render_tickets(self, results: List[Fetched]) -> Tuple[List[str], str]:
@@ -310,7 +342,7 @@ class HomeScreen(DCScreen):
         tickets.sort(key=lambda t: str(t.get("startDate") or ""))
         events = sorted(_items(events_f), key=lambda e: str(e.get("startDate") or ""))
         compact = self._compact()
-        name_w = 22 if compact else 30
+        name_w = max(18, min(40, self._card_width() - 14)) if compact else 34
         lines = []
         for t in tickets[:5]:
             extra = "" if compact else "  [dim]%s[/dim]" % _escape(t.get("ticketName") or "")
