@@ -14,7 +14,7 @@ from .screens import SECTIONS, WEB_APP
 class RoomsScreen(ListDetailScreen):
     SECTION = "rooms"
     TITLE_TEXT = "Rooms"
-    HINT = "f tab · v read messages · x mark read · m/M mute · p/P pin · a/A archive · s/S subscribe"
+    HINT = "↑↓ pick a room · → open it · buttons in the detail do the rest"
     URL = WEB_APP + "/inbox"
     LIST_TABS = (("all", "All"), ("channel", "Channels"), ("discussion", "Discussions"), ("dm", "DMs"),
                  ("group", "Groups"), ("quick-question", "Quick Q"), ("event", "Events"))
@@ -24,13 +24,13 @@ class RoomsScreen(ListDetailScreen):
     EMPTY_TEXT = "no rooms of this type"
 
     BINDINGS = [
-        Binding("v", "read_messages", "Read msgs"),
-        Binding("x", "mark_read", "Mark read"),
-        Binding("m", "room('room-mute', 'muted')", "Mute"),
+        Binding("v", "read_messages", "Read msgs", show=False),
+        Binding("x", "mark_read", "Mark read", show=False),
+        Binding("m", "room('room-mute', 'muted')", "Mute", show=False),
         Binding("M", "room('room-unmute', 'unmuted')", "Unmute", show=False),
-        Binding("p", "room('room-pin', 'pinned')", "Pin"),
+        Binding("p", "room('room-pin', 'pinned')", "Pin", show=False),
         Binding("P", "room('room-unpin', 'unpinned')", "Unpin", show=False),
-        Binding("a", "room('room-archive', 'archived')", "Archive"),
+        Binding("a", "room('room-archive', 'archived')", "Archive", show=False),
         Binding("A", "room('room-unarchive', 'unarchived')", "Unarchive", show=False),
         Binding("s", "room('room-subscribe', 'subscribed')", "Subscribe", show=False),
         Binding("S", "room('room-unsubscribe', 'unsubscribed')", "Unsubscribe", show=False),
@@ -77,6 +77,17 @@ class RoomsScreen(ListDetailScreen):
         return "%s · %s  [dim]%s[/dim]" % (plural(len(self.items), "room"), plural(total, "unread"), self.HINT)
 
     # ── detail ────────────────────────────────────────────────────────
+    def detail_actions(self):
+        item = self._detail_item or {}
+        acts = [("Read messages", "read_messages"), ("Mark read", "mark_read"),
+                ("Mute", "room('room-mute', 'muted')"), ("Unmute", "room('room-unmute', 'unmuted')"),
+                ("Pin", "room('room-pin', 'pinned')"), ("Unpin", "room('room-unpin', 'unpinned')"),
+                ("Archive", "room('room-archive', 'archived')"), ("Unarchive", "room('room-unarchive', 'unarchived')")]
+        if item.get("type") not in ("dm", "group"):
+            acts += [("Subscribe", "room('room-subscribe', 'subscribed')"), ("Unsubscribe", "room('room-unsubscribe', 'unsubscribed')")]
+        acts.append(("Open in app", "app.open_in_browser"))
+        return acts
+
     def detail_title(self, item: dict) -> str:
         return "%s  [dim]%s · %s[/dim]" % (esc(item.get("name")), item.get("type", ""), item.get("scope", ""))
 
@@ -118,7 +129,7 @@ class RoomsScreen(ListDetailScreen):
             lines.append("[$warning]%s[/]" % esc(data["room"].error))
         if "messages" not in data:
             lines.append("")
-            lines.append("[dim]press [b]v[/b] to read the latest messages · o opens the room in the app[/dim]")
+            lines.append("[dim]Read messages loads the latest 15 (read-only) · Open in app to reply[/dim]")
             return lines
         messages = items_of(data["messages"])
         lines.append("")

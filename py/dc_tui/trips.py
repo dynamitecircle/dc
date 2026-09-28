@@ -21,17 +21,17 @@ def _place(trip: dict) -> dict:
 class TripsScreen(ListDetailScreen):
     SECTION = "trips"
     TITLE_TEXT = "Trips"
-    HINT = "n new · e edit · d delete · R refresh discovery · o open"
+    HINT = "↑↓ pick a trip · → open it · New trip / Edit / Delete are buttons in the detail"
     URL = WEB_APP + "/trips"
     LIST_COMMAND = "trips"
     COLUMNS = ("Where", "Dates", "Note")
     COLUMNS_COMPACT = ("Where", "Dates")
-    EMPTY_TEXT = "no upcoming trips — press n to plan one"
+    EMPTY_TEXT = "no upcoming trips yet — press Enter (or click New trip) to plan one"
 
     BINDINGS = [
-        Binding("n", "new_trip", "New"),
-        Binding("e", "edit_trip", "Edit"),
-        Binding("d", "delete_trip", "Delete"),
+        Binding("n", "new_trip", "New", show=False),
+        Binding("e", "edit_trip", "Edit", show=False),
+        Binding("d", "delete_trip", "Delete", show=False),
         Binding("R", "refresh_discovery", "Re-match", show=False),
     ]
 
@@ -52,6 +52,16 @@ class TripsScreen(ListDetailScreen):
         cells = {"Where": trunc(where, 28), "Dates": date_range(item.get("startDate"), item.get("endDate")),
                  "Note": trunc(plain(item.get("note")), 40)}
         return tuple(cells[c] for c in self._columns())
+
+    def detail_actions(self):
+        return [("New trip", "new_trip"), ("Edit", "edit_trip"), ("Delete", "delete_trip"),
+                ("Re-match", "refresh_discovery"), ("Open in app", "app.open_in_browser")]
+
+    def action_open_detail(self) -> None:
+        if not self.items:
+            self.action_new_trip()      # empty list: Enter starts a trip
+            return
+        super().action_open_detail()
 
     # ── detail: discovery ─────────────────────────────────────────────
     def detail_title(self, item: dict) -> str:

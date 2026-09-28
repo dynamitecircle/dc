@@ -2,14 +2,53 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from datetime import datetime
 from typing import Any, Optional
 
 
+def cell_width(ch: str) -> int:
+    """Terminal columns one character takes (wide/fullwidth and most emoji = 2)."""
+    if ch in ("\u200d", "\ufe0f") or unicodedata.combining(ch):
+        return 0
+    if unicodedata.east_asian_width(ch) in ("W", "F"):
+        return 2
+    o = ord(ch)
+    if 0x1F300 <= o <= 0x1FAFF or 0x2600 <= o <= 0x27BF or 0x1F900 <= o <= 0x1F9FF:
+        return 2
+    return 1
+
+
+def display_width(text: Any) -> int:
+    return sum(cell_width(ch) for ch in str(text or ""))
+
+
 def trunc(text: Any, width: int) -> str:
+    """Truncate to `width` terminal columns (not characters) with an ellipsis."""
     s = str(text or "")
     width = max(4, int(width))
-    return s if len(s) <= width else s[: width - 1] + "…"
+    if display_width(s) <= width:
+        return s
+    out, used = [], 0
+    for ch in s:
+        w = cell_width(ch)
+        if used + w > width - 1:
+            break
+        out.append(ch)
+        used += w
+    return "".join(out).rstrip() + "…"
+
+
+def pad(text: Any, width: int) -> str:
+    """Left-align to `width` columns (cell-aware ljust)."""
+    s = trunc(text, width)
+    return s + " " * max(0, width - display_width(s))
+
+
+def rpad(text: Any, width: int) -> str:
+    """Right-align to `width` columns (cell-aware rjust)."""
+    s = trunc(text, width)
+    return " " * max(0, width - display_width(s)) + s
 
 
 def plural(n: int, word: str) -> str:

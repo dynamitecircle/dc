@@ -1,0 +1,173 @@
+"""Search — one box, content-type tabs like the web app: All · People · Rooms ·
+Messages · Events · Chapters. Enter on a hit jumps to it."""
+from __future__ import annotations
+
+from typing import Any, List, Sequence, Tuple
+
+from textual.widgets import Input
+
+from .format import fmt_date, plural, trunc
+from .listing import ListDetailScreen, dict_of, esc, items_of, plain
+from .screens import WEB_APP
+
+KINDS = ("profiles", "rooms", "messages", "events", "chapters")
+
+
+class SearchScreen(ListDetailScreen):
+    SECTION = "search"
+    TITLE_TEXT = "Search"
+    HINT = "type and press Enter · tabs pick the content type · Enter on a hit opens it"
+    URL = WEB_APP + "/search"
+    LIST_TABS = (("all", "All"), ("profiles", "People"), ("rooms", "Rooms"), ("messages", "Messages"),
+                 ("events", "Events"), ("chapters", "Chapters"))
+    COLUMNS = ("Result", "Type", "Detail")
+    COLUMNS_COMPACT = ("Result", "Type")
+    COLUMN_WIDTHS = {"Type": 10, "Detail": 30}
+    EMPTY_TEXT = "type something above and press Enter"
+    AUTO_FOCUS = "#search-query"
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.query_text = ""
+
+    def populate(self) -> None:
+        super().populate()
+        self.main_pane().mount(Input(placeholder="Search DC — people, rooms, messages, events, chapters…", id="search-query"), before=0)
+
+    def focus_content(self) -> None:
+        self.query_one("#search-query", Input).focus()
+
+    def refresh_data(self, force: bool = False) -> None:
+        if not self.query_text:
+            self.items = []
+            self._rows_loaded([], "")
+            return
+        super().refresh_data(force)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id != "search-query":
+            return
+        self.query_text = event.value.strip()
+        self._detail_item = None
+        self.refresh_data(force=False)
+        if self.query_text:
+            self.query_one("#list").focus()
+
+    # ── rows ──────────────────────────────────────────────────────────
+    def fetch_rows(self, force: bool) -> List[dict]:
+        data = self.app.data  # type: ignore[attr-defined]
+        q = self.query_text
+        rows: List[dict] = []
+        if self.list_tab == "all":
+            fetched = data.fetch("search", q, limit=8, force=force)
+            if fetched.error and fetched.data is None:
+                raise RuntimeError(fetched.error)
+            body = dict_of(fetched)
+            for kind in KINDS:
+                block = body.get(kind)
+                hits = block.get("hits") if isinstance(block, dict) else block
+                for h in (hits or []) if isinstance(hits, list) else []:
+                    if isinstance(h, dict):
+                        rows.append(_tag(h, kind))
+            return rows
+        fetched = data.fetch("search-" + self.list_tab, q, limit=30, force=force)
+        if fetched.error and fetched.data is None:
+            raise RuntimeError(fetched.error)
+        body = dict_of(fetched)
+        hits = body.get("hits") if isinstance(body.get("hits"), list) else items_of(fetched)
+        return [_tag(h, self.list_tab) for h in hits if isinstance(h, dict)]
+
+    def row_key(self, item: dict, index: int) -> str:
+        return "%s:%s" % (item.get("_kind"), _id(item) or index)
+
+    def row_cells(self, item: dict) -> Tuple[str, ...]:
+        cells = {"Result": _title(item), "Type": _kind_label(item.get("_kind")), "Detail": _detail(item)}
+        return tuple(cells[c] for c in self._columns())
+
+    def hint_text(self) -> str:
+        return "%s for “%s”  [dim]%s[/dim]" % (plural(len(self.items), "hit"), self.query_text, self.HINT)
+
+    # ── detail ────────────────────────────────────────────────────────
+    def detail_actions(self):
+        return [("Open", "open_hit"), ("Open in app", "app.open_in_browser")]
+
+    def detail_title(self, item: dict) -> str:
+        return "%s  [dim]%s[/dim]" % (esc(_title(item)), _kind_label(item.get("_kind")))
+
+    def render_detail(self, item: dict, data: Any) -> List[str]:
+        lines = []
+        for key, val in item.items():
+            if key.startswith("_") or key in ("userID", "roomID", "eventID", "messageID", "cityID", "placeID", "objectID", "photo") \
+                    or val in (None, "", [], {}) or isinstance(val, (list, dict)) or str(key).lower().endswith("url"):
+                continue
+            lines.append("[dim]%s:[/dim] %s" % (esc(key), esc(trunc(plain(val), 300))))
+        return lines or ["[dim]no more detail[/dim]"]
+
+    def action_open_hit(self) -> None:
+        self.action_open_detail()
+        item = self._detail_item or self.selected()
+        if item is None:
+            return
+        kind = item.get("_kind")
+        if kind == "rooms" and item.get("roomID"):
+            self.app.open_in_section("rooms", str(item["roomID"]))  # type: ignore[attr-defined]
+        elif kind == "events" and item.get("eventID"):
+            self.app.open_in_section("events", str(item["eventID"]))  # type: ignore[attr-defined]
+        else:
+            self.app.action_open_in_browser()  # type: ignore[attr-defined]
+
+    def on_data_table_row_selected(self, event) -> None:
+        if event.data_table.id == "list":
+            self.action_open_hit()
+
+    def current_url(self) -> str:
+        item = self.selected()
+        if item:
+            for key in ("shortURL", "roomURL", "eventURL", "profileURL", "chapterURL", "messageURL", "url"):
+                if item.get(key):
+                    return str(item[key])
+            if item.get("_kind") == "profiles" and item.get("userName"):
+                return WEB_APP + "/" + str(item["userName"])
+        return self.URL
+
+
+def _tag(hit: dict, kind: str) -> dict:
+    out = dict(hit.get("profile") or hit) if isinstance(hit.get("profile"), dict) else dict(hit)
+    out["_kind"] = kind
+    return out
+
+
+def _id(item: dict):
+    for key in ("userID", "roomID", "messageID", "eventID", "cityID", "placeID", "objectID", "id"):
+        if item.get(key):
+            return item[key]
+    return None
+
+
+def _kind_label(kind) -> str:
+    return {"profiles": "DCer", "rooms": "room", "messages": "message", "events": "event", "chapters": "chapter"}.get(str(kind), str(kind or ""))
+
+
+def _title(item: dict) -> str:
+    kind = item.get("_kind")
+    if kind == "messages":
+        return plain(item.get("body") or item.get("text") or item.get("content") or item.get("snippet") or "")
+    if kind == "chapters":
+        return str(item.get("cityName") or item.get("name") or item.get("cityID") or "")
+    return str(item.get("displayName") or item.get("name") or item.get("title") or item.get("roomName") or item.get("userName") or "")
+
+
+def _detail(item: dict) -> str:
+    kind = item.get("_kind")
+    if kind == "profiles":
+        return plain(item.get("headline") or item.get("businessName") or "")
+    if kind == "rooms":
+        return "%s · %s" % (item.get("type") or "", plain(item.get("description") or ""))
+    if kind == "messages":
+        author = item.get("author") if isinstance(item.get("author"), dict) else {}
+        return "%s · %s · %s" % (item.get("roomName") or "", author.get("displayName") or item.get("authorName") or "", fmt_date(item.get("sentAt") or item.get("createdAt")))
+    if kind == "events":
+        return "%s · %s" % (fmt_date(item.get("startDate")), item.get("eventType") or "")
+    if kind == "chapters":
+        return "%s · %s members" % (item.get("country") or "", item.get("memberCount") or "?")
+    return ""

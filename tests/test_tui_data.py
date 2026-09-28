@@ -259,3 +259,10 @@ def test_events_global_vs_local_split():
     from dc_tui.events import _is_global
     assert _is_global({"eventType": "dcbkk"}) and _is_global({"eventType": "dc-black"})
     assert not _is_global({"eventType": "junto"}) and not _is_global({"eventType": "dc-chapter-event"})
+
+
+def test_trunc_and_pad_are_cell_aware():
+    from dc_tui.format import display_width, pad, rpad, trunc
+    assert display_width("🗺 Trip") == 7                      # emoji = 2 columns + space + 4
+    assert display_width(trunc("🗺 Traveling soon", 8)) <= 8
+    assert display_width(pad("日本", 6)) == 6 and rpad("Sep 29", 8) == "  Sep 29"

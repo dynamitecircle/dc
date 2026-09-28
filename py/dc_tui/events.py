@@ -11,7 +11,7 @@ from rich.text import Text
 from textual.binding import Binding
 
 from .data import Fetched
-from .format import date_range, fmt_date, plural, trunc
+from .format import date_range, fmt_date, plural, strip_markdown, trunc
 from .listing import ListDetailScreen, Table, dict_of, esc, items_of, plain
 from .screens import WEB_APP
 
@@ -46,7 +46,7 @@ def _is_global(event: dict) -> bool:
 class EventsScreen(ListDetailScreen):
     SECTION = "events"
     TITLE_TEXT = "Events"
-    HINT = "f tab · ] \\[ detail tabs · → schedule · b bookmark · j join · y/N RSVP · o open"
+    HINT = "↑↓ pick an event · → open it · tabs and buttons in the detail"
     URL = WEB_APP + "/events"
     LIST_TABS = (("global", "Global"), ("local", "Local"), ("calls", "Live Calls"))
     COLUMNS = ("Event", "Dates", "City", "Type", "🎟")
@@ -55,9 +55,9 @@ class EventsScreen(ListDetailScreen):
     EMPTY_TEXT = "no upcoming events"
 
     BINDINGS = [
-        Binding("b", "bookmark", "Bookmark"),
-        Binding("j", "join_meetup", "Join"),
-        Binding("y", "rsvp('yes')", "RSVP yes"),
+        Binding("b", "bookmark", "Bookmark", show=False),
+        Binding("j", "join_meetup", "Join", show=False),
+        Binding("y", "rsvp('yes')", "RSVP yes", show=False),
         Binding("N", "rsvp('no')", "RSVP no", show=False),
     ]
 
@@ -66,12 +66,40 @@ class EventsScreen(ListDetailScreen):
         self._tickets: Dict[str, str] = {}
         self._rows_by_key: Dict[str, dict] = {}
 
+    def check_action(self, action: str, parameters) -> bool:
+        """Event operations live in the detail: they are disabled (and hidden from
+        the footer) while the list has focus, so a stray key never acts on a row
+        you were merely scrolling past."""
+        if action in ("bookmark", "join_meetup", "rsvp"):
+            return self.detail_focused()
+        return True
+
+    def on_descendant_focus(self, event) -> None:
+        self.refresh_bindings()
+
+    def on_descendant_blur(self, event) -> None:
+        self.refresh_bindings()
+
     # ── columns per tab ───────────────────────────────────────────────
     def _columns(self) -> Sequence[str]:
         compact = self.app.layout_mode_name in ("compact", "single")  # type: ignore[attr-defined]
         if self.list_tab == "calls":
             return ("Call", "When", "RSVP") if compact else ("Call", "When", "Kind", "Going", "RSVP")
         return super()._columns()
+
+    def detail_actions(self):
+        item = self._detail_item or {}
+        if self.list_tab == "calls":
+            return [("RSVP yes", "rsvp('yes')"), ("RSVP no", "rsvp('no')"), ("Open call link", "app.open_in_browser")]
+        acts = []
+        if self.detail_tab in ("schedule", "agenda"):
+            acts.append(("Bookmark session", "bookmark"))
+        if self.detail_tab in ("schedule", "agenda", "meetups"):
+            acts.append(("Join meetup", "join_meetup"))
+        if item.get("rsvpEnabled"):
+            acts += [("RSVP yes", "rsvp('yes')"), ("RSVP no", "rsvp('no')")]
+        acts.append(("Open in app", "app.open_in_browser"))
+        return acts
 
     def detail_tabs(self) -> Sequence[Tuple[str, str]]:
         if self.list_tab == "calls":
@@ -82,6 +110,23 @@ class EventsScreen(ListDetailScreen):
             tabs.append(("agenda", "My agenda"))
         tabs += [("meetups", "Meetups"), ("attendees", "Attendees")]
         return tabs
+
+    def select_key(self, key: str) -> None:
+        """Deep-link to an event: switch to the tab that holds it first."""
+        cached = self.app.data.cached("events", limit=50)  # type: ignore[attr-defined]
+        if cached is not None:
+            for e in items_of(cached):
+                if str(e.get("eventID")) == key:
+                    wanted = "global" if _is_global(e) else "local"
+                    if wanted != self.list_tab:
+                        self._pending_key = key
+                        try:
+                            self.query_one("#list-tabs").active = wanted    # → refresh → pending key
+                        except Exception:  # noqa: BLE001
+                            pass
+                        return
+                    break
+        super().select_key(key)
 
     # ── rows ──────────────────────────────────────────────────────────
     def fetch_rows(self, force: bool) -> List[dict]:
@@ -174,7 +219,7 @@ class EventsScreen(ListDetailScreen):
         ev = dict_of(fetched).get("event") if fetched is not None else None
         ev = ev if isinstance(ev, dict) else item
         lines: List[str] = []
-        desc = plain(ev.get("description") or ev.get("descriptionShort") or "")
+        desc = strip_markdown(ev.get("description") or ev.get("descriptionShort") or "")
         if desc:
             lines.append(esc(trunc(desc, 900)))
         venue = ev.get("venue") if isinstance(ev.get("venue"), dict) else {}
@@ -195,8 +240,6 @@ class EventsScreen(ListDetailScreen):
             lines.append("[dim]%s[/dim]" % " · ".join(flags))
         if fetched is not None and fetched.error:
             lines.append("[$warning]%s[/]" % esc(fetched.error))
-        lines.append("")
-        lines.append("[dim]] for the schedule · o opens the event page[/dim]")
         return lines
 
     def _render_attendees(self, item: dict, fetched: Optional[Fetched]) -> Any:
@@ -316,8 +359,9 @@ class EventsScreen(ListDetailScreen):
                     ok_text=("left: " if already else "joined: ") + str(obj.get("title") or ""))
 
     def action_rsvp(self, status: str) -> None:
-        item = self.selected()
+        item = self._detail_item if self.detail_focused() else None
         if item is None:
+            self.notify("Open the event first (→), then RSVP from its detail.", timeout=4)
             return
         if self.list_tab == "calls":
             self.mutate("virtual-event-rsvp", item.get("sessionID"), status=status,

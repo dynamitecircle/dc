@@ -25,29 +25,35 @@ from .me import MeScreen
 from .people import PeopleScreen
 from .rooms import RoomsScreen
 from .screens import SECTIONS, DCScreen, HomeScreen, PlaceholderScreen, StatusBar
+from .search import SearchScreen
 from .trips import TripsScreen
 from .theme import DC_THEME
 
 WEB_APP = "https://dc.dynamitecircle.com"
 
 SCREEN_CLASSES = {"home": HomeScreen, "rooms": RoomsScreen, "trips": TripsScreen, "events": EventsScreen,
-                  "people": PeopleScreen, "me": MeScreen}
+                  "people": PeopleScreen, "search": SearchScreen, "me": MeScreen}
 
 HELP_TEXT = """\
-[b]DC terminal[/b] — keyboard reference
+[b]DC terminal[/b]
 
-  [b]1[/b]–[b]6[/b]   Home · Rooms · Trips · Events · People · Me
-  [b]↑ ↓[/b]   Move in a list        [b]→ ←[/b]  Into the detail / back to the list
-  [b]Enter[/b] Open the detail        [b]Esc[/b]  Back (detail → section → Home)
-  [b]f[/b]     Next top tab           [b]] [[/b]  Next / previous detail tab
-  [b]/[/b]     Command palette        [b]r[/b]    Refresh (bypasses the cache)
-  [b]o[/b]     Open in the web app    [b]?[/b]    This help    [b]q[/b]  Quit
+Everything works with the mouse: click a section in the bar at the top, a tab,
+a row, or a button. On the keyboard you only need:
 
-Data is cached on disk and refreshed on a timer paced by your API
-rate budget (shown in the status bar). Nothing is sent as a message
-from here — conversations happen in the web app, one keystroke away.
+  [b]↑ ↓[/b]     move through a list (from the top row, up into the tabs and the section bar)
+  [b]← →[/b]     switch tabs · walk the buttons · go into the detail and back
+  [b]Enter[/b]   open the selected item
+  [b]Esc[/b]     back: close the detail, then the previous section, then Home
+  [b]Tab[/b]     jump to the next pane
+  [b]/[/b]       command list (search every action by name)
+  [b]?[/b] help  ·  [b]q[/b] quit
 
-[dim]Esc / ? / q closes this window.[/dim]
+Actions (read messages, bookmark a session, RSVP, follow, new trip…) are buttons
+inside the detail of the thing they act on — never a key on a list.
+
+Data is cached on disk and refreshed on a timer paced by your API budget (status
+bar). Nothing is sent as a message from here — conversations happen in the web
+app, one click away ("Open in app").
 """
 
 
@@ -92,12 +98,16 @@ class DCApp(App):
 
     BINDINGS = [Binding(str(i + 1), "goto_section('%s')" % section.id, section.title, show=False)
                 for i, section in enumerate(SECTIONS)] + [
-        Binding("escape", "back", "Back", show=False),
+        Binding("up,down", "noop", "Move", show=True, key_display="↑↓"),
+        Binding("left,right", "noop", "Panes", show=True, key_display="←→"),
+        Binding("enter", "noop", "Open", show=True, key_display="Enter"),
+        Binding("escape", "back", "Back", show=True, key_display="Esc"),
         Binding("backspace", "back", "Back", show=False),
-        Binding("slash", "command_palette", "Palette"),
-        Binding("r", "refresh_screen", "Refresh"),
-        Binding("o", "open_in_browser", "Open"),
-        Binding("question_mark", "show_help", "Help"),
+        Binding("tab", "noop", "Next", show=True, key_display="Tab"),
+        Binding("slash", "command_palette", "Commands", key_display="/"),
+        Binding("r", "refresh_screen", "Refresh", show=False),
+        Binding("o", "open_in_browser", "Open in app", show=False),
+        Binding("question_mark", "show_help", "Help", key_display="?"),
         Binding("q", "quit", "Quit"),
     ]
 
@@ -105,6 +115,11 @@ class DCApp(App):
     Screen { layout: vertical; background: $background; }
     * { scrollbar-size: 0 0; }
     Header { background: $surface; color: $text; }
+    #nav-tabs { height: 2; background: $surface; }
+    #nav-tabs Tab { color: $text-muted; }
+    #nav-tabs Tab.-active { color: #FFFFFF; text-style: bold; }
+    #nav-tabs:focus Tab.-active { background: $primary; color: #FFFFFF; }
+    #nav-tabs .underline--bar { color: $primary; background: $panel; }
     HeaderIcon { display: none; }
     Header HeaderTitle { color: $primary; text-style: bold; }
     Footer { background: $surface; }
@@ -130,6 +145,7 @@ class DCApp(App):
         self._last_key_at = time.time()
         self._tick_timer = None
         self._history: List[str] = []       # section ids, for Esc/Backspace
+        self._focus_nav_next = False        # set when a section was chosen on the bar
 
     # ── Lifecycle ─────────────────────────────────────────────────────
 
@@ -162,6 +178,13 @@ class DCApp(App):
             del self._history[:-20]
         self.switch_screen(section_id)
 
+    def open_in_section(self, section_id: str, key: Optional[str] = None) -> None:
+        """Jump to a section and open one of its rows (Home cards deep-link here)."""
+        self.action_goto_section(section_id)
+        screen = self.screen
+        if key and hasattr(screen, "select_key"):
+            screen.select_key(key)  # type: ignore[attr-defined]
+
     def action_back(self) -> None:
         """Esc / Backspace: close an open modal, else the previous section, else Home."""
         if isinstance(self.screen, ModalScreen):
@@ -175,6 +198,9 @@ class DCApp(App):
                 return
         if current != "home":
             self.switch_screen("home")
+
+    def action_noop(self) -> None:
+        """Footer-only entries: the focused widget handles these keys itself."""
 
     def action_show_help(self) -> None:
         if not isinstance(self.screen, HelpScreen):

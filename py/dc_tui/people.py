@@ -20,16 +20,16 @@ MODES = ("follows", "search", "match")
 class PeopleScreen(ListDetailScreen):
     SECTION = "people"
     TITLE_TEXT = "People"
-    HINT = "s search · M match (describe who you want to meet) · F follow · U unfollow · o open profile"
+    HINT = "↑↓ pick a DCer · → open · Search / Match / Follow are buttons in the detail"
     URL = WEB_APP + "/members"
     COLUMNS = ("Name", "Headline", "Chapter")
     COLUMNS_COMPACT = ("Name", "Headline")
-    EMPTY_TEXT = "nobody here yet — press s to search or M to match"
+    EMPTY_TEXT = "nobody here yet — press Enter to search DCers"
 
     BINDINGS = [
-        Binding("s", "search", "Search"),
-        Binding("M", "match", "Match"),
-        Binding("F", "follow", "Follow"),
+        Binding("s", "search", "Search", show=False),
+        Binding("M", "match", "Match", show=False),
+        Binding("F", "follow", "Follow", show=False),
         Binding("U", "unfollow", "Unfollow", show=False),
         Binding("escape", "back_to_follows", "Follows", show=False),
     ]
@@ -97,6 +97,19 @@ class PeopleScreen(ListDetailScreen):
         what = {"follows": "you follow", "search": "matching “%s”" % self.query_text, "match": "matched" + (" for “%s”" % self.query_text if self.query_text else " for you")}[self.mode]
         return "%s %s  [dim]%s[/dim]" % (plural(len(self.items), "DCer"), what, self.HINT)
 
+    def detail_actions(self):
+        item = self._detail_item or {}
+        following = item.get("userID") in self._following
+        return [("Search", "search"), ("Match for me", "match"),
+                ("Unfollow", "unfollow") if following else ("Follow", "follow"),
+                ("Open profile", "app.open_in_browser")]
+
+    def action_open_detail(self) -> None:
+        if not self.items:
+            self.action_search()
+            return
+        super().action_open_detail()
+
     # ── detail ────────────────────────────────────────────────────────
     def detail_title(self, item: dict) -> str:
         return "%s  [dim]@%s[/dim]" % (esc(item.get("displayName") or ""), esc(item.get("userName") or ""))
@@ -133,7 +146,7 @@ class PeopleScreen(ListDetailScreen):
         if data is not None and data.error:
             lines.append("[$warning]%s[/]" % esc(data.error))
         lines.append("")
-        lines.append("[dim]%s[/dim]" % ("♥ following" if prof.get("userID") in self._following else "F to follow"))
+        lines.append("[dim]%s[/dim]" % ("♥ following" if prof.get("userID") in self._following else "not following"))
         return lines
 
     # ── actions ───────────────────────────────────────────────────────

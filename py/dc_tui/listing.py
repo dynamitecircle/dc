@@ -29,8 +29,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from rich.text import Text
 from textual import work
 from textual.binding import Binding
-from textual.containers import Vertical
-from textual.widgets import DataTable, Input, Static, Tab, Tabs
+from textual.containers import Horizontal, Vertical
+from textual.widgets import Button, DataTable, Input, Static, Tab, Tabs
 
 from .data import Fetched
 from .format import trunc
@@ -63,6 +63,7 @@ class Table:
 
 
 class ListDetailScreen(DCScreen):
+    AUTO_FOCUS = "#list"                  # arrows work the moment the screen opens
     COLUMNS: Sequence[str] = ()
     COLUMNS_COMPACT: Sequence[str] = ()   # subset used under 100 cols; empty = same as COLUMNS
     COLUMN_WIDTHS: Dict[str, int] = {}    # fixed widths; the first column is flexible
@@ -76,6 +77,8 @@ class ListDetailScreen(DCScreen):
         Binding("tab", "focus_next_pane", "Next pane", show=False),
         Binding("right", "pane_right", "Detail", show=False, priority=True),
         Binding("left", "pane_left", "List", show=False, priority=True),
+        Binding("up", "nav_up", "Up", show=False, priority=True),
+        Binding("down", "nav_down", "Down", show=False, priority=True),
         Binding("f", "next_list_tab", "Filter", show=False),
         Binding("bracketright", "next_detail_tab", "Next tab", show=False),
         Binding("bracketleft", "prev_detail_tab", "Prev tab", show=False),
@@ -86,7 +89,18 @@ class ListDetailScreen(DCScreen):
     ListDetailScreen #list { height: auto; max-height: 100%; }
     ListDetailScreen #list-hint { color: $text-muted; height: auto; padding: 0 1; }
     ListDetailScreen Tabs { height: 2; margin: 0 0 0 0; }
+    ListDetailScreen Tab.-active { color: $primary; text-style: bold; }
+    ListDetailScreen Tabs:focus Tab.-active { background: $primary; color: #FFFFFF; text-style: bold; }
+    ListDetailScreen Tabs .underline--bar { color: $primary; background: $panel; }
+    ListDetailScreen Tabs:focus .underline--bar { color: #FFFFFF; }
     ListDetailScreen .detail-title { color: $primary; text-style: bold; height: auto; }
+    ListDetailScreen .detail-actions { height: auto; margin: 0 0 1 0; }
+    ListDetailScreen .detail-actions Button.action {
+        height: 1; min-width: 0; border: none; padding: 0 1; margin: 0 1 0 0;
+        background: $panel; color: $text; text-style: none;
+    }
+    ListDetailScreen .detail-actions Button.action:hover { background: $primary; color: #FFFFFF; }
+    ListDetailScreen .detail-actions Button.action:focus { background: $primary; color: #FFFFFF; text-style: bold; }
     ListDetailScreen .detail-body { height: auto; }
     ListDetailScreen .detail-table { height: auto; max-height: 100%; }
     ListDetailScreen .-hidden { display: none; }
@@ -124,8 +138,40 @@ class ListDetailScreen(DCScreen):
     def _detail_widgets_for(self, suffix: str) -> List[Any]:
         return [Tabs(id="detail-tabs-" + suffix, classes="-hidden"),
                 Static("", id="detail-title-" + suffix, classes="detail-title"),
+                Horizontal(id="detail-actions-" + suffix, classes="detail-actions"),
                 Static("", id="detail-body-" + suffix, classes="detail-body"),
                 DataTable(id="detail-table-" + suffix, cursor_type="row", zebra_stripes=True, classes="detail-table")]
+
+    # ── action buttons (mouse-first; Tab/Enter on the keyboard) ───────
+    def detail_actions(self) -> Sequence[Tuple[str, str]]:
+        """Override: [(label, action name)] shown as buttons above the detail."""
+        return ()
+
+    def _sync_actions(self) -> None:
+        actions = list(self.detail_actions())
+        self._action_map = {i: action for i, (_, action) in enumerate(actions)}
+        labels = [label for label, _ in actions]
+        for suffix in ("pane", "inline"):
+            try:
+                row = self.query_one("#detail-actions-" + suffix, Horizontal)
+            except Exception:  # noqa: BLE001
+                continue
+            row.set_class(not actions, "-hidden")
+            if [str(b.label) for b in row.query(Button)] != labels:
+                # removal is asynchronous in Textual — rebuild in one exclusive worker per row
+                self.run_worker(self._rebuild_actions(row, suffix, labels), group="actions-" + suffix, exclusive=True)
+
+    async def _rebuild_actions(self, row: Horizontal, suffix: str, labels: List[str]) -> None:
+        await row.remove_children()
+        await row.mount(*[Button(label, id="act-%s-%d" % (suffix, i), classes="action") for i, label in enumerate(labels)])
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        bid = str(event.button.id or "")
+        if bid.startswith("act-"):
+            event.stop()
+            action = getattr(self, "_action_map", {}).get(int(bid.rsplit("-", 1)[-1]))
+            if action:
+                await self.run_action(action)
 
     def _setup_columns(self) -> None:
         table = self.query_one("#list", DataTable)
@@ -167,6 +213,9 @@ class ListDetailScreen(DCScreen):
             self.query_one("#list-hint", Static).update(text)
         except Exception:  # noqa: BLE001
             pass
+
+    def focus_content(self) -> None:
+        self.query_one("#list", DataTable).focus()
 
     # ── tabs ──────────────────────────────────────────────────────────
     def detail_tabs(self) -> Sequence[Tuple[str, str]]:
@@ -251,13 +300,29 @@ class ListDetailScreen(DCScreen):
         self.app.call_from_thread(self._rows_loaded, rows, error)
         self.app.call_from_thread(self.app.refresh_status)  # type: ignore[attr-defined]
 
+    def select_key(self, key: str) -> None:
+        """Open the row with this key (e.g. a roomID) — now, or as soon as rows load."""
+        if not self.items:
+            self._pending_key = key
+            return
+        table = self.query_one("#list", DataTable)
+        for i, item in enumerate(self.items):
+            if self.row_key(item, i) == key:
+                table.move_cursor(row=i)
+                self.action_open_detail()
+                return
+
     def _rows_loaded(self, rows: List[dict], error: str) -> None:
         self.items = rows
         self._setup_columns()
         self._fill_table()
-        lst = self.query_one("#list", DataTable)
-        if not isinstance(self.focused, Input) and not self._detail_open:
-            lst.focus()
+        pending = getattr(self, "_pending_key", None)
+        if pending and rows:
+            self._pending_key = None
+            self.select_key(pending)
+            return
+        if self.focused is None or self.focused is self.main_pane():
+            self.query_one("#list", DataTable).focus()     # first load only — never steal focus
         if error:
             self.set_hint("[$warning]%s[/]" % esc(error))
         else:
@@ -275,6 +340,8 @@ class ListDetailScreen(DCScreen):
         cols = list(self._columns())
         for i, item in enumerate(self.items):
             key = self.row_key(item, i)
+            if key in self._keys:
+                key = "%s#%d" % (key, i)
             self._keys[key] = item
             cells = list(self.row_cells(item))
             fitted = []
@@ -325,6 +392,7 @@ class ListDetailScreen(DCScreen):
         self._detail_item = item
         self._detail_data = None
         self._sync_detail_tabs()
+        self._sync_actions()
         self._set_detail_title(self.detail_title(item) + "  [dim]loading…[/dim]")
         self._load_detail(item, force, self.detail_tab)
 
@@ -413,9 +481,25 @@ class ListDetailScreen(DCScreen):
             return
         if self.two_pane:
             self.load_detail(item)
+            self.call_after_refresh(self.focus_detail)
             return
         self._show_inline_detail(True)
         self.load_detail(item)
+        self.call_after_refresh(self.focus_detail)
+
+    def focus_detail(self) -> None:
+        """Put the keyboard on the detail: its first action button, else its table."""
+        suffix = "pane" if self.two_pane else "inline"
+        try:
+            buttons = list(self.query_one("#detail-actions-" + suffix, Horizontal).query(Button))
+        except Exception:  # noqa: BLE001
+            buttons = []
+        if buttons:
+            buttons[0].focus()
+            return
+        table = self.detail_table()
+        if not table.has_class("-hidden") and table.row_count:
+            table.focus()
 
     def action_close_detail(self) -> None:
         if self._detail_open:
@@ -428,9 +512,124 @@ class ListDetailScreen(DCScreen):
             return
         self.app.action_back()  # type: ignore[attr-defined]
 
-    def action_pane_right(self) -> None:
-        """→ : into the detail (open it in one-pane mode, focus its table when it has rows)."""
+    # ── arrows: tabs ⇅ tables ─────────────────────────────────────────
+    def _tabs_for(self, table: DataTable) -> Optional[Tabs]:
+        """The visible tab row that sits above a table, if any."""
+        tid = "list-tabs" if table.id == "list" else "detail-tabs-" + str(table.id or "").rsplit("-", 1)[-1]
+        try:
+            tabs = self.query_one("#" + tid, Tabs)
+        except Exception:  # noqa: BLE001
+            return None
+        return tabs if not tabs.has_class("-hidden") and tabs.tab_count else None
+
+    def _table_for(self, tabs: Tabs):
+        if tabs.id == "list-tabs":
+            return self.query_one("#list", DataTable)
+        suffix = str(tabs.id or "").rsplit("-", 1)[-1]
+        actions = self.query_one("#detail-actions-" + suffix, Horizontal)
+        buttons = list(actions.query(Button))
+        if buttons and not actions.has_class("-hidden"):
+            return buttons[0]
+        table = self.query_one("#detail-table-" + suffix, DataTable)
+        return table if (not table.has_class("-hidden") and table.row_count) else self.query_one("#list", DataTable)
+
+    # PageUp/PageDown/Home/End go to the focused table (never wrap); otherwise the page
+    def _table_key(self, table_action: str, page_step: int, **page_kw) -> None:
         focused = self.focused
+        if isinstance(focused, DataTable) and focused.row_count:
+            getattr(focused, table_action)()
+            return
+        self._page(page_step, **page_kw)
+
+    def action_page_up_page(self) -> None:
+        self._table_key("action_page_up", -1, page=True)
+
+    def action_page_down_page(self) -> None:
+        self._table_key("action_page_down", 1, page=True)
+
+    def action_page_home(self) -> None:
+        self._table_key("action_scroll_top", -1, edge=True)
+
+    def action_page_end(self) -> None:
+        self._table_key("action_scroll_bottom", 1, edge=True)
+
+    def action_nav_up(self) -> None:
+        """↑ : move in the table; from the top row, jump to the tab row above it,
+        and from the list's tab row up to the section bar."""
+        focused = self.focused
+        if isinstance(focused, DataTable):
+            if focused.cursor_row is not None and focused.cursor_row > 0 and focused.row_count:
+                focused.action_cursor_up()
+                return
+            tabs = self._tabs_for(focused)
+            if tabs is not None:
+                tabs.focus()
+            elif focused.id == "list":
+                self.query_one("#nav-tabs", Tabs).focus()
+            return
+        if isinstance(focused, Tabs):
+            if focused.id == "list-tabs":
+                self.query_one("#nav-tabs", Tabs).focus()
+            return
+        if isinstance(focused, Button):
+            tabs = None
+            try:
+                tabs = self.query_one("#detail-tabs-" + ("pane" if self.two_pane else "inline"), Tabs)
+            except Exception:  # noqa: BLE001
+                pass
+            if tabs is not None and not tabs.has_class("-hidden"):
+                tabs.focus()
+            return
+        self.query_one("#list", DataTable).focus()
+
+    def action_nav_down(self) -> None:
+        """↓ : from the section bar into the list tabs (or list); from a tab row
+        into its table; otherwise move in the table."""
+        focused = self.focused
+        if isinstance(focused, Tabs):
+            if focused.id == "nav-tabs":
+                try:
+                    tabs = self.query_one("#list-tabs", Tabs)
+                    if not tabs.has_class("-hidden"):
+                        tabs.focus()
+                        return
+                except Exception:  # noqa: BLE001
+                    pass
+                self.query_one("#list", DataTable).focus()
+                return
+            self._table_for(focused).focus()
+            return
+        if isinstance(focused, DataTable):
+            focused.action_cursor_down()
+            return
+        self.query_one("#list", DataTable).focus()
+
+    def _step_button(self, step: int) -> bool:
+        focused = self.focused
+        if not isinstance(focused, Button):
+            return False
+        buttons = list(focused.parent.query(Button)) if focused.parent is not None else []
+        i = buttons.index(focused) if focused in buttons else -1
+        if 0 <= i + step < len(buttons):
+            buttons[i + step].focus()
+        elif step > 0:
+            table = self.detail_table()
+            if not table.has_class("-hidden") and table.row_count:
+                table.focus()
+        elif self._detail_open:
+            self.action_close_detail()
+        else:
+            self.query_one("#list", DataTable).focus()
+        return True
+
+    def action_pane_right(self) -> None:
+        """→ : next tab when a tab row is focused; next button in an action row; else into the detail."""
+        focused = self.focused
+        if isinstance(focused, Tabs):
+            focused.action_next_tab()
+            return
+        if self._step_button(1):
+            return
         if isinstance(focused, Input):
             focused.action_cursor_right()
             return
@@ -442,8 +641,13 @@ class ListDetailScreen(DCScreen):
             table.focus()
 
     def action_pane_left(self) -> None:
-        """← : back to the list (close the inline detail in one-pane mode)."""
+        """← : previous tab when a tab row is focused; else back to the list."""
         focused = self.focused
+        if isinstance(focused, Tabs):
+            focused.action_previous_tab()
+            return
+        if self._step_button(-1):
+            return
         if isinstance(focused, Input):
             focused.action_cursor_left()
             return
@@ -461,6 +665,13 @@ class ListDetailScreen(DCScreen):
             table.focus()
         else:
             lst.focus()
+
+    def detail_focused(self) -> bool:
+        """True when keyboard focus is inside the detail (its table or tab row),
+        or the inline detail is open in one-pane mode."""
+        focused = self.focused
+        fid = str(getattr(focused, "id", "") or "")
+        return self._detail_open or fid.startswith("detail-")
 
     # ── after a mutation ──────────────────────────────────────────────
     def after_mutation(self, fetched: Fetched, ok_text: str) -> None:

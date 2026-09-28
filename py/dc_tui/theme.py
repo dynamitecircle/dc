@@ -36,7 +36,11 @@ DC_THEME = Theme(
     dark=True,
     variables={
         "block-cursor-background": ORANGE,
-        "block-cursor-foreground": GREY_950,
+        "block-cursor-foreground": "#FFFFFF",
+        "block-cursor-text-style": "bold",
+        "block-cursor-blurred-background": ORANGE_DARK,
+        "block-cursor-blurred-foreground": "#FFFFFF",
+        "block-hover-background": GREY_700,
         "footer-key-foreground": ORANGE,
         "footer-description-foreground": GREY_300,
         "border": GREY_600,

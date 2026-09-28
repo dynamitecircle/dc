@@ -9,19 +9,22 @@ and Me.
 from __future__ import annotations
 
 from datetime import date
-from typing import Dict, List, Optional, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
+
+import webbrowser
 
 from textual import events
+from textual.binding import Binding
 from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Footer, Header, Static
+from textual.widgets import Footer, Header, OptionList, Static, Tab, Tabs
 
 from textual import work
 from textual.containers import Vertical
 
 from .data import Fetched
-from .format import date_range, fmt_date, plural, strip_markdown, trunc
+from .format import date_range, fmt_date, pad, plural, rpad, strip_markdown, trunc
 from .layout import MODES, layout_mode
 from .widgets import Panel
 
@@ -43,7 +46,8 @@ SECTIONS: List[Section] = [
     Section("rooms",  "Rooms",      "inbox by type · messages · daily/weekly summaries",   WEB_APP + "/inbox"),
     Section("trips",  "Trips",      "your trips · create/edit · who to meet",              WEB_APP + "/trips"),
     Section("events", "Events",     "global · local · live calls · schedule · my agenda",  WEB_APP + "/events"),
-    Section("people", "People",     "search · profile match · follows",                    WEB_APP + "/members"),
+    Section("people", "People",     "profile match · follows",                             WEB_APP + "/members"),
+    Section("search", "Search",     "people · rooms · messages · events · chapters",       WEB_APP + "/search"),
     Section("me",     "Me",         "profile · membership · notifications · calendar",     WEB_APP + "/profile"),
 ]
 
@@ -55,13 +59,56 @@ class StatusBar(Static):
 class DCScreen(Screen):
     """Base screen: header, main + optional detail pane, status bar, footer."""
 
+    AUTO_FOCUS = "#main"                  # page scroll with arrows; lists override with "#list"
     SECTION: str = "home"
     TITLE_TEXT: str = "DC"
     HINT: str = ""
     URL: str = WEB_APP
 
+    BINDINGS = [
+        Binding("up", "page_up", "Up", show=False, priority=True),
+        Binding("down", "page_down", "Down", show=False, priority=True),
+        Binding("pageup", "page_up_page", "Page up", show=False, priority=True),
+        Binding("pagedown", "page_down_page", "Page down", show=False, priority=True),
+        Binding("home", "page_home", "Top", show=False, priority=True),
+        Binding("end", "page_end", "Bottom", show=False, priority=True),
+    ]
+
+    def _page(self, step: int, *, page: bool = False, edge: bool = False) -> None:
+        """↑/↓ (and PageUp/PageDown, Home/End) on a plain page scroll it, even
+        when focus sits on the section bar. Never wraps."""
+        focused = self.focused
+        if isinstance(focused, Tabs) or focused is None:
+            self.main_pane().focus()
+        pane = self.main_pane()
+        if edge:
+            (pane.scroll_home if step < 0 else pane.scroll_end)(animate=False)
+        elif page:
+            (pane.scroll_page_up if step < 0 else pane.scroll_page_down)()
+        else:
+            (pane.scroll_up if step < 0 else pane.scroll_down)()
+
+    def action_page_up(self) -> None:
+        self._page(-1)
+
+    def action_page_down(self) -> None:
+        self._page(1)
+
+    def action_page_up_page(self) -> None:
+        self._page(-1, page=True)
+
+    def action_page_down_page(self) -> None:
+        self._page(1, page=True)
+
+    def action_page_home(self) -> None:
+        self._page(-1, edge=True)
+
+    def action_page_end(self) -> None:
+        self._page(1, edge=True)
+
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
+        yield Tabs(*[Tab(sec.title, id="nav-" + sec.id) for sec in SECTIONS], id="nav-tabs")
         with Horizontal(id="body"):
             yield VerticalScroll(id="main")
             yield VerticalScroll(id="detail")
@@ -72,13 +119,59 @@ class DCScreen(Screen):
 
     def on_mount(self) -> None:
         self.sub_title = self.TITLE_TEXT
+        self._sync_nav()
         self.set_layout_mode(layout_mode(self.app.size.width))
         self.populate()
         self.app.refresh_status()  # type: ignore[attr-defined]
+        self._settle_focus()
+
+    def _settle_focus(self) -> None:
+        """Focus policy: the keyboard moves ONLY here (screen shown) or on an
+        explicit key. If the user chose this section on the bar, they stay on the
+        bar of the new screen; otherwise the content gets focus once."""
+        app = self.app
+        if getattr(app, "_focus_nav_next", False):
+            app._focus_nav_next = False
+            try:
+                self.query_one("#nav-tabs", Tabs).focus()
+            except Exception:  # noqa: BLE001
+                pass
+        elif self.focused is None or self.focused is self.query_one("#nav-tabs", Tabs):
+            self.focus_content()
+
+    def _sync_nav(self) -> None:
+        """Highlight this section in the nav bar without firing a navigation."""
+        try:
+            nav = self.query_one("#nav-tabs", Tabs)
+        except Exception:  # noqa: BLE001
+            return
+        self._nav_syncing = True
+        try:
+            if nav.active != "nav-" + self.SECTION:
+                nav.active = "nav-" + self.SECTION
+        finally:
+            self.call_after_refresh(setattr, self, "_nav_syncing", False)
+
+    def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
+        if event.tabs.id == "nav-tabs" and not getattr(self, "_nav_syncing", False) and event.tab is not None:
+            section = str(event.tab.id or "").replace("nav-", "", 1)
+            if section != self.SECTION:
+                self.app._focus_nav_next = True   # chosen on the bar → stay on the bar
+                self.app.action_goto_section(section)  # type: ignore[attr-defined]
 
     def on_screen_resume(self) -> None:
+        self._sync_nav()
         self.set_layout_mode(layout_mode(self.app.size.width))
         self.app.refresh_status()  # type: ignore[attr-defined]
+        self._settle_focus()
+
+    def focus_content(self) -> None:
+        """Put the keyboard on this screen's content (override in list screens)."""
+        try:
+            target = self.query_one(self.AUTO_FOCUS)
+            target.focus()
+        except Exception:  # noqa: BLE001
+            pass
 
     def on_resize(self, event: events.Resize) -> None:
         self.app.apply_layout(event.size.width)  # type: ignore[attr-defined]
@@ -181,7 +274,7 @@ class HomeScreen(DCScreen):
         # (panel id, title, commands the panel needs)
         ("p-inbox",         "Inbox",            (("inbox",),)),
         ("p-announcements", "Announcements",    (("announcements-latest",),)),
-        ("p-tickets",       "Upcoming",         (("tickets",), ("events",))),
+        ("p-tickets",       "Upcoming",         (("tickets",), ("events",), ("profile",), ("follows-chapters",))),
         ("p-trips",         "Trips",            (("trips",),)),
         ("p-locator",       "Locator",          (("locator",),)),
         ("p-me",            "Me",               (("profile",), ("membership",), ("limits",))),
@@ -212,6 +305,118 @@ class HomeScreen(DCScreen):
         else:
             for pid, results in list(self._results.items()):
                 self._render_into(pid, results)
+
+    BINDINGS = [
+        Binding("up", "card_up", "Up", show=False, priority=True),
+        Binding("down", "card_down", "Down", show=False, priority=True),
+        Binding("pageup", "card_page_up", "Page up", show=False, priority=True),
+        Binding("pagedown", "card_page_down", "Page down", show=False, priority=True),
+        Binding("home", "card_home", "Top", show=False, priority=True),
+        Binding("end", "card_end", "Bottom", show=False, priority=True),
+        Binding("enter", "open_row", "Open", show=False),
+    ]
+
+    def _cards(self) -> List[Panel]:
+        return [p for p in self.query(Panel) if p.selectable()]
+
+    def _focused_card(self) -> Optional[Panel]:
+        focused = self.focused
+        if isinstance(focused, OptionList) and isinstance(focused.parent, Panel):
+            return focused.parent
+        return None
+
+    def focus_content(self) -> None:
+        cards = self._cards()
+        if cards:
+            cards[0].first()
+            cards[0].list.focus()
+        else:
+            self.main_pane().focus()      # cards still loading: first paint hands focus over
+
+    def _jump(self, card: "Panel", *, last: bool = False) -> None:
+        card.list.focus()
+        (card.last if last else card.first)()
+        card.scroll_visible()
+
+    def _move(self, step: int) -> None:
+        card = self._focused_card()
+        cards = self._cards()
+        if card is None:
+            if isinstance(self.focused, Tabs):
+                if step > 0 and cards:
+                    self._jump(cards[0])          # ↓ from the bar enters the first card; ↑ stays
+                return
+            if cards:
+                self._jump(cards[0] if step > 0 else cards[-1], last=step < 0)
+            else:
+                self._page(step)
+            return
+        if step < 0 and not card.at_first():
+            card.list.action_cursor_up()
+            return
+        if step > 0 and not card.at_last():
+            card.list.action_cursor_down()
+            return
+        i = cards.index(card) if card in cards else -1
+        nxt = i + step
+        if 0 <= nxt < len(cards):
+            cards[nxt].list.focus()
+            (cards[nxt].first if step > 0 else cards[nxt].last)()
+            cards[nxt].scroll_visible()
+        elif nxt < 0:
+            self.query_one("#nav-tabs", Tabs).focus()
+
+    def action_card_up(self) -> None:
+        self._move(-1)
+
+    def action_card_down(self) -> None:
+        self._move(1)
+
+    def _card_step(self, step: int) -> None:
+        """PageUp/PageDown: previous / next card."""
+        cards = self._cards()
+        card = self._focused_card()
+        if not cards:
+            return
+        i = cards.index(card) if card in cards else (-1 if step > 0 else len(cards))
+        nxt = max(0, min(len(cards) - 1, i + step))
+        self._jump(cards[nxt])
+
+    def action_card_page_up(self) -> None:
+        self._card_step(-1)
+
+    def action_card_page_down(self) -> None:
+        self._card_step(1)
+
+    def action_card_home(self) -> None:
+        cards = self._cards()
+        if cards:
+            self._jump(cards[0])
+
+    def action_card_end(self) -> None:
+        cards = self._cards()
+        if cards:
+            self._jump(cards[-1], last=True)
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        card = event.option_list.parent
+        if isinstance(card, Panel):
+            self._open(card.target())
+
+    def action_open_row(self) -> None:
+        card = self._focused_card()
+        if card is not None:
+            self._open(card.target())
+
+    def _open(self, target) -> None:
+        if not target:
+            return
+        kind, key = target
+        if kind == "url":
+            webbrowser.open(str(key))
+            self.app.notify("Opened in browser", timeout=2)
+        else:
+            self.app.open_in_section(kind, key)  # type: ignore[attr-defined]
 
     def _build(self, columns: int, then_fetch: bool = False) -> None:
         """(Re)build the column layout. Removal of the old cards is asynchronous
@@ -271,14 +476,17 @@ class HomeScreen(DCScreen):
     def _render_into(self, panel_id: str, results: List[Fetched]) -> None:
         self._results[panel_id] = results
         renderer = getattr(self, "_render_" + panel_id[2:])
-        lines, subtitle = renderer(results)
-        self._paint(panel_id, lines, subtitle)
+        rows, subtitle = renderer(results)
+        self._paint(panel_id, rows, subtitle)
 
-    def _paint(self, panel_id: str, lines: List[str], subtitle: str) -> None:
+    def _paint(self, panel_id: str, rows: List[Tuple[str, Any]], subtitle: str) -> None:
         try:
-            self.query_one("#%s" % panel_id, Panel).set_lines(lines, subtitle=subtitle)
+            panel = self.query_one("#%s" % panel_id, Panel)
         except Exception:  # noqa: BLE001 — card rebuilt mid-flight; replayed by _build
-            pass
+            return
+        panel.set_rows(rows, subtitle=subtitle)
+        if self.focused is None or self.focused is self.main_pane():
+            self.call_after_refresh(self.focus_content)   # first paint only; never from the bar
 
     def _fail(self, panel_id: str, message: str) -> None:
         try:
@@ -304,12 +512,12 @@ class HomeScreen(DCScreen):
         if total is None:
             total = sum(int(r.get("badgeCount") or 0) for r in rooms)
         width = self._card_width()
-        lines = ["[b]%s[/b]  [$primary]%d[/]  [dim]%s[/dim]" % (
+        rows = [("[b]%s[/b]  [$primary]%d[/]  [dim]%s[/dim]" % (
                     _escape(trunc(r.get("roomName") or r.get("roomID", ""), max(12, width - 16))),
                     int(r.get("badgeCount") or 0),
-                    r.get("roomType") or "")
-                 for r in rooms[:8]]
-        return lines or ["[green]all caught up[/green]"], _subtitle(plural(int(total), "unread"), f)
+                    r.get("roomType") or ""), ("rooms", r.get("roomID")))
+                for r in rooms[:8]]
+        return rows or [("[$success]all caught up[/] [dim]— Enter opens your inbox[/dim]", ("rooms", None))], _subtitle(plural(int(total), "unread"), f)
 
     def _render_announcements(self, results: List[Fetched]) -> Tuple[List[str], str]:
         f = results[0]
@@ -323,49 +531,68 @@ class HomeScreen(DCScreen):
             who = author.get("displayName") or author.get("userName") or "DC"
             text = strip_markdown(a.get("content"))
             when = fmt_date(a.get("createdAt"))
+            target = ("url", a.get("shortURL") or a.get("announcementURL")) if (a.get("shortURL") or a.get("announcementURL")) else None
             if compact:
-                # two lines: who · when, then a one-line preview
-                lines.append("[b]%s[/b] [dim]%s[/dim]\n  %s" % (
-                    _escape(trunc(who, 24)), when, _escape(trunc(text, max(20, width - 4)))))
+                lines.append(("[b]%s[/b] [dim]%s[/dim]\n  %s" % (_escape(trunc(who, 24)), when, _escape(trunc(text, max(20, width - 4)))), target))
             else:
-                # one line per announcement: date · who · preview, never wrapped
-                head = "[dim]%-6s[/dim] [b]%s[/b]  " % (when, _escape(trunc(who, 18)))
-                lines.append(head + _escape(trunc(text, max(20, width - 8 - min(18, len(who)) - 2))))
-        return lines or ["[dim]no announcements[/dim]"], _subtitle(plural(len(items), "channel"), f)
+                head = "[dim]%s[/dim] [b]%s[/b]  " % (pad(when, 6), _escape(pad(who, 16)))
+                lines.append((head + _escape(trunc(text, max(20, width - 6 - 16 - 3))), target))
+        return lines or [("[dim]no announcements[/dim]", None)], _subtitle(plural(len(items), "channel"), f)
 
     def _render_tickets(self, results: List[Fetched]) -> Tuple[List[str], str]:
-        tickets_f, events_f = results
+        """Upcoming, in the order that matters: events you hold a ticket for, then
+        events in your home chapter and the chapters you follow, then the rest."""
+        tickets_f, events_f, profile_f, chapters_f = results
         today = date.today().isoformat()
         tickets = [t for t in _items(tickets_f)
                    if t.get("status") in ("valid", "maybe") and str(t.get("endDate") or t.get("startDate") or "")[:10] >= today]
         tickets.sort(key=lambda t: str(t.get("startDate") or ""))
         events = sorted(_items(events_f), key=lambda e: str(e.get("startDate") or ""))
-        compact = self._compact()
-        name_w = max(18, min(40, self._card_width() - 14)) if compact else 34
+        profile = _dict(profile_f)
+        home = profile.get("chapter") if isinstance(profile.get("chapter"), dict) else {}
+        my_places = {home.get("placeID")} if home.get("placeID") else set()
+        for c in _dict(chapters_f).get("chapters") or _items(chapters_f):
+            if isinstance(c, dict):
+                my_places.update(x for x in (c.get("cityID"), c.get("placeID")) if x)
+        held = {t.get("eventID") for t in tickets}
+        width = self._card_width()
+        date_w = 12
+        name_w = max(16, width - date_w - 6)
+
+        def row(prefix: str, name: str, start, end) -> str:
+            return "%s%s %s" % (prefix, _escape(pad(name, name_w - len(prefix))), rpad(date_range(start, end), date_w))
+
         lines = []
         for t in tickets[:5]:
-            extra = "" if compact else "  [dim]%s[/dim]" % _escape(t.get("ticketName") or "")
-            lines.append("🎟  [b]%s[/b]  %s%s" % (_escape(trunc(t.get("eventName", ""), name_w)),
-                                                  date_range(t.get("startDate"), t.get("endDate")), extra))
-        held = {t.get("eventID") for t in tickets}
-        upcoming = [e for e in events if e.get("eventID") not in held][:4]
-        if upcoming:
-            lines.append("[dim]— upcoming, no ticket yet —[/dim]")
-            for e in upcoming:
-                lines.append("    %s  %s" % (_escape(trunc(e.get("name") or e.get("eventName", ""), name_w)),
-                                             date_range(e.get("startDate"), e.get("endDate"))))
-        return lines or ["[dim]no upcoming tickets[/dim]"], _subtitle(plural(len(tickets), "ticket"), tickets_f, events_f)
+            lines.append((row("🎟 ", t.get("eventName") or "", t.get("startDate"), t.get("endDate")), ("events", t.get("eventID"))))
+        near = [e for e in events if e.get("eventID") not in held
+                and (e.get("city") or {}).get("placeID") in my_places] if my_places else []
+        if near:
+            lines.append(("[dim]near you — home + followed chapters[/dim]", None))
+            for e in near[:5]:
+                lines.append((row("   ", e.get("name") or "", e.get("startDate"), e.get("endDate")), ("events", e.get("eventID"))))
+        near_ids = {e.get("eventID") for e in near[:5]}
+        rest = [e for e in events if e.get("eventID") not in held and e.get("eventID") not in near_ids][:3]
+        if rest:
+            lines.append(("[dim]elsewhere[/dim]", None))
+            for e in rest:
+                lines.append((row("   ", e.get("name") or "", e.get("startDate"), e.get("endDate")), ("events", e.get("eventID"))))
+        if not lines:
+            lines.append(("[dim]nothing upcoming[/dim]", None))
+        subtitle = plural(len(tickets), "ticket") + (" · %s near you" % plural(len(near), "event") if near else "")
+        return lines, _subtitle(subtitle, tickets_f, events_f)
 
     def _render_trips(self, results: List[Fetched]) -> Tuple[List[str], str]:
         f = results[0]
         trips = _items(f)
         lines = []
+        name_w = max(16, self._card_width() - 18)
         for t in trips[:6]:
             loc = t.get("location") if isinstance(t.get("location"), dict) else {}
             place = t.get("place") if isinstance(t.get("place"), dict) else {}
             name = loc.get("cityName") or loc.get("name") or place.get("name") or t.get("placeName") or "?"
-            lines.append("✈  [b]%s[/b]  %s" % (_escape(trunc(name, 24)), date_range(t.get("startDate"), t.get("endDate"))))
-        return lines or ["[dim]no upcoming trips — press 3 then n to plan one[/dim]"], _subtitle(plural(len(trips), "trip"), f)
+            lines.append(("✈  [b]%s[/b] %s" % (_escape(pad(name, name_w)), rpad(date_range(t.get("startDate"), t.get("endDate")), 12)), ("trips", t.get("tripID"))))
+        return lines or [("[dim]no upcoming trips[/dim] — Enter to plan one", ("trips", None))], _subtitle(plural(len(trips), "trip"), f)
 
     def _render_locator(self, results: List[Fetched]) -> Tuple[List[str], str]:
         f = results[0]
@@ -377,13 +604,13 @@ class HomeScreen(DCScreen):
                       for k, label in (("newMembers", "new member"), ("comingToCity", "visitor"),
                                        ("planningToCity", "planning"), ("comingEvents", "event"))
                       if isinstance(home.get(k), list) and home.get(k)]
-            lines.append("🏠 [b]%s[/b]  %s" % (_escape(trunc(home.get("cityName") or "home", 26)),
-                                               " · ".join(counts) if counts else "[dim]quiet week[/dim]"))
+            lines.append(("🏠 [b]%s[/b]  %s" % (_escape(trunc(home.get("cityName") or "home", 26)),
+                                                " · ".join(counts) if counts else "[dim]quiet week[/dim]"), ("people", None)))
         for city in [c for c in (digest.get("favoriteCities") or []) if isinstance(c, dict)][:4]:
             n = len(city.get("comingTrips") or []) + len(city.get("newTrips") or [])
             ev = len(city.get("comingEvents") or []) + len(city.get("newEvents") or [])
             bits = [b for b in ((plural(n, "trip") if n else ""), (plural(ev, "event") if ev else "")) if b]
-            lines.append("★ %s  [dim]%s[/dim]" % (_escape(trunc(city.get("cityName") or "", 22)), " · ".join(bits) or "quiet"))
+            lines.append(("★ %s  [dim]%s[/dim]" % (_escape(trunc(city.get("cityName") or "", 22)), " · ".join(bits) or "quiet"), None))
         people = digest.get("favoritePeople") if isinstance(digest.get("favoritePeople"), dict) else {}
         names: List[str] = []
         for key in ("newTrips", "comingTrips", "attending"):
@@ -393,8 +620,8 @@ class HomeScreen(DCScreen):
                 if who and who not in names:
                     names.append(str(who))
         if names:
-            lines.append("♥ %s" % _escape(trunc(", ".join(names[:6]), self._card_width() - 4)))
-        return lines or ["[dim]locator digest is empty[/dim]"], _subtitle("Friday digest", f)
+            lines.append(("♥ %s" % _escape(trunc(", ".join(names[:6]), self._card_width() - 4)), ("people", None)))
+        return lines or [("[dim]locator digest is empty[/dim]", None)], _subtitle("Friday digest", f)
 
     def _render_me(self, results: List[Fetched]) -> Tuple[List[str], str]:
         profile_f, membership_f, limits_f = results
@@ -411,9 +638,9 @@ class HomeScreen(DCScreen):
         renew_txt = ("  · renews %s" % renew) if renew else ("  · renews in %s" % plural(int(days), "day") if isinstance(days, int) else "")
         chapter = profile.get("chapter") if isinstance(profile.get("chapter"), dict) else {}
         lines = [
-            "[b]%s[/b]  [dim]@%s[/dim]" % (_escape(str(name)), _escape(str(profile.get("userName") or ""))),
-            "%s%s" % (badge, renew_txt),
-            "[dim]API %s/min · %s/day[/dim]" % (limits.get("perMinute", "?"), limits.get("perDay", "?")),
+            ("[b]%s[/b]  [dim]@%s[/dim]" % (_escape(str(name)), _escape(str(profile.get("userName") or ""))), ("me", None)),
+            ("%s%s" % (badge, renew_txt), None),
+            ("[dim]API %s/min · %s/day[/dim]" % (limits.get("perMinute", "?"), limits.get("perDay", "?")), None),
         ]
         return lines, _subtitle(str(chapter.get("cityName") or ""), profile_f, membership_f, limits_f)
 
