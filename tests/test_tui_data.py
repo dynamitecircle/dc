@@ -1,0 +1,210 @@
+"""Offline tests for the `dc tui` data layer — cache, rate budget, layout maths,
+and the DataClient's stale-while-revalidate behaviour with a stub client.
+
+No Textual import here: these run on the stdlib alone, on Python 3.9+.
+"""
+import sys
+
+import pytest
+
+from dc_tui.budget import RateBudget
+from dc_tui.cache import DiskCache
+from dc_tui.data import DataClient, INVALIDATES
+from dc_tui.layout import layout_mode, pane_widths
+
+
+class _Clock:
+    def __init__(self, t=1_000_000.0):
+        self.t = t
+
+    def __call__(self):
+        return self.t
+
+
+class _StubDC:
+    """Stands in for `dc.DC`: counts calls, can be told to fail."""
+
+    def __init__(self):
+        self.calls = []
+        self.fail = False
+
+    def trips(self, past=False, limit=50, cursor=None):
+        self.calls.append(("trips", past))
+        if self.fail:
+            raise RuntimeError("boom")
+        return {"items": [{"tripID": "t1"}], "count": 1}
+
+    def limits(self):
+        self.calls.append(("limits",))
+        return {"tier": "dcb", "perMinute": 60, "perDay": 3000}
+
+    def trip_delete(self, trip_id):
+        self.calls.append(("trip-delete", trip_id))
+        return {"ok": True}
+
+
+@pytest.fixture
+def client(tmp_path):
+    clock = _Clock()
+    dc = _StubDC()
+    cache = DiskCache(tmp_path / "cache", clock=clock)
+    api = DataClient(dc, cache=cache, budget=RateBudget(clock=clock), clock=clock)
+    return api, dc, clock
+
+
+# ── layout ────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("width,mode", [(40, "compact"), (80, "compact"), (81, "single"),
+                                        (99, "single"), (100, "split"), (139, "split"), (140, "wide"), (300, "wide")])
+def test_layout_mode_breakpoints(width, mode):
+    assert layout_mode(width) == mode
+
+
+def test_pane_widths_sum_to_width():
+    for width in (20, 80, 100, 140, 231):
+        left, right = pane_widths(width)
+        assert left + right == width
+        assert right == 0 or right >= 40
+
+
+# ── cache ─────────────────────────────────────────────────────────────
+
+def test_cache_roundtrip_and_ttl(tmp_path):
+    clock = _Clock()
+    cache = DiskCache(tmp_path, clock=clock)
+    key = DiskCache.key("trips", past=False)
+    assert cache.get(key) is None
+    cache.set(key, "trips", {"items": []})
+    assert cache.get_fresh(key, "trips") is not None
+    clock.t += cache.ttl_for("trips") + 1
+    assert cache.get_fresh(key, "trips") is None          # stale …
+    assert cache.get(key) is not None                     # … but still there
+
+
+def test_cache_key_is_stable_and_filename_safe():
+    a = DiskCache.key("event-schedule", "ev/1", limit=5)
+    b = DiskCache.key("event-schedule", "ev/1", limit=5)
+    assert a == b and "/" not in a and a.startswith("event-schedule.")
+    assert DiskCache.key("event-schedule", "ev/2") != a
+
+
+def test_cache_invalidate_by_command(tmp_path):
+    cache = DiskCache(tmp_path)
+    cache.set(DiskCache.key("trips"), "trips", 1)
+    cache.set(DiskCache.key("rooms"), "rooms", 2)
+    assert cache.invalidate(["trips"]) >= 1
+    assert cache.get(DiskCache.key("trips")) is None
+    assert cache.get(DiskCache.key("rooms")) is not None
+
+
+# ── budget ────────────────────────────────────────────────────────────
+
+def test_budget_reads_headers_case_insensitively():
+    clock = _Clock()
+    b = RateBudget(clock=clock)
+    b.observe_headers({"x-ratelimit-limit": "60", "X-RateLimit-Remaining": "12",
+                       "X-RateLimit-Reset": str(int(clock.t) + 30), "X-RateLimit-Daily-Remaining": "2500"})
+    snap = b.snapshot()
+    assert snap["minute"]["limit"] == 60 and snap["minute"]["remaining"] == 12
+    assert snap["day"]["remaining"] == 2500
+    assert "12/60 min" in b.summary()
+
+
+def test_budget_reserve_blocks_background_not_foreground():
+    b = RateBudget(clock=_Clock())
+    b.observe_headers({"X-RateLimit-Limit": "10", "X-RateLimit-Remaining": "2"})
+    assert not b.can_spend(1, background=True)      # 20% reserve of 10 = 2
+    assert b.can_spend(1, background=False)
+
+
+def test_budget_poll_interval_slower_for_dcc_than_dcb():
+    dcc, dcb = RateBudget(clock=_Clock()), RateBudget(clock=_Clock())
+    dcc.observe_limits({"tier": "dcc", "perMinute": 10, "perDay": 300})
+    dcb.observe_limits({"tier": "dcb", "perMinute": 60, "perDay": 3000})
+    assert dcc.poll_interval() > dcb.poll_interval()
+    assert dcb.poll_interval(idle_seconds=1200) > dcb.poll_interval()
+
+
+# ── data client ───────────────────────────────────────────────────────
+
+def test_fetch_uses_cache_then_refetches_when_stale(client):
+    api, dc, clock = client
+    first = api.fetch("trips")
+    assert not first.from_cache and first.ok and first.data["count"] == 1
+    second = api.fetch("trips")
+    assert second.from_cache and not second.stale
+    assert dc.calls.count(("trips", False)) == 1
+    clock.t += api.cache.ttl_for("trips") + 1
+    third = api.fetch("trips")
+    assert not third.from_cache and dc.calls.count(("trips", False)) == 2
+
+
+def test_fetch_falls_back_to_stale_on_error(client):
+    api, dc, clock = client
+    api.fetch("trips")
+    clock.t += 10_000
+    dc.fail = True
+    fetched = api.fetch("trips")
+    assert fetched.stale and fetched.error and fetched.data["count"] == 1
+
+
+def test_fetch_error_without_cache_has_no_data(client):
+    api, dc, _ = client
+    dc.fail = True
+    fetched = api.fetch("trips")
+    assert fetched.data is None and not fetched.ok
+
+
+def test_limits_feed_the_budget(client):
+    api, _, _ = client
+    api.fetch("limits")
+    assert api.budget.snapshot()["tier"] == "dcb"
+    assert api.budget.snapshot()["day"]["limit"] == 3000
+
+
+def test_mutate_invalidates_dependent_reads(client):
+    api, dc, _ = client
+    api.fetch("trips")
+    result = api.mutate("trip-delete", "t1")
+    assert result.ok and ("trip-delete", "t1") in dc.calls
+    assert "trips" in INVALIDATES["trip-delete"]
+    assert api.fetch("trips").from_cache is False        # cache was dropped
+
+
+def test_unknown_command_is_an_error_not_a_crash(client):
+    api, _, _ = client
+    fetched = api.fetch("no-such-command")
+    assert not fetched.ok and "no command" in fetched.error
+
+
+# ── entry point ───────────────────────────────────────────────────────
+
+def test_run_tui_prints_install_hint_without_textual(monkeypatch, capsys):
+    import dc
+    monkeypatch.setitem(sys.modules, "textual", None)      # make `import textual` fail
+    import dc_tui
+    assert dc_tui.run(dc.DC, []) == 1
+    assert "dynamitecircle[tui]" in capsys.readouterr().err
+
+
+def test_dc_main_routes_tui_subcommand(monkeypatch):
+    import dc
+    seen = {}
+    monkeypatch.setattr(dc.DC, "run_tui", lambda self, argv=None: (seen.__setitem__("argv", list(argv)), 0)[1])
+    monkeypatch.setattr(sys, "argv", ["dc", "tui", "--clear-cache"])
+    assert dc.main() == 0 and seen["argv"] == ["--clear-cache"]
+
+
+def test_tui_is_not_an_mcp_tool():
+    """`tui` is a CLI-only built-in — it must never be registered as a command."""
+    import dc
+    assert "tui" not in dc.DC()._commands
+
+
+# ── formatting ────────────────────────────────────────────────────────
+
+def test_strip_markdown_flattens_announcement_bodies():
+    from dc_tui.format import strip_markdown
+    raw = "**Traveling soon? Post Your Trip!**\n[![](https://dc.mba/x)](https://dc.mba/x)\n_Add_ your [trip](https://dc.mba/t) `now`"
+    assert strip_markdown(raw) == "Traveling soon? Post Your Trip! Add your trip now"
+    assert strip_markdown(None) == ""

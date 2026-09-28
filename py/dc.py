@@ -597,6 +597,7 @@ class HttpClient:
     # X-API-Version header value (or None if missing). Set by
     # `_VersionTracker.attach()` at runtime construction time.
     _on_server_version = None  # type: ignore[var-annotated]
+    _on_response = None  # Optional[Callable[[method, url, status, headers], None]] — see request()
 
     # Retry policy. Mutable so dispatch() can adjust based on CLI flags.
     max_retries: int = 1          # number of retries on 429 (1 by default)
@@ -690,6 +691,14 @@ class HttpClient:
             server_version = resp_headers.get("X-API-Version") or resp_headers.get("x-api-version")
             if HttpClient._on_server_version and server_version:
                 HttpClient._on_server_version(server_version)
+            # Generic response observer (status + headers) — the TUI reads the
+            # X-RateLimit-* headers off every response to pace itself. Never
+            # raises: an observer failure must not break the request.
+            if HttpClient._on_response:
+                try:
+                    HttpClient._on_response(method.upper(), url, status, resp_headers)
+                except Exception:
+                    pass
 
             # Parse the body (best-effort)
             try:
@@ -951,10 +960,23 @@ class Runtime:
 
     # ── Built-ins ────────────────────────────────────────────────────
 
+    def _cli_builtins(self) -> dict:
+        """CLI-only built-ins a subclass may add: `{name: (help, fn)}`.
+
+        `fn(rest_args) -> int` runs in place of a skill command. Unlike
+        `@skill_command` methods these are never exposed as MCP tools —
+        they're for interactive things (e.g. `dc tui`) that make no sense
+        for an agent.
+        """
+        return {}
+
     def _builtin_help(self, command: str | None = None) -> str:
+        builtins = self._cli_builtins()
         if command and command in self._commands:
             cmd = self._commands[command]
             return f"{cmd['name']}\n  {cmd['help']}"
+        if command and command in builtins:
+            return f"{command}\n  {builtins[command][0]}"
         lines = [f"{self.name} — commands:\n"]
         width = max((len(n) for n in self._commands), default=20)
         for name in sorted(self._commands):
@@ -964,6 +986,8 @@ class Runtime:
         lines.append("Built-ins:")
         lines.append(f"  {'help [command]':{width}}  Show this help (or details for one command)")
         lines.append(f"  {'docs [command]':{width}}  Alias for help")
+        for name in sorted(builtins):
+            lines.append(f"  {name:{width}}  {builtins[name][0]}")
         lines.append("")
         lines.append("Global flags (before or after command):")
         lines.append(f"  {'--format text|json|python':{width}}  Output format (default: text)")
@@ -1011,6 +1035,10 @@ class Runtime:
             target = rest[0] if rest else None
             print(self._builtin_help(target))
             return 0
+
+        builtin = self._cli_builtins().get(cmd_name)
+        if builtin is not None:
+            return int(builtin[1](rest) or 0)
 
         cmd = self._commands.get(cmd_name)
         if not cmd:
@@ -3324,6 +3352,33 @@ class DC(Runtime):
     def locator(self, sections="", **_unused):
         return self._core.locator(sections=sections)
 
+    # ── Terminal UI (optional) ─────────────────────────────────────
+    #
+    # `dc tui` launches the keyboard-driven Textual app shipped in the
+    # sibling `dc_tui` package (`pip install 'dynamitecircle[tui]'`). It is
+    # a CLI-only built-in, never an MCP tool, and both the package and
+    # `textual` are imported lazily so the stdlib-only CLI stays that way.
+
+    def _cli_builtins(self) -> dict:
+        return {
+            "tui": ("Interactive terminal UI — inbox, trips, events, people, settings "
+                    "(needs: pip install 'dynamitecircle[tui]')", self.run_tui),
+        }
+
+    def run_tui(self, argv=None) -> int:
+        """Launch the terminal UI. Returns a process exit code."""
+        try:
+            import dc_tui  # noqa: WPS433 — lazy on purpose
+        except ImportError:
+            print(
+                "dc tui needs the `dc_tui` package that ships next to dc.py.\n"
+                "Install the full client with: pip install 'dynamitecircle[tui]'\n"
+                "(A single-file copy of dc.py doesn't include the terminal UI.)",
+                file=sys.stderr,
+            )
+            return 1
+        return int(dc_tui.run(self, list(argv or [])) or 0)
+
     # ── MCP server (optional) ──────────────────────────────────────
     #
     # When the user runs `python3 dc.py --mcp`, the same registered
@@ -3462,6 +3517,10 @@ def main():
     """Entry point for the `dc` console script (PyPI install)."""
     if "--mcp" in sys.argv:
         return DC().run_mcp()
+    if sys.argv[1:2] == ["tui"]:
+        # `dc tui` — the interactive terminal app (see DC.run_tui). Handled
+        # before dispatch so it never becomes an MCP tool.
+        return DC().run_tui(sys.argv[2:])
     return DC().dispatch()
 
 

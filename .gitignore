@@ -36,3 +36,9 @@ Thumbs.db
 # Per-install local state; never commit (would push your local migration
 # timestamps to every package consumer).
 metadata/
+
+# Hive worktree marker (per-checkout, written by the worktree skill)
+.env.worktree
+
+# Hive Drive symlink (per-machine, points at the Hive checkout)
+drive

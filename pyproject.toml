@@ -46,6 +46,10 @@ dynamic = ["version"]
 # `pip install dynamitecircle[mcp]` enables --mcp server mode.
 # CLI / library use needs nothing beyond the stdlib.
 mcp = ["mcp>=0.9.0"]
+# `pip install dynamitecircle[tui]` enables `dc tui` — the interactive
+# terminal app (the `dc_tui` package ships in the wheel; Textual is the only
+# extra dependency). Textual 8.x supports Python 3.9+, same floor as the client.
+tui = ["textual>=6.0"]
 # `pip install dynamitecircle[test]` for the offline test suite (dev only —
 # tests/ is excluded from the wheel + sdist).
 test = ["pytest>=7.0"]
@@ -78,6 +82,10 @@ bypass-selection = true
 
 [tool.hatch.build.targets.wheel.force-include]
 "py/dc.py" = "dynamitecircle.py"
+# The optional terminal UI (`dc tui`) — a small package next to the
+# single-file client. Importing it costs nothing until `dc tui` runs; the
+# `textual` dependency only comes with the [tui] extra.
+"py/dc_tui" = "dc_tui"
 
 [tool.hatch.build.targets.sdist]
 # Source dist includes the full repo. only-include + bypass-selection

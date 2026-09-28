@@ -1,0 +1,432 @@
+"""Screens — one per section, all built on :class:`DCScreen`.
+
+Phase 1 ships the shell: every section is reachable, responsive, and
+shows real status; the Home screen already renders the unread inbox that
+the background tick keeps warm. Phase 2 replaces the placeholders with
+the real Rooms / Trips / Events / Live Calls screens; Phase 4 adds People
+and Me.
+"""
+from __future__ import annotations
+
+from datetime import date
+from typing import Dict, List, Optional, Tuple, Type
+
+from textual import events
+from textual.app import ComposeResult
+from textual.containers import Horizontal, VerticalScroll
+from textual.screen import Screen
+from textual.widgets import Footer, Header, Static
+
+from textual import work
+from textual.containers import Vertical
+
+from .data import Fetched
+from .format import date_range, fmt_date, plural, strip_markdown, trunc
+from .layout import MODES, layout_mode
+from .widgets import Panel
+
+WEB_APP = "https://dc.dynamitecircle.com"
+
+
+class Section:
+    __slots__ = ("id", "title", "hint", "url")
+
+    def __init__(self, id: str, title: str, hint: str, url: str):
+        self.id = id
+        self.title = title
+        self.hint = hint
+        self.url = url
+
+
+SECTIONS: List[Section] = [
+    Section("home",   "Home",       "unread · announcements · tickets · trips · locator", WEB_APP + "/"),
+    Section("rooms",  "Rooms",      "inbox by type · messages · daily/weekly summaries",   WEB_APP + "/inbox"),
+    Section("trips",  "Trips",      "your trips · create/edit · who to meet",              WEB_APP + "/trips"),
+    Section("events", "Events",     "schedule · my agenda · meetups · free slots",         WEB_APP + "/events"),
+    Section("calls",  "Live Calls", "upcoming calls · RSVP",                               WEB_APP + "/events"),
+    Section("people", "People",     "search · profile match · follows",                    WEB_APP + "/members"),
+    Section("me",     "Me",         "profile · membership · notifications · calendar",     WEB_APP + "/profile"),
+]
+
+
+class StatusBar(Static):
+    """One-line status: budget · tier · last refresh · unread · layout mode."""
+
+
+class DCScreen(Screen):
+    """Base screen: header, main + optional detail pane, status bar, footer."""
+
+    SECTION: str = "home"
+    TITLE_TEXT: str = "DC"
+    HINT: str = ""
+    URL: str = WEB_APP
+
+    def compose(self) -> ComposeResult:
+        yield Header(show_clock=False)
+        with Horizontal(id="body"):
+            yield VerticalScroll(id="main")
+            yield VerticalScroll(id="detail")
+        yield StatusBar("", id="status")
+        yield Footer()
+
+    # ── Layout ────────────────────────────────────────────────────────
+
+    def on_mount(self) -> None:
+        self.sub_title = self.TITLE_TEXT
+        self.set_layout_mode(layout_mode(self.app.size.width))
+        self.populate()
+        self.app.refresh_status()  # type: ignore[attr-defined]
+
+    def on_screen_resume(self) -> None:
+        self.set_layout_mode(layout_mode(self.app.size.width))
+        self.app.refresh_status()  # type: ignore[attr-defined]
+
+    def on_resize(self, event: events.Resize) -> None:
+        self.app.apply_layout(event.size.width)  # type: ignore[attr-defined]
+
+    #: Screens without a list/detail split (the Home dashboard) set this False.
+    HAS_DETAIL: bool = True
+
+    def set_layout_mode(self, mode: str) -> None:
+        for other in MODES:
+            self.remove_class(other)
+        self.add_class(mode)
+        try:
+            self.detail_pane().display = bool(self.HAS_DETAIL and mode in ("split", "wide"))
+        except Exception:  # noqa: BLE001 — not composed yet
+            pass
+
+    # ── Hooks for concrete screens ────────────────────────────────────
+
+    def populate(self) -> None:
+        """Fill ``#main`` (and ``#detail``) on first mount."""
+
+    def refresh_data(self, force: bool = False) -> None:
+        """Re-fetch this screen's data (``r``)."""
+
+    def current_url(self) -> str:
+        """What ``o`` opens — override to point at the selected item."""
+        return self.URL
+
+    # ── Helpers ───────────────────────────────────────────────────────
+
+    def main_pane(self) -> VerticalScroll:
+        return self.query_one("#main", VerticalScroll)
+
+    def detail_pane(self) -> VerticalScroll:
+        return self.query_one("#detail", VerticalScroll)
+
+    def set_main(self, *widgets) -> None:
+        pane = self.main_pane()
+        pane.remove_children()
+        pane.mount(*widgets)
+
+
+class PlaceholderScreen(DCScreen):
+    """A section whose real screen lands in a later phase."""
+
+    @classmethod
+    def for_section(cls, section: Section) -> Type["PlaceholderScreen"]:
+        return type("%sScreen" % section.title.replace(" ", ""), (cls,), {
+            "SECTION":    section.id,
+            "TITLE_TEXT": section.title,
+            "HINT":       section.hint,
+            "URL":        section.url,
+        })
+
+    def populate(self) -> None:
+        self.set_main(
+            Static(self.TITLE_TEXT, classes="section-title"),
+            Static(self.HINT, classes="muted"),
+            Static(""),
+            Static("This screen is coming next. Press [b]o[/b] to open it in the web app, "
+                   "[b]/[/b] for the command palette, [b]?[/b] for keys.", classes="muted"),
+        )
+
+
+class HomeScreen(DCScreen):
+    """The one-glance dashboard: unread rooms, latest announcements, tickets +
+    upcoming events, trips, the locator digest, and you.
+
+    Six :class:`Panel` cards packed into 1 / 2 / 3 columns depending on the
+    layout mode (compact / single+split / wide). Each card paints stale cached
+    data instantly and refreshes behind it; staleness or an error shows in the
+    card's subtitle, never as a traceback. Because Textual widgets cannot be
+    re-parented, a column-count change rebuilds the cards and replays the last
+    rendered content into them (no extra API calls).
+    """
+
+    SECTION = "home"
+    TITLE_TEXT = "Home"
+    HINT = SECTIONS[0].hint
+    URL = SECTIONS[0].url
+    HAS_DETAIL = False
+
+    DEFAULT_CSS = """
+    #home-grid { height: auto; }
+    #home-grid > .home-col { width: 1fr; height: auto; margin: 0 1 0 0; }
+    """
+
+    COLUMNS = {"compact": 1, "single": 2, "split": 2, "wide": 3}
+
+    PANELS: List[Tuple[str, str, Tuple[Tuple[str, ...], ...]]] = [
+        # (panel id, title, commands the panel needs)
+        ("p-inbox",         "Inbox",            (("inbox",),)),
+        ("p-announcements", "Announcements",    (("announcements-latest",),)),
+        ("p-tickets",       "Tickets & events", (("tickets",), ("events",))),
+        ("p-trips",         "Trips",            (("trips",),)),
+        ("p-locator",       "Locator",          (("locator",),)),
+        ("p-me",            "Me",               (("profile",), ("membership",), ("limits",))),
+    ]
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._rendered: Dict[str, Tuple[List[str], str]] = {}
+        self._columns = 0
+
+    # ── build / relayout ──────────────────────────────────────────────
+
+    def populate(self) -> None:
+        self._build(self.COLUMNS.get(layout_mode(self.app.size.width), 1), then_fetch=True)
+
+    def set_layout_mode(self, mode: str) -> None:
+        super().set_layout_mode(mode)
+        wanted = self.COLUMNS.get(mode, 1)
+        if self._columns and wanted != self._columns:
+            self._build(wanted)
+
+    def _build(self, columns: int, then_fetch: bool = False) -> None:
+        """(Re)build the column layout. Removal of the old cards is asynchronous
+        in Textual, so the whole rebuild runs as an exclusive worker that awaits
+        it before mounting cards with the same ids again."""
+        self._columns = columns
+        self.run_worker(self._rebuild(columns, then_fetch), group="home-build", exclusive=True)
+
+    async def _rebuild(self, columns: int, then_fetch: bool) -> None:
+        pane = self.main_pane()
+        await pane.remove_children()
+        row = Horizontal(id="home-grid")
+        await pane.mount(row)
+        cols = [Vertical(classes="home-col") for _ in range(columns)]
+        await row.mount(*cols)
+        for i, (pid, title, _) in enumerate(self.PANELS):
+            panel = Panel(title, id=pid)
+            await cols[i % columns].mount(panel)
+            if pid in self._rendered:
+                lines, subtitle = self._rendered[pid]
+                panel.set_lines(lines, subtitle=subtitle)
+        if then_fetch:
+            self.refresh_data(force=False)
+
+    # ── data ──────────────────────────────────────────────────────────
+
+    def refresh_data(self, force: bool = False) -> None:
+        for pid, _, commands in self.PANELS:
+            try:
+                self.query_one("#%s" % pid, Panel).set_loading()
+            except Exception:  # noqa: BLE001 — not composed yet
+                continue
+            self._fetch(pid, list(commands), force)
+
+    def show_unread(self, fetched: Fetched) -> None:
+        """The app-level tick keeps the inbox warm; repaint that card only."""
+        self._paint("p-inbox", *self._render_inbox([fetched]))
+
+    def current_url(self) -> str:
+        return WEB_APP + "/inbox"
+
+    @work(thread=True, group="home", exit_on_error=False)
+    def _fetch(self, panel_id: str, commands: List[Tuple[str, ...]], force: bool) -> None:
+        data = self.app.data  # type: ignore[attr-defined]
+        results = [data.fetch(cmd[0], *cmd[1:], force=force) for cmd in commands]
+        if all(r.error and r.data is None for r in results):
+            self.app.call_from_thread(self._fail, panel_id, results[0].error or "failed")
+        else:
+            self.app.call_from_thread(self._render_into, panel_id, results)
+        self.app.call_from_thread(self.app.refresh_status)  # type: ignore[attr-defined]
+
+    # ── painting (UI thread) ──────────────────────────────────────────
+
+    def _render_into(self, panel_id: str, results: List[Fetched]) -> None:
+        renderer = getattr(self, "_render_" + panel_id[2:])
+        lines, subtitle = renderer(results)
+        self._paint(panel_id, lines, subtitle)
+
+    def _paint(self, panel_id: str, lines: List[str], subtitle: str) -> None:
+        self._rendered[panel_id] = (lines, subtitle)
+        try:
+            self.query_one("#%s" % panel_id, Panel).set_lines(lines, subtitle=subtitle)
+        except Exception:  # noqa: BLE001 — card rebuilt mid-flight; replayed by _build
+            pass
+
+    def _fail(self, panel_id: str, message: str) -> None:
+        try:
+            self.query_one("#%s" % panel_id, Panel).set_error(message)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _compact(self) -> bool:
+        return self.app.layout_mode_name == "compact"  # type: ignore[attr-defined]
+
+    def _card_width(self) -> int:
+        cols = max(1, self._columns)
+        return max(24, (self.app.size.width - 4) // cols - 4)
+
+    # ── renderers: (results) -> (lines, subtitle) ─────────────────────
+
+    def _render_inbox(self, results: List[Fetched]) -> Tuple[List[str], str]:
+        f = results[0]
+        rooms = sorted(_items(f), key=lambda r: -int(r.get("badgeCount") or 0))
+        total = _extra(f).get("totalUnread")
+        if total is None:
+            total = sum(int(r.get("badgeCount") or 0) for r in rooms)
+        width = self._card_width()
+        lines = ["[b]%3d[/b]  %s  [dim]%s[/dim]" % (
+                    int(r.get("badgeCount") or 0),
+                    _escape(trunc(r.get("roomName") or r.get("roomID", ""), max(12, width - 16))),
+                    r.get("roomType") or "")
+                 for r in rooms[:8]]
+        return lines or ["[green]all caught up[/green]"], _subtitle(plural(int(total), "unread"), f)
+
+    def _render_announcements(self, results: List[Fetched]) -> Tuple[List[str], str]:
+        f = results[0]
+        data = _dict(f)
+        items = [a for a in (data.get("announcements") or []) if isinstance(a, dict)]
+        width = self._card_width()
+        lines = []
+        for a in items[:6]:
+            author = a.get("author") if isinstance(a.get("author"), dict) else {}
+            who = author.get("displayName") or author.get("userName") or "DC"
+            text = strip_markdown(a.get("content"))
+            lines.append("[b]%s[/b] [dim]%s[/dim]\n  %s" % (
+                _escape(trunc(who, 24)), fmt_date(a.get("createdAt")), _escape(trunc(text, max(30, width * 2 - 6)))))
+        return lines or ["[dim]no announcements[/dim]"], _subtitle(plural(len(items), "channel"), f)
+
+    def _render_tickets(self, results: List[Fetched]) -> Tuple[List[str], str]:
+        tickets_f, events_f = results
+        today = date.today().isoformat()
+        tickets = [t for t in _items(tickets_f)
+                   if t.get("status") in ("valid", "maybe") and str(t.get("endDate") or t.get("startDate") or "")[:10] >= today]
+        tickets.sort(key=lambda t: str(t.get("startDate") or ""))
+        events = sorted(_items(events_f), key=lambda e: str(e.get("startDate") or ""))
+        compact = self._compact()
+        name_w = 22 if compact else 30
+        lines = []
+        for t in tickets[:5]:
+            extra = "" if compact else "  [dim]%s[/dim]" % _escape(t.get("ticketName") or "")
+            lines.append("🎟  [b]%s[/b]  %s%s" % (_escape(trunc(t.get("eventName", ""), name_w)),
+                                                  date_range(t.get("startDate"), t.get("endDate")), extra))
+        held = {t.get("eventID") for t in tickets}
+        upcoming = [e for e in events if e.get("eventID") not in held][:4]
+        if upcoming:
+            lines.append("[dim]— upcoming, no ticket yet —[/dim]")
+            for e in upcoming:
+                lines.append("    %s  %s" % (_escape(trunc(e.get("name") or e.get("eventName", ""), name_w)),
+                                             date_range(e.get("startDate"), e.get("endDate"))))
+        return lines or ["[dim]no upcoming tickets[/dim]"], _subtitle(plural(len(tickets), "ticket"), tickets_f, events_f)
+
+    def _render_trips(self, results: List[Fetched]) -> Tuple[List[str], str]:
+        f = results[0]
+        trips = _items(f)
+        lines = []
+        for t in trips[:6]:
+            loc = t.get("location") if isinstance(t.get("location"), dict) else {}
+            place = t.get("place") if isinstance(t.get("place"), dict) else {}
+            name = loc.get("cityName") or loc.get("name") or place.get("name") or t.get("placeName") or "?"
+            lines.append("✈  [b]%s[/b]  %s" % (_escape(trunc(name, 24)), date_range(t.get("startDate"), t.get("endDate"))))
+        return lines or ["[dim]no upcoming trips — press 3 to plan one[/dim]"], _subtitle(plural(len(trips), "trip"), f)
+
+    def _render_locator(self, results: List[Fetched]) -> Tuple[List[str], str]:
+        f = results[0]
+        digest = _dict(f)
+        lines = []
+        home = digest.get("homeCity") if isinstance(digest.get("homeCity"), dict) else {}
+        if home:
+            counts = [plural(len(home.get(k) or []), label)
+                      for k, label in (("newMembers", "new member"), ("comingToCity", "visitor"),
+                                       ("planningToCity", "planning"), ("comingEvents", "event"))
+                      if isinstance(home.get(k), list) and home.get(k)]
+            lines.append("🏠 [b]%s[/b]  %s" % (_escape(trunc(home.get("cityName") or "home", 26)),
+                                               " · ".join(counts) if counts else "[dim]quiet week[/dim]"))
+        for city in [c for c in (digest.get("favoriteCities") or []) if isinstance(c, dict)][:4]:
+            n = len(city.get("comingTrips") or []) + len(city.get("newTrips") or [])
+            ev = len(city.get("comingEvents") or []) + len(city.get("newEvents") or [])
+            bits = [b for b in ((plural(n, "trip") if n else ""), (plural(ev, "event") if ev else "")) if b]
+            lines.append("★ %s  [dim]%s[/dim]" % (_escape(trunc(city.get("cityName") or "", 22)), " · ".join(bits) or "quiet"))
+        people = digest.get("favoritePeople") if isinstance(digest.get("favoritePeople"), dict) else {}
+        names: List[str] = []
+        for key in ("newTrips", "comingTrips", "attending"):
+            for row in people.get(key) or []:
+                member = row.get("member") if isinstance(row, dict) and isinstance(row.get("member"), dict) else {}
+                who = member.get("displayName") or member.get("userName")
+                if who and who not in names:
+                    names.append(str(who))
+        if names:
+            lines.append("♥ %s" % _escape(trunc(", ".join(names[:6]), self._card_width() - 4)))
+        return lines or ["[dim]locator digest is empty[/dim]"], _subtitle("Friday digest", f)
+
+    def _render_me(self, results: List[Fetched]) -> Tuple[List[str], str]:
+        profile_f, membership_f, limits_f = results
+        profile, limits = _dict(profile_f), _dict(limits_f)
+        m = _dict(membership_f).get("membership")
+        m = m if isinstance(m, dict) else {}
+        name = profile.get("displayName") or profile.get("userName") or "you"
+        role = m.get("role") if isinstance(m.get("role"), dict) else {}
+        billing = m.get("billing") if isinstance(m.get("billing"), dict) else {}
+        dcb = m.get("dcBlack") if isinstance(m.get("dcBlack"), dict) else {}
+        badge = "DC BLACK" if dcb.get("isMember") else (role.get("label") or str(limits.get("tier") or "").upper())
+        renew = fmt_date(billing.get("currentPeriodEnd"))
+        days = billing.get("daysTillRenewal")
+        renew_txt = ("  · renews %s" % renew) if renew else ("  · renews in %s" % plural(int(days), "day") if isinstance(days, int) else "")
+        chapter = profile.get("chapter") if isinstance(profile.get("chapter"), dict) else {}
+        lines = [
+            "[b]%s[/b]  [dim]@%s[/dim]" % (_escape(str(name)), _escape(str(profile.get("userName") or ""))),
+            "%s%s" % (badge, renew_txt),
+            "[dim]API %s/min · %s/day[/dim]" % (limits.get("perMinute", "?"), limits.get("perDay", "?")),
+        ]
+        return lines, _subtitle(str(chapter.get("cityName") or ""), profile_f, membership_f, limits_f)
+
+
+# ── pure helpers (testable without Textual) ──────────────────────────
+
+def _items(fetched: Fetched) -> list:
+    """The client wraps lists as `{items, count, cursor, has_more, extra}`."""
+    data = fetched.data
+    if isinstance(data, dict) and isinstance(data.get("items"), list):
+        return [i for i in data["items"] if isinstance(i, dict)]
+    return [i for i in data if isinstance(i, dict)] if isinstance(data, list) else []
+
+
+def _extra(fetched: Fetched) -> dict:
+    data = fetched.data
+    extra = data.get("extra") if isinstance(data, dict) else None
+    return extra if isinstance(extra, dict) else {}
+
+
+def _dict(fetched: Fetched) -> dict:
+    return fetched.data if isinstance(fetched.data, dict) else {}
+
+
+def _subtitle(base: str, *fetched: Fetched) -> str:
+    """`base` plus a freshness flag when any source is stale or failed."""
+    worst = None
+    for f in fetched:
+        if f.error:
+            worst = "⚠ " + trunc(f.error, 28)
+            break
+        if f.stale:
+            worst = "stale %s" % _fmt_age(f.age)
+    return "%s · %s" % (base, worst) if worst else base
+
+
+def _fmt_age(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    if seconds < 60:
+        return "%ds" % seconds
+    if seconds < 3600:
+        return "%dm" % (seconds // 60)
+    return "%dh" % (seconds // 3600)
+
+
+def _escape(text: str) -> str:
+    return str(text).replace("[", r"\[")

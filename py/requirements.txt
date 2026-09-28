@@ -6,3 +6,7 @@
 
 # Optional — Model Context Protocol server support.
 mcp>=0.9.0
+
+# Optional — terminal UI (`python3 dc.py tui`). Uncomment to install, or
+# `pip install 'dynamitecircle[tui]'` when using the PyPI package.
+# textual>=6.0
