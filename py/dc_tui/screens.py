@@ -136,7 +136,7 @@ class DCScreen(Screen):
                 self.query_one("#nav-tabs", Tabs).focus()
             except Exception:  # noqa: BLE001
                 pass
-        elif self.focused is None or self.focused is self.query_one("#nav-tabs", Tabs):
+        elif self.focused is None:
             self.focus_content()
 
     def _sync_nav(self) -> None:
