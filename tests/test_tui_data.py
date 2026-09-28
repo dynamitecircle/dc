@@ -219,3 +219,36 @@ def test_run_help_and_clear_cache_paths(monkeypatch, capsys, tmp_path):
     assert "usage: dc tui" in capsys.readouterr().out
     dc_tui.clear_cache()
     assert "cleared" in capsys.readouterr().err
+
+
+# ── screen helpers (pure functions, no Textual app needed) ────────────
+
+def test_listing_plain_strips_html_and_collapses_whitespace():
+    pytest.importorskip("textual")
+    from dc_tui.listing import plain
+    assert plain("<p>Hello&nbsp;<b>world</b></p>\n\n  again", True) == "Hello world again"
+    assert plain("  a   b ") == "a b"
+
+
+def test_events_time_and_day_helpers():
+    pytest.importorskip("textual")
+    from dc_tui.events import _day_label, _hhmm
+    assert _hhmm("2026-10-22T09:30:00+07:00") == "09:30"
+    assert _hhmm("14:05") == "14:05"
+    assert _hhmm(None) == ""
+    assert _day_label("2026-10-22") == "Thursday Oct 22"
+    assert _day_label("") == "undated"
+
+
+def test_people_flatten_search_hit():
+    pytest.importorskip("textual")
+    from dc_tui.people import _flatten
+    assert _flatten({"profile": {"userID": "1", "displayName": "A"}, "score": 0.9})["_score"] == 0.9
+    assert _flatten({"userID": "2"})["userID"] == "2"
+
+
+def test_every_section_has_a_real_screen():
+    pytest.importorskip("textual")
+    from dc_tui.app import SCREEN_CLASSES
+    from dc_tui.screens import SECTIONS
+    assert {s.id for s in SECTIONS} == set(SCREEN_CLASSES)

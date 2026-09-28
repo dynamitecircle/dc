@@ -20,10 +20,19 @@ from textual.widgets import Static
 
 from .data import DataClient, Fetched
 from .layout import layout_mode
+from .calls import LiveCallsScreen
+from .events import EventsScreen
+from .me import MeScreen
+from .people import PeopleScreen
+from .rooms import RoomsScreen
 from .screens import SECTIONS, DCScreen, HomeScreen, PlaceholderScreen, StatusBar
+from .trips import TripsScreen
 from .theme import DC_THEME
 
 WEB_APP = "https://dc.dynamitecircle.com"
+
+SCREEN_CLASSES = {"home": HomeScreen, "rooms": RoomsScreen, "trips": TripsScreen, "events": EventsScreen,
+                  "calls": LiveCallsScreen, "people": PeopleScreen, "me": MeScreen}
 
 HELP_TEXT = """\
 [b]DC terminal[/b] — keyboard reference
@@ -79,7 +88,7 @@ class DCApp(App):
     TITLE = "DC"
     SUB_TITLE = "Dynamite Circle"
     COMMANDS = {DCCommands}
-    SCREENS = {section.id: (HomeScreen if section.id == "home" else PlaceholderScreen.for_section(section))
+    SCREENS = {section.id: SCREEN_CLASSES.get(section.id) or PlaceholderScreen.for_section(section)
                for section in SECTIONS}
 
     BINDINGS = [Binding(str(i + 1), "goto_section('%s')" % section.id, section.title, show=False)
