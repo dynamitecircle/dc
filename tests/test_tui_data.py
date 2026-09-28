@@ -208,3 +208,14 @@ def test_strip_markdown_flattens_announcement_bodies():
     raw = "**Traveling soon? Post Your Trip!**\n[![](https://dc.mba/x)](https://dc.mba/x)\n_Add_ your [trip](https://dc.mba/t) `now`"
     assert strip_markdown(raw) == "Traveling soon? Post Your Trip! Add your trip now"
     assert strip_markdown(None) == ""
+
+
+def test_run_help_and_clear_cache_paths(monkeypatch, capsys, tmp_path):
+    """The entry point's non-app paths must import cleanly (the app itself needs a terminal)."""
+    import dc
+    import dc_tui
+    monkeypatch.setenv("DC_CACHE_DIR", str(tmp_path))
+    assert dc_tui.run(dc.DC, ["--help"]) == 0
+    assert "usage: dc tui" in capsys.readouterr().out
+    dc_tui.clear_cache()
+    assert "cleared" in capsys.readouterr().err

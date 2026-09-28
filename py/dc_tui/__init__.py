@@ -42,13 +42,18 @@ def run(dc: Any, argv: Optional[Sequence[str]] = None) -> int:
         return 0
 
     from .app import DCApp
-    from .cache import Cache
 
     if "--clear-cache" in argv:
-        n = Cache().clear()
-        print(f"cleared {n} cached responses", file=sys.stderr)
+        clear_cache()
 
     client = dc() if isinstance(dc, type) else dc
     app = DCApp(client, argv=[a for a in argv if not a.startswith("--")])
     app.run()
     return 0
+
+
+def clear_cache() -> None:
+    """`--clear-cache`: drop the on-disk response cache (stdlib only)."""
+    from .cache import DiskCache
+    DiskCache().clear()
+    print("cleared the dc tui response cache", file=sys.stderr)
