@@ -78,9 +78,16 @@ class DCScreen(Screen):
         """↑/↓ (and PageUp/PageDown, Home/End) on a plain page scroll it, even
         when focus sits on the section bar. Never wraps."""
         focused = self.focused
-        if isinstance(focused, Tabs) or focused is None:
-            self.main_pane().focus()
         pane = self.main_pane()
+        if isinstance(focused, Tabs):
+            if step < 0:
+                return                      # ↑ on the bar stays on the bar
+            pane.focus()
+        elif focused is None:
+            pane.focus()
+        elif step < 0 and not page and not edge and pane.scroll_y <= 0:
+            self.query_one("#nav-tabs", Tabs).focus()     # ↑ at the top of the page → bar
+            return
         if edge:
             (pane.scroll_home if step < 0 else pane.scroll_end)(animate=False)
         elif page:

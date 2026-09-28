@@ -553,10 +553,20 @@ class ListDetailScreen(DCScreen):
     def action_page_end(self) -> None:
         self._table_key("action_scroll_bottom", 1, edge=True)
 
+    def top_input(self) -> Optional[Input]:
+        """A visible text field above the list (Search / People), if any."""
+        for inp in self.query(Input):
+            if not inp.has_class("-hidden") and inp.display:
+                return inp
+        return None
+
     def action_nav_up(self) -> None:
         """↑ : move in the table; from the top row, jump to the tab row above it,
-        and from the list's tab row up to the section bar."""
+        then the text field (if any), then the section bar."""
         focused = self.focused
+        if isinstance(focused, Input):
+            self.query_one("#nav-tabs", Tabs).focus()
+            return
         if isinstance(focused, DataTable):
             if focused.cursor_row is not None and focused.cursor_row > 0 and focused.row_count:
                 focused.action_cursor_up()
@@ -565,11 +575,11 @@ class ListDetailScreen(DCScreen):
             if tabs is not None:
                 tabs.focus()
             elif focused.id == "list":
-                self.query_one("#nav-tabs", Tabs).focus()
+                (self.top_input() or self.query_one("#nav-tabs", Tabs)).focus()
             return
         if isinstance(focused, Tabs):
             if focused.id == "list-tabs":
-                self.query_one("#nav-tabs", Tabs).focus()
+                (self.top_input() or self.query_one("#nav-tabs", Tabs)).focus()
             return
         if isinstance(focused, Button):
             tabs = None
@@ -586,17 +596,23 @@ class ListDetailScreen(DCScreen):
         """↓ : from the section bar into the list tabs (or list); from a tab row
         into its table; otherwise move in the table."""
         focused = self.focused
-        if isinstance(focused, Tabs):
-            if focused.id == "nav-tabs":
-                try:
-                    tabs = self.query_one("#list-tabs", Tabs)
-                    if not tabs.has_class("-hidden"):
-                        tabs.focus()
-                        return
-                except Exception:  # noqa: BLE001
-                    pass
-                self.query_one("#list", DataTable).focus()
+        if isinstance(focused, Tabs) and focused.id == "nav-tabs":
+            inp = self.top_input()
+            if inp is not None:
+                inp.focus()                  # bar → search field
                 return
+            focused = None                   # fall through to the list tabs / list
+        if isinstance(focused, Input) or focused is None:
+            try:
+                tabs = self.query_one("#list-tabs", Tabs)
+                if not tabs.has_class("-hidden"):
+                    tabs.focus()
+                    return
+            except Exception:  # noqa: BLE001
+                pass
+            self.query_one("#list", DataTable).focus()
+            return
+        if isinstance(focused, Tabs):
             self._table_for(focused).focus()
             return
         if isinstance(focused, DataTable):
