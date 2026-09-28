@@ -42,8 +42,7 @@ SECTIONS: List[Section] = [
     Section("home",   "Home",       "unread · announcements · tickets · trips · locator", WEB_APP + "/"),
     Section("rooms",  "Rooms",      "inbox by type · messages · daily/weekly summaries",   WEB_APP + "/inbox"),
     Section("trips",  "Trips",      "your trips · create/edit · who to meet",              WEB_APP + "/trips"),
-    Section("events", "Events",     "schedule · my agenda · meetups · free slots",         WEB_APP + "/events"),
-    Section("calls",  "Live Calls", "upcoming calls · RSVP",                               WEB_APP + "/events"),
+    Section("events", "Events",     "global · local · live calls · schedule · my agenda",  WEB_APP + "/events"),
     Section("people", "People",     "search · profile match · follows",                    WEB_APP + "/members"),
     Section("me",     "Me",         "profile · membership · notifications · calendar",     WEB_APP + "/profile"),
 ]
@@ -366,7 +365,7 @@ class HomeScreen(DCScreen):
             place = t.get("place") if isinstance(t.get("place"), dict) else {}
             name = loc.get("cityName") or loc.get("name") or place.get("name") or t.get("placeName") or "?"
             lines.append("✈  [b]%s[/b]  %s" % (_escape(trunc(name, 24)), date_range(t.get("startDate"), t.get("endDate"))))
-        return lines or ["[dim]no upcoming trips — press 3 to plan one[/dim]"], _subtitle(plural(len(trips), "trip"), f)
+        return lines or ["[dim]no upcoming trips — press 3 then n to plan one[/dim]"], _subtitle(plural(len(trips), "trip"), f)
 
     def _render_locator(self, results: List[Fetched]) -> Tuple[List[str], str]:
         f = results[0]

@@ -232,7 +232,7 @@ def test_listing_plain_strips_html_and_collapses_whitespace():
 
 def test_events_time_and_day_helpers():
     pytest.importorskip("textual")
-    from dc_tui.events import _day_label, _hhmm
+    from dc_tui.events import _day_label, _hhmm, _is_global
     assert _hhmm("2026-10-22T09:30:00+07:00") == "09:30"
     assert _hhmm("14:05") == "14:05"
     assert _hhmm(None) == ""
@@ -252,3 +252,10 @@ def test_every_section_has_a_real_screen():
     from dc_tui.app import SCREEN_CLASSES
     from dc_tui.screens import SECTIONS
     assert {s.id for s in SECTIONS} == set(SCREEN_CLASSES)
+
+
+def test_events_global_vs_local_split():
+    pytest.importorskip("textual")
+    from dc_tui.events import _is_global
+    assert _is_global({"eventType": "dcbkk"}) and _is_global({"eventType": "dc-black"})
+    assert not _is_global({"eventType": "junto"}) and not _is_global({"eventType": "dc-chapter-event"})

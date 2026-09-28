@@ -20,7 +20,6 @@ from textual.widgets import Static
 
 from .data import DataClient, Fetched
 from .layout import layout_mode
-from .calls import LiveCallsScreen
 from .events import EventsScreen
 from .me import MeScreen
 from .people import PeopleScreen
@@ -32,17 +31,17 @@ from .theme import DC_THEME
 WEB_APP = "https://dc.dynamitecircle.com"
 
 SCREEN_CLASSES = {"home": HomeScreen, "rooms": RoomsScreen, "trips": TripsScreen, "events": EventsScreen,
-                  "calls": LiveCallsScreen, "people": PeopleScreen, "me": MeScreen}
+                  "people": PeopleScreen, "me": MeScreen}
 
 HELP_TEXT = """\
 [b]DC terminal[/b] — keyboard reference
 
-  [b]1[/b]–[b]7[/b]   Home · Rooms · Trips · Events · Live Calls · People · Me
-  [b]/[/b]     Command palette (every action, fuzzy search)
-  [b]r[/b]     Refresh this screen (bypasses the cache)
-  [b]o[/b]     Open the current thing in the web app
-  [b]?[/b]     This help
-  [b]q[/b]     Quit
+  [b]1[/b]–[b]6[/b]   Home · Rooms · Trips · Events · People · Me
+  [b]↑ ↓[/b]   Move in a list        [b]→ ←[/b]  Into the detail / back to the list
+  [b]Enter[/b] Open the detail        [b]Esc[/b]  Back (detail → section → Home)
+  [b]f[/b]     Next top tab           [b]] [[/b]  Next / previous detail tab
+  [b]/[/b]     Command palette        [b]r[/b]    Refresh (bypasses the cache)
+  [b]o[/b]     Open in the web app    [b]?[/b]    This help    [b]q[/b]  Quit
 
 Data is cached on disk and refreshed on a timer paced by your API
 rate budget (shown in the status bar). Nothing is sent as a message
@@ -93,6 +92,8 @@ class DCApp(App):
 
     BINDINGS = [Binding(str(i + 1), "goto_section('%s')" % section.id, section.title, show=False)
                 for i, section in enumerate(SECTIONS)] + [
+        Binding("escape", "back", "Back", show=False),
+        Binding("backspace", "back", "Back", show=False),
         Binding("slash", "command_palette", "Palette"),
         Binding("r", "refresh_screen", "Refresh"),
         Binding("o", "open_in_browser", "Open"),
@@ -102,8 +103,7 @@ class DCApp(App):
 
     CSS = """
     Screen { layout: vertical; background: $background; }
-    * { scrollbar-size: 1 1; scrollbar-color: $panel-lighten-2; scrollbar-color-hover: $primary;
-        scrollbar-color-active: $primary; scrollbar-background: $background; }
+    * { scrollbar-size: 0 0; }
     Header { background: $surface; color: $text; }
     HeaderIcon { display: none; }
     Header HeaderTitle { color: $primary; text-style: bold; }
@@ -129,6 +129,7 @@ class DCApp(App):
         self.unread: Optional[Fetched] = None
         self._last_key_at = time.time()
         self._tick_timer = None
+        self._history: List[str] = []       # section ids, for Esc/Backspace
 
     # ── Lifecycle ─────────────────────────────────────────────────────
 
@@ -153,9 +154,27 @@ class DCApp(App):
             return
         if isinstance(self.screen, ModalScreen):
             self.pop_screen()
-        if getattr(self.screen, "SECTION", None) == section_id:
+        current = getattr(self.screen, "SECTION", None)
+        if current == section_id:
             return
+        if current and (not self._history or self._history[-1] != current):
+            self._history.append(current)
+            del self._history[:-20]
         self.switch_screen(section_id)
+
+    def action_back(self) -> None:
+        """Esc / Backspace: close an open modal, else the previous section, else Home."""
+        if isinstance(self.screen, ModalScreen):
+            self.pop_screen()
+            return
+        current = getattr(self.screen, "SECTION", None)
+        while self._history:
+            target = self._history.pop()
+            if target != current and target in self.SCREENS:
+                self.switch_screen(target)
+                return
+        if current != "home":
+            self.switch_screen("home")
 
     def action_show_help(self) -> None:
         if not isinstance(self.screen, HelpScreen):

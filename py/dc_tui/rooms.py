@@ -11,23 +11,21 @@ from .format import fmt_date, plural, trunc
 from .listing import ListDetailScreen, dict_of, esc, items_of, plain
 from .screens import SECTIONS, WEB_APP
 
-TYPES = ["", "channel", "discussion", "dm", "group", "quick-question", "event"]
-TYPE_LABEL = {"": "all", "dm": "DMs", "group": "groups", "quick-question": "quick questions"}
-
-
 class RoomsScreen(ListDetailScreen):
     SECTION = "rooms"
     TITLE_TEXT = "Rooms"
-    HINT = "f filter type · x mark read · m/M mute · p/P pin · a/A archive · s/S subscribe"
+    HINT = "f tab · v read messages · x mark read · m/M mute · p/P pin · a/A archive · s/S subscribe"
     URL = WEB_APP + "/inbox"
-    LIST_COMMAND = "rooms"
+    LIST_TABS = (("all", "All"), ("channel", "Channels"), ("discussion", "Discussions"), ("dm", "DMs"),
+                 ("group", "Groups"), ("quick-question", "Quick Q"), ("event", "Events"))
     COLUMNS = ("Room", "Type", "Unread", "Activity")
     COLUMNS_COMPACT = ("Room", "Unread", "Activity")
+    COLUMN_WIDTHS = {"Type": 14, "Unread": 6, "Activity": 8}
     EMPTY_TEXT = "no rooms of this type"
 
     BINDINGS = [
-        Binding("f", "cycle_filter", "Filter"),
-        Binding("x", "mark_read", "Read"),
+        Binding("v", "read_messages", "Read msgs"),
+        Binding("x", "mark_read", "Mark read"),
         Binding("m", "room('room-mute', 'muted')", "Mute"),
         Binding("M", "room('room-unmute', 'unmuted')", "Unmute", show=False),
         Binding("p", "room('room-pin', 'pinned')", "Pin"),
@@ -40,8 +38,12 @@ class RoomsScreen(ListDetailScreen):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.room_type = ""
         self._unread = {}
+        self._opened = set()       # rooms whose messages the user explicitly asked to read
+
+    @property
+    def room_type(self) -> str:
+        return "" if self.list_tab == "all" else self.list_tab
 
     # ── rows ──────────────────────────────────────────────────────────
     def fetch_rows(self, force: bool) -> List[dict]:
@@ -63,7 +65,7 @@ class RoomsScreen(ListDetailScreen):
     def row_cells(self, item: dict) -> Tuple[str, ...]:
         unread = self._unread.get(item.get("roomID"), 0)
         cells = {
-            "Room":     trunc(item.get("name") or _dm_label(item), 26 if self.two_pane else 44),
+            "Room":     item.get("name") or _dm_label(item),
             "Type":     str(item.get("type") or ""),
             "Unread":   str(unread) if unread else "",
             "Activity": fmt_date(item.get("lastActivityAt")),
@@ -71,26 +73,22 @@ class RoomsScreen(ListDetailScreen):
         return tuple(cells[c] for c in self._columns())
 
     def hint_text(self) -> str:
-        label = TYPE_LABEL.get(self.room_type, self.room_type or "all")
         total = sum(self._unread.values())
-        return "%s · %s · %s  [dim]%s[/dim]" % (plural(len(self.items), "room"), label, plural(total, "unread"), self.HINT)
-
-    def action_cycle_filter(self) -> None:
-        self.room_type = TYPES[(TYPES.index(self.room_type) + 1) % len(TYPES)]
-        self._detail_item = None
-        self.refresh_data(force=False)
+        return "%s · %s  [dim]%s[/dim]" % (plural(len(self.items), "room"), plural(total, "unread"), self.HINT)
 
     # ── detail ────────────────────────────────────────────────────────
     def detail_title(self, item: dict) -> str:
         return "%s  [dim]%s · %s[/dim]" % (esc(item.get("name")), item.get("type", ""), item.get("scope", ""))
 
     def fetch_detail(self, item: dict, force: bool) -> Any:
+        """Room info + AI summary on highlight; messages ONLY after an explicit read
+        (`v` / Enter) — opening a room in the list never counts as reading it."""
         data = self.app.data  # type: ignore[attr-defined]
         room_id = item.get("roomID")
-        return {
-            "room":     data.fetch("room", room_id, force=force),
-            "messages": data.fetch("room-messages", room_id, limit=15, force=force),
-        }
+        out = {"room": data.fetch("room", room_id, force=force)}
+        if room_id in self._opened:
+            out["messages"] = data.fetch("room-messages", room_id, limit=15, force=force)
+        return out
 
     def render_detail(self, item: dict, data: Any) -> List[str]:
         if not isinstance(data, dict):
@@ -118,6 +116,10 @@ class RoomsScreen(ListDetailScreen):
                 lines.append("[dim]topics:[/dim] " + esc(" · ".join(names)))
         if data["room"].error:
             lines.append("[$warning]%s[/]" % esc(data["room"].error))
+        if "messages" not in data:
+            lines.append("")
+            lines.append("[dim]press [b]v[/b] to read the latest messages · o opens the room in the app[/dim]")
+            return lines
         messages = items_of(data["messages"])
         lines.append("")
         lines.append("[b]Latest messages[/b]  [dim]read-only — press o to reply in the app[/dim]")
@@ -138,6 +140,22 @@ class RoomsScreen(ListDetailScreen):
         if item is None:
             return
         self.mutate(command, item.get("roomID"), ok_text="%s %s" % (item.get("name") or "room", done))
+
+    def action_read_messages(self) -> None:
+        item = self._detail_item if (self._detail_open or self.two_pane) and self._detail_item else self.selected()
+        if item is None:
+            return
+        self._opened.add(item.get("roomID"))
+        if not self.two_pane and not self._detail_open:
+            self._show_inline_detail(True)
+        self.load_detail(item)
+
+    def action_open_detail(self) -> None:
+        """Enter: in two-pane mode the room is already shown, so Enter reads it."""
+        if self.two_pane and self._detail_item is not None and self.selected() is self._detail_item:
+            self.action_read_messages()
+            return
+        super().action_open_detail()
 
     def action_mark_read(self) -> None:
         item = self.selected()

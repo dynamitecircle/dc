@@ -1,16 +1,22 @@
 """`ListDetailScreen` — the base for every section that is "a list of things
-plus one selected thing": Rooms, Trips, Events, Live Calls, People.
+plus one selected thing": Rooms, Trips, Events, People.
 
 Layout follows the app's mode: in `split`/`wide` the list sits left and the
 selected item's detail right; in `compact`/`single` there is only the list,
-and Enter swaps the pane to the detail (Esc comes back). Highlighting a row
-loads its detail after a short debounce so scrolling through a list does not
-spend API budget on every row.
+and Enter / → swaps the pane to the detail (Esc / ← comes back).
+
+Optional tab rows: `LIST_TABS` above the list (e.g. Global · Local · Live
+Calls) and `detail_tabs()` above the detail (e.g. Info · Schedule · Agenda).
+`f` cycles list tabs, `[` / `]` cycle detail tabs, and the mouse works too.
+
+Columns are sized to the pane: every column but the first gets the fixed
+width in `COLUMN_WIDTHS`, the first column takes what is left, and cells are
+truncated to fit — so there is never a horizontal scrollbar.
 
 Concrete screens implement:
   fetch_rows(force)            -> List[dict]           (worker thread)
-  row_cells(item)              -> tuple of cell strings, matching COLUMNS
-  fetch_detail(item, force)    -> Any                  (worker thread; may return None)
+  row_cells(item)              -> tuple of cell strings, matching _columns()
+  fetch_detail(item, force)    -> Any                  (worker thread; may read self.detail_tab)
   render_detail(item, data)    -> List[str] | Table    (UI thread)
 and add their own BINDINGS for actions on `self.selected()`.
 """
@@ -20,10 +26,11 @@ import html as _html
 import re
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from rich.text import Text
 from textual import work
 from textual.binding import Binding
-from textual.containers import Vertical, VerticalScroll
-from textual.widgets import DataTable, Static
+from textual.containers import Vertical
+from textual.widgets import DataTable, Input, Static, Tab, Tabs
 
 from .data import Fetched
 from .format import trunc
@@ -45,33 +52,43 @@ def esc(text: Any) -> str:
 
 
 class Table:
-    """A detail rendered as a second DataTable (e.g. an event schedule)."""
+    """A detail rendered as a DataTable (e.g. an event schedule)."""
 
-    def __init__(self, columns: Sequence[str], rows: Sequence[Tuple[str, Sequence[str]]], *, title: str = ""):
+    def __init__(self, columns: Sequence[str], rows: Sequence[Tuple[str, Sequence[str]]], *,
+                 title: str = "", widths: Optional[Dict[str, int]] = None):
         self.columns = list(columns)
         self.rows = list(rows)          # (row key, cells)
         self.title = title
+        self.widths = dict(widths or {})
 
 
 class ListDetailScreen(DCScreen):
     COLUMNS: Sequence[str] = ()
     COLUMNS_COMPACT: Sequence[str] = ()   # subset used under 100 cols; empty = same as COLUMNS
+    COLUMN_WIDTHS: Dict[str, int] = {}    # fixed widths; the first column is flexible
+    LIST_TABS: Sequence[Tuple[str, str]] = ()
     EMPTY_TEXT = "nothing here yet"
     DETAIL_DEBOUNCE = 0.45
-    LIST_COMMAND = ""                     # cache command name, for invalidation on refresh
 
     BINDINGS = [
         Binding("enter", "open_detail", "Detail", show=False),
         Binding("escape", "close_detail", "Back", show=False),
         Binding("tab", "focus_next_pane", "Next pane", show=False),
+        Binding("right", "pane_right", "Detail", show=False, priority=True),
+        Binding("left", "pane_left", "List", show=False, priority=True),
+        Binding("f", "next_list_tab", "Filter", show=False),
+        Binding("bracketright", "next_detail_tab", "Next tab", show=False),
+        Binding("bracketleft", "prev_detail_tab", "Prev tab", show=False),
     ]
 
     DEFAULT_CSS = """
+    ListDetailScreen DataTable { scrollbar-size: 0 0; }
     ListDetailScreen #list { height: auto; max-height: 100%; }
     ListDetailScreen #list-hint { color: $text-muted; height: auto; padding: 0 1; }
-    ListDetailScreen #detail-title { color: $primary; text-style: bold; height: auto; }
-    ListDetailScreen #detail-body { height: auto; }
-    ListDetailScreen #detail-table { height: auto; max-height: 100%; }
+    ListDetailScreen Tabs { height: 2; margin: 0 0 0 0; }
+    ListDetailScreen .detail-title { color: $primary; text-style: bold; height: auto; }
+    ListDetailScreen .detail-body { height: auto; }
+    ListDetailScreen .detail-table { height: auto; max-height: 100%; }
     ListDetailScreen .-hidden { display: none; }
     """
 
@@ -83,53 +100,141 @@ class ListDetailScreen(DCScreen):
         self._detail_open = False          # one-pane mode: detail shown in #main
         self._detail_item: Optional[dict] = None
         self._detail_data: Any = None
-        self._hint = ""
+        self.list_tab: str = self.LIST_TABS[0][0] if self.LIST_TABS else ""
+        self.detail_tab: str = ""
+        self.flex_width = 30
+        self._syncing_tabs = False
 
     # ── build ─────────────────────────────────────────────────────────
     def populate(self) -> None:
-        table = DataTable(id="list", cursor_type="row", zebra_stripes=True)
-        self.set_main(Static("", id="list-hint"), table,
-                      Vertical(Static("", id="detail-title"), Static("", id="detail-body"),
-                               DataTable(id="detail-table", cursor_type="row", zebra_stripes=True),
-                               id="detail-inline", classes="-hidden"))
-        self.detail_pane().mount(Static("", id="detail-title-pane"), Static("", id="detail-body-pane"),
-                                 DataTable(id="detail-table-pane", cursor_type="row", zebra_stripes=True))
+        # The scroll panes must NOT take focus: the list table owns the arrow keys.
+        self.main_pane().can_focus = False
+        self.detail_pane().can_focus = False
+        widgets: List[Any] = []
+        if self.LIST_TABS:
+            widgets.append(Tabs(*[Tab(label, id=tid) for tid, label in self.LIST_TABS], id="list-tabs"))
+        widgets += [Static("", id="list-hint"), DataTable(id="list", cursor_type="row", zebra_stripes=True),
+                    Vertical(*self._detail_widgets_for("inline"), id="detail-inline", classes="-hidden")]
+        self.set_main(*widgets)
+        self.detail_pane().mount(*self._detail_widgets_for("pane"))
         self._setup_columns()
         self.set_hint(self.HINT)
         self.refresh_data(force=False)
 
+    def _detail_widgets_for(self, suffix: str) -> List[Any]:
+        return [Tabs(id="detail-tabs-" + suffix, classes="-hidden"),
+                Static("", id="detail-title-" + suffix, classes="detail-title"),
+                Static("", id="detail-body-" + suffix, classes="detail-body"),
+                DataTable(id="detail-table-" + suffix, cursor_type="row", zebra_stripes=True, classes="detail-table")]
+
     def _setup_columns(self) -> None:
         table = self.query_one("#list", DataTable)
         table.clear(columns=True)
-        for col in self._columns():
-            table.add_column(col, key=col)
+        cols = list(self._columns())
+        avail = max(30, (self.main_pane().size.width or self.app.size.width) - 2)
+        fixed = sum(self.COLUMN_WIDTHS.get(c, 10) for c in cols[1:])
+        self.flex_width = max(12, avail - fixed - 2 * len(cols))
+        for i, col in enumerate(cols):
+            width = self.flex_width if i == 0 else self.COLUMN_WIDTHS.get(col, 10)
+            table.add_column(col, key=col, width=width)
 
     def _columns(self) -> Sequence[str]:
         compact = self.app.layout_mode_name in ("compact", "single")  # type: ignore[attr-defined]
         return self.COLUMNS_COMPACT if (compact and self.COLUMNS_COMPACT) else self.COLUMNS
 
     def set_layout_mode(self, mode: str) -> None:
-        before = self._columns() if self.is_mounted else None
         super().set_layout_mode(mode)
         if not self.is_mounted or not self.items:
             return
-        if self._columns() != before:
-            self._setup_columns()
-            self._fill_table()
+        self._setup_columns()
+        self._fill_table()
         if self.two_pane and self._detail_open:
             self._show_inline_detail(False)
         self._paint_detail()
+
+    def on_resize(self, event) -> None:
+        super().on_resize(event)
+        if self.is_mounted and self.items:
+            self._setup_columns()
+            self._fill_table()
 
     @property
     def two_pane(self) -> bool:
         return bool(self.HAS_DETAIL and self.app.layout_mode_name in ("split", "wide"))  # type: ignore[attr-defined]
 
     def set_hint(self, text: str) -> None:
-        self._hint = text
         try:
             self.query_one("#list-hint", Static).update(text)
         except Exception:  # noqa: BLE001
             pass
+
+    # ── tabs ──────────────────────────────────────────────────────────
+    def detail_tabs(self) -> Sequence[Tuple[str, str]]:
+        """Override to offer tabs above the detail (may depend on list_tab / item)."""
+        return ()
+
+    def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
+        if self._syncing_tabs or event.tab is None:
+            return
+        tid = str(event.tab.id or "")
+        if event.tabs.id == "list-tabs":
+            if tid != self.list_tab:
+                self.list_tab = tid
+                self._detail_item = None
+                self._setup_columns()
+                self.refresh_data(force=False)
+        elif str(event.tabs.id or "").startswith("detail-tabs-"):
+            if tid != self.detail_tab:
+                self.detail_tab = tid
+                self._sync_detail_tabs()
+                if self._detail_item is not None:
+                    self.load_detail(self._detail_item)
+
+    def _sync_detail_tabs(self) -> None:
+        """Both copies of the detail tab row (pane + inline) show the same tabs/active."""
+        tabs = list(self.detail_tabs())
+        ids = [tid for tid, _ in tabs]
+        if tabs and self.detail_tab not in ids:
+            self.detail_tab = ids[0]
+        self._syncing_tabs = True
+        try:
+            for suffix in ("pane", "inline"):
+                widget = self.query_one("#detail-tabs-" + suffix, Tabs)
+                current = [str(t.id) for t in widget.query(Tab)]
+                if current != ids:
+                    widget.clear()
+                    for tid, label in tabs:
+                        widget.add_tab(Tab(label, id=tid))
+                widget.set_class(not tabs, "-hidden")
+                if tabs and widget.active != self.detail_tab:
+                    widget.active = self.detail_tab
+        except Exception:  # noqa: BLE001 — not composed yet
+            pass
+        finally:
+            self._syncing_tabs = False
+
+    def action_next_list_tab(self) -> None:
+        if not self.LIST_TABS:
+            return
+        ids = [tid for tid, _ in self.LIST_TABS]
+        nxt = ids[(ids.index(self.list_tab) + 1) % len(ids)] if self.list_tab in ids else ids[0]
+        self.query_one("#list-tabs", Tabs).active = nxt     # fires TabActivated → refresh
+
+    def _cycle_detail_tab(self, step: int) -> None:
+        ids = [tid for tid, _ in self.detail_tabs()]
+        if not ids:
+            return
+        i = ids.index(self.detail_tab) if self.detail_tab in ids else 0
+        self.detail_tab = ids[(i + step) % len(ids)]
+        self._sync_detail_tabs()
+        if self._detail_item is not None:
+            self.load_detail(self._detail_item)
+
+    def action_next_detail_tab(self) -> None:
+        self._cycle_detail_tab(1)
+
+    def action_prev_detail_tab(self) -> None:
+        self._cycle_detail_tab(-1)
 
     # ── data ──────────────────────────────────────────────────────────
     def refresh_data(self, force: bool = False) -> None:
@@ -148,7 +253,11 @@ class ListDetailScreen(DCScreen):
 
     def _rows_loaded(self, rows: List[dict], error: str) -> None:
         self.items = rows
+        self._setup_columns()
         self._fill_table()
+        lst = self.query_one("#list", DataTable)
+        if not isinstance(self.focused, Input) and not self._detail_open:
+            lst.focus()
         if error:
             self.set_hint("[$warning]%s[/]" % esc(error))
         else:
@@ -163,10 +272,16 @@ class ListDetailScreen(DCScreen):
         table = self.query_one("#list", DataTable)
         table.clear()
         self._keys = {}
+        cols = list(self._columns())
         for i, item in enumerate(self.items):
             key = self.row_key(item, i)
             self._keys[key] = item
-            table.add_row(*[esc(c) for c in self.row_cells(item)], key=key)
+            cells = list(self.row_cells(item))
+            fitted = []
+            for j, cell in enumerate(cells):
+                width = self.flex_width if j == 0 else self.COLUMN_WIDTHS.get(cols[j] if j < len(cols) else "", 10)
+                fitted.append(_fit(cell, width))
+            table.add_row(*fitted, key=key)
 
     def row_key(self, item: dict, index: int) -> str:
         return str(item.get("id") or index)
@@ -209,20 +324,21 @@ class ListDetailScreen(DCScreen):
     def load_detail(self, item: dict, force: bool = False) -> None:
         self._detail_item = item
         self._detail_data = None
+        self._sync_detail_tabs()
         self._set_detail_title(self.detail_title(item) + "  [dim]loading…[/dim]")
-        self._load_detail(item, force)
+        self._load_detail(item, force, self.detail_tab)
 
     @work(thread=True, exclusive=True, group="detail", exit_on_error=False)
-    def _load_detail(self, item: dict, force: bool) -> None:
+    def _load_detail(self, item: dict, force: bool, tab: str) -> None:
         try:
             data = self.fetch_detail(item, force)
         except Exception as exc:  # noqa: BLE001
             data = Fetched("detail", None, from_cache=False, stale=False, age=0.0, error=str(exc), fetched_at=0.0)
-        self.app.call_from_thread(self._detail_loaded, item, data)
+        self.app.call_from_thread(self._detail_loaded, item, data, tab)
         self.app.call_from_thread(self.app.refresh_status)  # type: ignore[attr-defined]
 
-    def _detail_loaded(self, item: dict, data: Any) -> None:
-        if item is not self._detail_item:
+    def _detail_loaded(self, item: dict, data: Any, tab: str) -> None:
+        if item is not self._detail_item or tab != self.detail_tab:
             return
         self._detail_data = data
         self._paint_detail()
@@ -239,30 +355,36 @@ class ListDetailScreen(DCScreen):
         body, table = self._detail_widgets()
         if isinstance(rendered, Table):
             body.update(rendered.title)
+            body.set_class(not rendered.title, "-hidden")
             table.remove_class("-hidden")
             table.clear(columns=True)
-            for col in rendered.columns:
-                table.add_column(col, key=col)
+            avail = max(30, (self.detail_pane().size.width if self.two_pane else self.main_pane().size.width) - 2)
+            fixed = sum(rendered.widths.get(c, 10) for c in rendered.columns[1:])
+            flex = max(12, avail - fixed - 2 * len(rendered.columns))
+            for i, col in enumerate(rendered.columns):
+                table.add_column(col, key=col, width=flex if i == 0 else rendered.widths.get(col, 10))
             for key, cells in rendered.rows:
-                table.add_row(*[esc(c) for c in cells], key=key)
+                fitted = [_fit(c, flex if i == 0 else rendered.widths.get(rendered.columns[i], 10))
+                          if i < len(rendered.columns) else _fit(c, 10) for i, c in enumerate(cells)]
+                table.add_row(*fitted, key=key)
         else:
             table.add_class("-hidden")
+            body.remove_class("-hidden")
             body.update("\n".join(rendered) if rendered else "[dim]nothing to show[/dim]")
 
     def _detail_widgets(self) -> Tuple[Static, DataTable]:
-        if self.two_pane:
-            return (self.query_one("#detail-body-pane", Static), self.query_one("#detail-table-pane", DataTable))
-        return (self.query_one("#detail-body", Static), self.query_one("#detail-table", DataTable))
+        suffix = "pane" if self.two_pane else "inline"
+        return (self.query_one("#detail-body-" + suffix, Static), self.query_one("#detail-table-" + suffix, DataTable))
 
     def _set_detail_title(self, text: str) -> None:
-        for wid in ("#detail-title", "#detail-title-pane"):
+        for suffix in ("pane", "inline"):
             try:
-                self.query_one(wid, Static).update(text)
+                self.query_one("#detail-title-" + suffix, Static).update(text)
             except Exception:  # noqa: BLE001
                 pass
 
     def detail_table(self) -> DataTable:
-        return self.query_one("#detail-table-pane" if self.two_pane else "#detail-table", DataTable)
+        return self.query_one("#detail-table-" + ("pane" if self.two_pane else "inline"), DataTable)
 
     def detail_row_key(self) -> Optional[str]:
         """Key of the highlighted row in the detail table, if any."""
@@ -279,6 +401,10 @@ class ListDetailScreen(DCScreen):
         self._detail_open = show
         self.query_one("#list", DataTable).set_class(show, "-hidden")
         self.query_one("#list-hint", Static).set_class(show, "-hidden")
+        try:
+            self.query_one("#list-tabs", Tabs).set_class(show, "-hidden")
+        except Exception:  # noqa: BLE001
+            pass
         self.query_one("#detail-inline", Vertical).set_class(not show, "-hidden")
 
     def action_open_detail(self) -> None:
@@ -295,11 +421,41 @@ class ListDetailScreen(DCScreen):
         if self._detail_open:
             self._show_inline_detail(False)
             self.query_one("#list", DataTable).focus()
+            return
+        if isinstance(self.focused, Input):
+            self.focused.add_class("-hidden")
+            self.query_one("#list", DataTable).focus()
+            return
+        self.app.action_back()  # type: ignore[attr-defined]
+
+    def action_pane_right(self) -> None:
+        """→ : into the detail (open it in one-pane mode, focus its table when it has rows)."""
+        focused = self.focused
+        if isinstance(focused, Input):
+            focused.action_cursor_right()
+            return
+        if not self.two_pane and not self._detail_open:
+            self.action_open_detail()
+            return
+        table = self.detail_table()
+        if not table.has_class("-hidden") and table.row_count:
+            table.focus()
+
+    def action_pane_left(self) -> None:
+        """← : back to the list (close the inline detail in one-pane mode)."""
+        focused = self.focused
+        if isinstance(focused, Input):
+            focused.action_cursor_left()
+            return
+        if self._detail_open:
+            self.action_close_detail()
+            return
+        self.query_one("#list", DataTable).focus()
 
     def action_focus_next_pane(self) -> None:
         table = self.detail_table()
         lst = self.query_one("#list", DataTable)
-        if table.has_class("-hidden"):
+        if table.has_class("-hidden") or not table.row_count:
             lst.focus()
         elif lst.has_focus:
             table.focus()
@@ -326,7 +482,7 @@ class ListDetailScreen(DCScreen):
         return []
 
     def row_cells(self, item: dict) -> Tuple[str, ...]:
-        return (trunc(item.get("name", ""), 40),)
+        return (str(item.get("name", "")),)
 
     def detail_title(self, item: dict) -> str:
         return esc(item.get("name") or "")
@@ -340,10 +496,19 @@ class ListDetailScreen(DCScreen):
     def current_url(self) -> str:
         item = self.selected()
         if item:
-            for key in ("shortURL", "roomURL", "eventURL", "profileURL", "chapterURL", "url"):
+            for key in ("shortURL", "roomURL", "eventURL", "profileURL", "chapterURL", "meetUrl", "url"):
                 if item.get(key):
                     return str(item[key])
         return self.URL
+
+
+def _fit(cell: Any, width: int) -> Any:
+    """A table cell truncated to its column. Rich `Text` passes through styled
+    (truncated in place); plain strings are escaped so data never renders as markup."""
+    if isinstance(cell, Text):
+        cell.truncate(max(1, width), overflow="ellipsis")
+        return cell
+    return esc(trunc(cell, width))
 
 
 def items_of(fetched: Fetched) -> List[dict]:
