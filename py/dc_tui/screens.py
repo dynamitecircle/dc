@@ -123,21 +123,24 @@ class DCScreen(Screen):
         self.set_layout_mode(layout_mode(self.app.size.width))
         self.populate()
         self.app.refresh_status()  # type: ignore[attr-defined]
-        self._settle_focus()
 
     def _settle_focus(self) -> None:
-        """Focus policy: the keyboard moves ONLY here (screen shown) or on an
+        """Focus policy: the keyboard moves ONLY when a screen is shown or on an
         explicit key. If the user chose this section on the bar, they stay on the
-        bar of the new screen; otherwise the content gets focus once."""
+        bar of the new screen; otherwise the content gets focus once. Deferred one
+        refresh so it lands after Textual's own auto-focus."""
         app = self.app
         if getattr(app, "_focus_nav_next", False):
             app._focus_nav_next = False
-            try:
-                self.query_one("#nav-tabs", Tabs).focus()
-            except Exception:  # noqa: BLE001
-                pass
+
+            def _bar() -> None:
+                try:
+                    self.query_one("#nav-tabs", Tabs).focus()
+                except Exception:  # noqa: BLE001
+                    pass
+            self.call_after_refresh(_bar)
         elif self.focused is None:
-            self.focus_content()
+            self.call_after_refresh(self.focus_content)
 
     def _sync_nav(self) -> None:
         """Highlight this section in the nav bar without firing a navigation."""
