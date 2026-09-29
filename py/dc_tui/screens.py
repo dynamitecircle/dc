@@ -24,7 +24,7 @@ from textual import work
 from textual.containers import Vertical
 
 from .data import Fetched
-from .format import align_row, date_range, fmt_date, pad, plural, rpad, strip_markdown, trunc
+from .format import align_row, date_range, flag, fmt_date, pad, plural, rpad, strip_markdown, trunc
 from .layout import MODES, layout_mode
 from .widgets import Panel
 
@@ -656,7 +656,7 @@ class HomeScreen(DCScreen):
             trips = [t for t in (c.get("comingTrips") or []) + (c.get("newTrips") or []) if isinstance(t, dict)]
             ev = len(c.get("comingEvents") or []) + len(c.get("newEvents") or [])
             bits = [b for b in ((plural(len(trips), "visitor") if trips else ""), (plural(ev, "event") if ev else "")) if b]
-            lines.append(("[dim]★ %s · %s[/dim]" % (_escape(c.get("cityName") or ""), " · ".join(bits) or "quiet"), ("locator", None)))
+            lines.append(("[dim]%s %s · %s[/dim]" % (flag(c.get("countryCode")) or "★", _escape(c.get("cityName") or ""), " · ".join(bits) or "quiet"), ("locator", None)))
             for t in trips[:3]:
                 m = member(t)
                 lines.append((align_row(width, m.get("displayName") or "DCer", date_range(t.get("startDate"), t.get("endDate")), prefix="   👤 "), ("person", m)))
@@ -698,7 +698,7 @@ class HomeScreen(DCScreen):
             ("%s%s" % (badge, renew_txt), None),
             ("[dim]API %s/min · %s/day[/dim]" % (limits.get("perMinute", "?"), limits.get("perDay", "?")), None),
         ]
-        return lines, _subtitle(str(chapter.get("cityName") or ""), profile_f, membership_f, limits_f)
+        return lines, _subtitle(("%s %s" % (flag(chapter.get("countryCode")), chapter.get("cityName") or "")).strip(), profile_f, membership_f, limits_f)
 
 
 # ── pure helpers (testable without Textual) ──────────────────────────

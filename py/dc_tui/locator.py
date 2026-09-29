@@ -15,7 +15,7 @@ from textual.binding import Binding
 from textual.widgets import OptionList, Static, Tabs
 
 from .data import Fetched
-from .format import align_row, date_range, fmt_date, pad, plural, trunc
+from .format import align_row, date_range, flag, fmt_date, pad, plural, trunc
 from .screens import DCScreen, WEB_APP
 from .widgets import Panel
 
@@ -31,7 +31,9 @@ def _member(row: dict) -> dict:
 
 def _place(row: dict) -> str:
     loc = row.get("location") if isinstance(row.get("location"), dict) else {}
-    return str(loc.get("city") or loc.get("name") or "")
+    name = str(loc.get("city") or loc.get("name") or "")
+    fl = flag(loc.get("countryCode"))
+    return ("%s %s" % (fl, name)) if (fl and name) else name
 
 
 def _name(m: dict) -> str:
@@ -130,7 +132,7 @@ class LocatorScreen(DCScreen):
         rows += _event_section("New events in %s" % city, home.get("createdEvents"), width)
         rows += _event_section("Upcoming events in %s" % city, home.get("comingEvents"), width)
         n = sum(len(home.get(k) or []) for k in ("newMembers", "planningToCity", "comingToCity", "createdEvents", "comingEvents"))
-        title = "DC %s Chapter · Home" % city if home.get("cityName") else "set your home city in your profile"
+        title = "%s DC %s Chapter · Home" % (flag(home.get("countryCode")), city) if home.get("cityName") else "set your home city in your profile"
         return rows or [("[dim]quiet week in %s[/dim]" % _esc(city), None)], "%s · %s" % (_esc(title), plural(n, "item"))
 
     def _cities(self, digest: dict, width: int) -> Tuple[List[Tuple[str, Any]], str]:
@@ -140,7 +142,8 @@ class LocatorScreen(DCScreen):
             name = c.get("cityName") or "a city"
             n = sum(len(c.get(k) or []) for k in ("newTrips", "comingTrips", "newEvents", "comingEvents"))
             link = c.get("shortURL") or c.get("chapterURL")
-            rows.append(("★ [b]DC %s Chapter[/b]  [dim]%s[/dim]" % (_esc(name), plural(n, "item")), ("url", link) if link else None))
+            rows.append(("%s [b]DC %s Chapter[/b]  [dim]%s[/dim]" % (flag(c.get("countryCode")) or "★", _esc(name), plural(n, "item")),
+                         ("url", link) if link else None))
             rows += _trip_section("New trips to %s" % name, c.get("newTrips"), width, show_place=False, indent="  ")
             rows += _trip_section("Coming to %s soon" % name, c.get("comingTrips"), width, show_place=False, indent="  ")
             rows += _event_section("New events in %s" % name, c.get("newEvents"), width, indent="  ")

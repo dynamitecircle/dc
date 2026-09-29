@@ -10,7 +10,7 @@ from textual.binding import Binding
 from textual.widgets import Static
 
 from .data import Fetched
-from .format import fmt_date, plural, trunc
+from .format import flag, fmt_date, plural, trunc
 from .listing import dict_of, esc, items_of, plain
 from .screens import DCScreen, WEB_APP
 from .widgets import Panel
@@ -83,7 +83,7 @@ class MeScreen(DCScreen):
             if val:
                 text = esc(trunc(plain(val), 200))
                 lines.append(text if not label else "[dim]%s:[/dim] %s" % (label, text))
-        return lines, self._flag(f, esc(chapter.get("cityName") or ""))
+        return lines, self._flag(f, esc(("%s %s" % (flag(chapter.get("countryCode")), chapter.get("cityName") or "")).strip()))
 
     def _membership(self, f: Fetched):
         m = dict_of(f).get("membership")

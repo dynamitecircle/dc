@@ -10,7 +10,7 @@ from textual.binding import Binding
 from textual.widgets import Input
 
 from .data import Fetched
-from .format import plural, trunc
+from .format import flag, plural, trunc
 from .listing import ListDetailScreen, dict_of, esc, items_of, plain
 from .screens import WEB_APP
 
@@ -106,7 +106,7 @@ class PeopleScreen(ListDetailScreen):
 
     def row_cells(self, item: dict) -> Tuple[str, ...]:
         chapter = item.get("chapter")
-        chapter = chapter.get("cityName") if isinstance(chapter, dict) else (chapter or "")
+        chapter = ("%s %s" % (flag(chapter.get("countryCode")), chapter.get("cityName") or "")).strip() if isinstance(chapter, dict) else (chapter or "")
         name = item.get("displayName") or item.get("userName") or ""
         name = ("♥ " if item.get("userID") in self._following else "👤 ") + name
         cells = {"Name": trunc(name, 26), "Handle": "@" + str(item.get("userName") or ""),

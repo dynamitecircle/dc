@@ -157,3 +157,11 @@ def align_row(width: int, name: Any, date: Any = "", extra: Any = "", *, prefix:
     if date:
         parts.append(" " * max(1, width - used - date_w) + date)
     return "".join(parts)
+
+
+def flag(country_code: Any) -> str:
+    """🇯🇵 from `JP` — the two regional-indicator letters; empty when unknown."""
+    code = str(country_code or "").strip().upper()
+    if len(code) != 2 or not code.isalpha():
+        return ""
+    return "".join(chr(0x1F1E6 + ord(c) - ord("A")) for c in code)

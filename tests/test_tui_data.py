@@ -322,3 +322,9 @@ def test_reply_prefix_is_split_out():
     assert _split_reply("plain message") == ("plain message", None)
 
 
+
+
+def test_flag_from_country_code():
+    from dc_tui.format import flag
+    assert flag("JP") == "\U0001F1EF\U0001F1F5" and flag("th") == "\U0001F1F9\U0001F1ED"
+    assert flag("") == "" and flag("X1") == "" and flag(None) == ""

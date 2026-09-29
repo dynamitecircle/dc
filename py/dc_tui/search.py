@@ -6,7 +6,7 @@ from typing import Any, List, Sequence, Tuple
 
 from textual.widgets import Input
 
-from .format import fmt_date, plural, strip_markdown, trunc
+from .format import flag, fmt_date, plural, strip_markdown, trunc
 from .listing import ListDetailScreen, dict_of, esc, items_of, plain
 from .screens import WEB_APP
 
@@ -91,7 +91,8 @@ class SearchScreen(ListDetailScreen):
         return "%s:%s" % (item.get("_kind"), _id(item) or index)
 
     def row_cells(self, item: dict) -> Tuple[str, ...]:
-        icon = {"profiles": "👤 ", "events": "📅 ", "rooms": "# ", "messages": "💬 ", "chapters": "📍 "}.get(str(item.get("_kind")), "")
+        icon = {"profiles": "👤 ", "events": "📅 ", "rooms": "# ", "messages": "💬 ",
+                "chapters": (flag(item.get("countryCode")) or "📍") + " "}.get(str(item.get("_kind")), "")
         cells = {"Result": icon + _title(item), "Type": _kind_label(item.get("_kind")), "Where": _detail(item)}
         return tuple(cells[c] for c in self._columns())
 
