@@ -477,6 +477,14 @@ class HomeScreen(DCScreen):
     def _fetch(self, panel_id: str, commands: List[Tuple[str, ...]], force: bool) -> None:
         data = self.app.data  # type: ignore[attr-defined]
         results = [data.fetch(cmd[0], *cmd[1:], force=force) for cmd in commands]
+        if panel_id == "p-announcements":
+            # channels you are not subscribed to are not in the rooms list — look them up once (cached)
+            known = {r.get("roomID") for r in _items(results[1])} if len(results) > 1 else set()
+            for a in _dict(results[0]).get("announcements") or []:
+                rid = _room_id_from_url(a) if isinstance(a, dict) else ""
+                if rid and rid not in known:
+                    known.add(rid)
+                    results.append(data.fetch("room", rid))
         if all(r.error and r.data is None for r in results):
             self.app.call_from_thread(self._fail, panel_id, results[0].error or "failed")
         else:
@@ -537,6 +545,10 @@ class HomeScreen(DCScreen):
         items = [a for a in (data.get("announcements") or []) if isinstance(a, dict)]
         # the payload names the author, not the channel — resolve the channel from the URL's roomID
         names = {r.get("roomID"): r.get("name") for r in (_items(rooms_f) if rooms_f else []) if r.get("roomID")}
+        for extra in results[2:]:                       # single-room lookups for unsubscribed channels
+            room = _dict(extra).get("room") if isinstance(_dict(extra).get("room"), dict) else _dict(extra)
+            if room.get("roomID") and room.get("name"):
+                names[room["roomID"]] = room["name"]
         width = self._card_width()
         compact = self._compact()
         lines = []
@@ -548,8 +560,8 @@ class HomeScreen(DCScreen):
             if compact:
                 lines.append(("[b]%s[/b] [dim]%s[/dim]\n  %s" % (_escape(trunc(who, 24)), when, _escape(trunc(text, max(20, width - 4)))), target))
             else:
-                head = "[dim]%s[/dim] [b]%s[/b]  " % (pad(when, 6), _escape(pad(who, 16)))
-                lines.append((head + _escape(trunc(text, max(20, width - 6 - 16 - 3))), target))
+                head = "[dim]%s[/dim] [b]%s[/b]  " % (pad(when, 6), _escape(pad(who, 22)))
+                lines.append((head + _escape(trunc(text, max(20, width - 6 - 22 - 3))), target))
         return lines or [("[dim]no announcements[/dim]", None)], _subtitle(plural(len(items), "channel"), f, *( [rooms_f] if rooms_f else [] ))
 
     def _render_tickets(self, results: List[Fetched]) -> Tuple[List[str], str]:
@@ -660,6 +672,11 @@ class HomeScreen(DCScreen):
 
 
 # ── pure helpers (testable without Textual) ──────────────────────────
+
+def _room_id_from_url(a: dict) -> str:
+    url = str(a.get("announcementURL") or a.get("shortURL") or "")
+    return url.split("/channel/", 1)[1].split("/", 1)[0] if "/channel/" in url else ""
+
 
 def _announcement_channel(a: dict, names: Dict[Any, Any]) -> str:
     """Channel name for an announcement: from the payload if it ever carries one,
