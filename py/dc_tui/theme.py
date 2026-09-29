@@ -19,6 +19,7 @@ GREY_400 = "#777A88"
 GREY_300 = "#ADAFB8"
 GREY_100 = "#F1F2F3"
 MINT = "#80B088"          # dc-mint 600
+MINT_DARK = "#4D7D55"     # dc-mint 800 — hover background, white text stays readable
 GOLD = "#EDB34A"          # dc-gold 600
 
 DC_THEME = Theme(
@@ -40,7 +41,7 @@ DC_THEME = Theme(
         "block-cursor-text-style": "bold",
         "block-cursor-blurred-background": ORANGE_DARK,
         "block-cursor-blurred-foreground": "#FFFFFF",
-        "block-hover-background": GREY_700,
+        "block-hover-background": MINT_DARK,
         "footer-key-foreground": ORANGE,
         "footer-description-foreground": GREY_300,
         "border": GREY_600,

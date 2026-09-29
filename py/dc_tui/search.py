@@ -6,7 +6,7 @@ from typing import Any, List, Sequence, Tuple
 
 from textual.widgets import Input
 
-from .format import fmt_date, plural, trunc
+from .format import fmt_date, plural, strip_markdown, trunc
 from .listing import ListDetailScreen, dict_of, esc, items_of, plain
 from .screens import WEB_APP
 
@@ -20,11 +20,15 @@ class SearchScreen(ListDetailScreen):
     URL = WEB_APP + "/search"
     LIST_TABS = (("all", "All"), ("profiles", "People"), ("rooms", "Rooms"), ("messages", "Messages"),
                  ("events", "Events"), ("chapters", "Chapters"))
-    COLUMNS = ("Result", "Type", "Detail")
-    COLUMNS_COMPACT = ("Result", "Type")
-    COLUMN_WIDTHS = {"Type": 10, "Detail": 30}
+    COLUMNS = ("Result", "Type", "Where")
+    COLUMNS_COMPACT = ("Result", "Type", "Where")
+    COLUMN_WIDTHS = {"Type": 8, "Where": 26}
     EMPTY_TEXT = "type something above and press Enter"
     AUTO_FOCUS = "#search-query"
+
+    DEFAULT_CSS = """
+    SearchScreen #search-query { margin: 0 0 1 0; }
+    """
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -41,8 +45,14 @@ class SearchScreen(ListDetailScreen):
         if not self.query_text:
             self.items = []
             self._rows_loaded([], "")
+            self.set_hint(self.EMPTY_TEXT)       # no "0 hits for ''" before a search
             return
         super().refresh_data(force)
+
+    def hint_text(self) -> str:
+        if not self.query_text:
+            return self.EMPTY_TEXT
+        return "%s for “%s”  [dim]%s[/dim]" % (plural(len(self.items), "hit"), self.query_text, self.HINT)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id != "search-query":
@@ -81,11 +91,8 @@ class SearchScreen(ListDetailScreen):
         return "%s:%s" % (item.get("_kind"), _id(item) or index)
 
     def row_cells(self, item: dict) -> Tuple[str, ...]:
-        cells = {"Result": _title(item), "Type": _kind_label(item.get("_kind")), "Detail": _detail(item)}
+        cells = {"Result": _title(item), "Type": _kind_label(item.get("_kind")), "Where": _detail(item)}
         return tuple(cells[c] for c in self._columns())
-
-    def hint_text(self) -> str:
-        return "%s for “%s”  [dim]%s[/dim]" % (plural(len(self.items), "hit"), self.query_text, self.HINT)
 
     # ── detail ────────────────────────────────────────────────────────
     def detail_actions(self):
@@ -151,9 +158,18 @@ def _kind_label(kind) -> str:
 def _title(item: dict) -> str:
     kind = item.get("_kind")
     if kind == "messages":
-        return plain(item.get("body") or item.get("text") or item.get("content") or item.get("snippet") or "")
+        body = str(item.get("body") or item.get("text") or item.get("content") or item.get("snippet") or "")
+        # drop a quoted-reply prefix ("> Replying to X in Y …") and any markdown, keep the message itself
+        lines = [ln for ln in body.splitlines() if ln.strip() and not ln.lstrip().startswith(">")]
+        return strip_markdown(" ".join(lines) if lines else body) or "(attachment)"
     if kind == "chapters":
         return str(item.get("cityName") or item.get("name") or item.get("cityID") or "")
+    if kind == "rooms":
+        name = item.get("name") or item.get("roomName")
+        if name:
+            return str(name)
+        kind_label = {"dm": "Direct message", "group": "Group chat"}.get(str(item.get("type") or ""), "Room")
+        return "%s %s" % (kind_label, str(item.get("roomID") or "")[:8])
     return str(item.get("displayName") or item.get("name") or item.get("title") or item.get("roomName") or item.get("userName") or "")
 
 

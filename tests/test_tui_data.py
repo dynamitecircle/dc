@@ -275,3 +275,20 @@ def test_dates_are_fixed_width_and_month_aligned():
     assert date_range("2027-03-02", "2027-03-04") == "Mar  2–4"
     assert date_range("2026-09-30", "2026-10-02") == "Sep 30 – Oct  2"
     assert len(fmt_date("2026-01-01")) == len(fmt_date("2026-12-31"))
+
+
+def test_locator_grouping_helpers():
+    pytest.importorskip("textual")
+    from dc_tui.locator import _group_by_event, _group_by_member, _name_list
+    a, b = {"userID": "1", "displayName": "Ann"}, {"userID": "2", "displayName": "Bo"}
+    groups = _group_by_member([{"tripID": "t2", "member": a, "startDate": "2026-11-01"},
+                               {"tripID": "t1", "member": a, "startDate": "2026-10-01"},
+                               {"tripID": "t3", "member": b, "startDate": "2026-09-15"},
+                               {"tripID": "t1", "member": a, "startDate": "2026-10-01"}])   # duplicate tripID dropped
+    assert [g["member"]["userID"] for g in groups] == ["2", "1"]            # earliest trip first
+    assert [t["tripID"] for t in groups[1]["trips"]] == ["t1", "t2"]
+    ev = _group_by_event([{"eventID": "e", "eventName": "DCBKK", "member": a}, {"eventID": "e", "eventName": "DCBKK", "member": b},
+                          {"eventID": "e", "eventName": "DCBKK", "member": a}])
+    assert ev[0]["count"] == 2
+    assert _name_list(["A"]) == "A" and _name_list(["A", "B"]) == "A and B"
+    assert _name_list(list("ABCDEFGH")) == "A, B, C, D, E and 3 others"

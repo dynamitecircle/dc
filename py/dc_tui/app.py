@@ -21,6 +21,7 @@ from textual.widgets import Button, Static
 from .data import DataClient, Fetched
 from .layout import layout_mode
 from .events import EventsScreen
+from .locator import LocatorScreen
 from .me import MeScreen
 from .people import PeopleScreen
 from .rooms import RoomsScreen
@@ -32,7 +33,7 @@ from .theme import DC_THEME
 WEB_APP = "https://dc.dynamitecircle.com"
 
 SCREEN_CLASSES = {"home": HomeScreen, "rooms": RoomsScreen, "trips": TripsScreen, "events": EventsScreen,
-                  "people": PeopleScreen, "search": SearchScreen, "me": MeScreen}
+                  "locator": LocatorScreen, "people": PeopleScreen, "search": SearchScreen, "me": MeScreen}
 
 HELP_TEXT = """\
 [b]DC terminal[/b]
@@ -120,6 +121,10 @@ class DCApp(App):
     Screen { layout: vertical; background: $background; }
     * { scrollbar-size: 0 0; }
     Header { background: $surface; color: $text; }
+    DataTable > .datatable--hover { background: #4D7D55; color: #FFFFFF; }
+    OptionList > .option-list--option-hover { background: #4D7D55; color: #FFFFFF; }
+    Tab:hover { background: #4D7D55; color: #FFFFFF; }
+    Button.action:hover { background: #4D7D55; color: #FFFFFF; }
     #nav-tabs { height: 2; background: $surface; }
     #nav-tabs Tab { color: $text-muted; }
     #nav-tabs Tab.-active { color: #FFFFFF; text-style: bold; }

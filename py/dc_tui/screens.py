@@ -46,6 +46,7 @@ SECTIONS: List[Section] = [
     Section("rooms",  "Rooms",      "inbox by type · messages · daily/weekly summaries",   WEB_APP + "/inbox"),
     Section("trips",  "Trips",      "your trips · create/edit · who to meet",              WEB_APP + "/trips"),
     Section("events", "Events",     "global · local · live calls · schedule · my agenda",  WEB_APP + "/events"),
+    Section("locator", "Locator",   "your city · followed cities · followed people · your trips", WEB_APP + "/locator"),
     Section("people", "People",     "profile match · follows",                             WEB_APP + "/members"),
     Section("search", "Search",     "people · rooms · messages · events · chapters",       WEB_APP + "/search"),
     Section("me",     "Me",         "profile · membership · notifications · calendar",     WEB_APP + "/profile"),
@@ -632,7 +633,8 @@ class HomeScreen(DCScreen):
                     names.append(str(who))
         if names:
             lines.append(("♥ %s" % _escape(trunc(", ".join(names[:6]), self._card_width() - 4)), ("people", None)))
-        return lines or [("[dim]locator digest is empty[/dim]", None)], _subtitle("Friday digest", f)
+        lines.append(("[dim]open the full Locator →[/dim]", ("locator", None)))
+        return lines, _subtitle("Friday digest", f)
 
     def _render_me(self, results: List[Fetched]) -> Tuple[List[str], str]:
         profile_f, membership_f, limits_f = results
