@@ -16,6 +16,7 @@ from textual.widgets import OptionList, Static, Tabs
 
 from .data import Fetched
 from .format import align_row, date_range, event_dates, flag, fmt_date, pad, plural, trunc
+from .labels import event_type_label
 from .screens import DCScreen, WEB_APP
 from .widgets import Panel
 
@@ -99,7 +100,7 @@ class LocatorScreen(DCScreen):
     def _render_digest(self, f: Fetched) -> None:
         self._last_fetched = f
         digest = f.data if isinstance(f.data, dict) else {}
-        age = "refreshed %s ago" % (("%dm" % (f.age // 60)) if f.age >= 60 else "just now") if f.from_cache else "refreshed just now"
+        age = ("refreshed %dm ago" % (f.age // 60)) if (f.from_cache and f.age >= 60) else "refreshed just now"
         flag_txt = (" · ⚠ " + trunc(f.error, 30)) if f.error else " · " + age
         width = self._card_width()
         if f.error and not digest:
@@ -425,7 +426,7 @@ def _dedupe_events(events: List[dict]) -> List[dict]:
 def _event_row(e: dict, width: int, indent: str = "  ") -> Tuple[str, Any]:
     city = e.get("city") if isinstance(e.get("city"), dict) else {}
     return (align_row(width, e.get("name") or e.get("eventName") or "Untitled event", event_dates(e),
-                      city.get("name") or e.get("eventType") or "", prefix=indent + "📅 ", name_markup="%s"),
+                      city.get("name") or event_type_label(e.get("eventType")), prefix=indent + "📅 ", name_markup="%s"),
             ("events", e.get("eventID")) if e.get("eventID") else None)
 
 
