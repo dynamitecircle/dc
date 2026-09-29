@@ -211,6 +211,12 @@ class RoomsScreen(ListDetailScreen):
         """Opening a room (Enter / → / click) = its last page of messages."""
         self.action_read_messages()
 
+    def _paint_detail(self) -> None:
+        super()._paint_detail()
+        if (self.detail_tab or "messages") == "messages" and isinstance(self._detail_data, dict) and "messages" in self._detail_data:
+            pane = self.detail_pane() if self.two_pane else self.main_pane()
+            self.call_after_refresh(lambda: pane.scroll_end(animate=False))   # land on the newest message
+
     def _queue_detail(self, item: dict) -> None:
         """Highlighting shows Info (cheap) unless this room was already opened."""
         if item.get("roomID") not in self._opened:
@@ -239,7 +245,7 @@ def _dm_label(room: dict) -> str:
     return "Direct message" if rid.startswith("dm_") else rid
 
 
-_REPLY = re.compile(r"^[\s▌│┃💬]*Replying to (.+?) in (?:.+?)\s+(.*)$", re.DOTALL)
+_REPLY = re.compile(r"^[^\w]*Replying to (.+?) in (?:.+?)\s+(.*)$", re.DOTALL)   # any glyph/bar prefix
 
 
 def _split_reply(text: str):
