@@ -24,7 +24,7 @@ from textual import work
 from textual.containers import Vertical
 
 from .data import Fetched
-from .format import date_range, fmt_date, pad, plural, rpad, strip_markdown, trunc
+from .format import align_row, date_range, fmt_date, pad, plural, rpad, strip_markdown, trunc
 from .layout import MODES, layout_mode
 from .widgets import Panel
 
@@ -521,10 +521,13 @@ class HomeScreen(DCScreen):
         return self.app.layout_mode_name == "compact"  # type: ignore[attr-defined]
 
     def _card_width(self) -> int:
-        width = self.app.size.width - 6
-        if self._columns == 2:
-            width = width * 3 // 5          # the main column is 3fr of 5
-        return max(24, width)
+        try:
+            width = self.query_one("#p-inbox", Panel).size.width - 4     # border + padding
+        except Exception:  # noqa: BLE001
+            width = self.app.size.width - 6
+            if self._columns == 2:
+                width = width * 3 // 5
+        return max(24, width - 1)
 
     # ── renderers: (results) -> (lines, subtitle) ─────────────────────
 
@@ -561,7 +564,7 @@ class HomeScreen(DCScreen):
             when = fmt_date(a.get("createdAt"))
             target = ("url", a.get("shortURL") or a.get("announcementURL")) if (a.get("shortURL") or a.get("announcementURL")) else None
             if compact:
-                lines.append(("[b]%s[/b] [dim]%s[/dim]\n  %s" % (_escape(trunc(who, 24)), when, _escape(trunc(text, max(20, width - 4)))), target))
+                lines.append((align_row(width, who, when) + "\n  " + _escape(trunc(text, max(20, width - 4))), target))
             else:
                 head = "[dim]%s[/dim] [b]%s[/b]  " % (pad(when, 6), _escape(pad(who, 22)))
                 lines.append((head + _escape(trunc(text, max(20, width - 6 - 22 - 3))), target))
@@ -584,11 +587,9 @@ class HomeScreen(DCScreen):
                 my_places.update(x for x in (c.get("cityID"), c.get("placeID")) if x)
         held = {t.get("eventID") for t in tickets}
         width = self._card_width()
-        date_w = 15
-        name_w = max(16, width - date_w - 6)
 
         def row(prefix: str, name: str, start, end) -> str:
-            return "%s%s %s" % (prefix, _escape(pad(name, name_w - len(prefix))), pad(date_range(start, end), date_w))
+            return align_row(width, name, date_range(start, end), prefix=prefix, name_markup="%s")
 
         lines = []
         for t in tickets[:5]:
@@ -614,12 +615,12 @@ class HomeScreen(DCScreen):
         f = results[0]
         trips = _items(f)
         lines = []
-        name_w = max(16, self._card_width() - 18)
+        width = self._card_width()
         for t in trips[:6]:
             loc = t.get("location") if isinstance(t.get("location"), dict) else {}
             place = t.get("place") if isinstance(t.get("place"), dict) else {}
             name = loc.get("cityName") or loc.get("name") or place.get("name") or t.get("placeName") or "?"
-            lines.append(("✈  [b]%s[/b] %s" % (_escape(pad(name, name_w)), pad(date_range(t.get("startDate"), t.get("endDate")), 12)), ("trips", t.get("tripID"))))
+            lines.append((align_row(width, name, date_range(t.get("startDate"), t.get("endDate")), t.get("note") or "", prefix="✈ "), ("trips", t.get("tripID"))))
         return lines or [("[dim]no upcoming trips[/dim] — Enter to plan one", ("trips", None))], _subtitle(plural(len(trips), "trip"), f)
 
     def _render_locator(self, results: List[Fetched]) -> Tuple[List[str], str]:
@@ -628,6 +629,7 @@ class HomeScreen(DCScreen):
         f = results[0]
         digest = _dict(f)
         lines: List[Tuple[str, Any]] = []
+        width = self._card_width()
         home = digest.get("homeCity") if isinstance(digest.get("homeCity"), dict) else {}
         city = home.get("cityName") or "your city"
 
@@ -640,12 +642,12 @@ class HomeScreen(DCScreen):
             lines.append(("[dim]🏠 coming to %s[/dim]" % _escape(city), None))
             for t in visitors[:4]:
                 m = member(t)
-                lines.append(("   [b]%s[/b] %s" % (_escape(pad(m.get("displayName") or m.get("userName") or "DCer", 22)),
-                                                   pad(date_range(t.get("startDate"), t.get("endDate")), 15)), ("person", m)))
+                lines.append((align_row(width, m.get("displayName") or m.get("userName") or "DCer",
+                                        date_range(t.get("startDate"), t.get("endDate")), prefix="   "), ("person", m)))
         new = [m for m in home.get("newMembers") or [] if isinstance(m, dict)]
         for m in new[:3]:
             mm = member(m)
-            lines.append(("   [b]%s[/b] [dim]new in %s[/dim]" % (_escape(pad(mm.get("displayName") or "DCer", 22)), _escape(city)), ("person", mm)))
+            lines.append((align_row(width, mm.get("displayName") or "DCer", "", "new in %s" % city, prefix="   "), ("person", mm)))
         for c in [c for c in (digest.get("favoriteCities") or []) if isinstance(c, dict)][:3]:
             trips = [t for t in (c.get("comingTrips") or []) + (c.get("newTrips") or []) if isinstance(t, dict)]
             ev = len(c.get("comingEvents") or []) + len(c.get("newEvents") or [])
@@ -653,7 +655,7 @@ class HomeScreen(DCScreen):
             lines.append(("[dim]★ %s · %s[/dim]" % (_escape(c.get("cityName") or ""), " · ".join(bits) or "quiet"), ("locator", None)))
             for t in trips[:3]:
                 m = member(t)
-                lines.append(("   [b]%s[/b] %s" % (_escape(pad(m.get("displayName") or "DCer", 22)), pad(date_range(t.get("startDate"), t.get("endDate")), 15)), ("person", m)))
+                lines.append((align_row(width, m.get("displayName") or "DCer", date_range(t.get("startDate"), t.get("endDate")), prefix="   "), ("person", m)))
         people = digest.get("favoritePeople") if isinstance(digest.get("favoritePeople"), dict) else {}
         seen = set()
         moving = []
@@ -667,8 +669,7 @@ class HomeScreen(DCScreen):
             lines.append(("[dim]♥ people you follow[/dim]", None))
             for m, row in moving[:4]:
                 where = row.get("eventName") or (row.get("location") or {}).get("city") if isinstance(row.get("location"), dict) else row.get("eventName")
-                lines.append(("   [b]%s[/b] %s [dim]%s[/dim]" % (_escape(pad(m.get("displayName") or "DCer", 22)),
-                                                                pad(date_range(row.get("startDate"), row.get("endDate")), 15), _escape(trunc(where or "", 30))), ("person", m)))
+                lines.append((align_row(width, m.get("displayName") or "DCer", date_range(row.get("startDate"), row.get("endDate")), where or "", prefix="   "), ("person", m)))
             if len(moving) > 4:
                 lines.append(("   [dim]+%d more in the Locator[/dim]" % (len(moving) - 4), ("locator", None)))
         lines.append(("[dim]open the full Locator →[/dim]", ("locator", None)))

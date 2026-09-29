@@ -119,3 +119,41 @@ def strip_markdown(text: Any) -> str:
     s = re.sub(r"^\s{0,3}>\s?", "", s, flags=re.MULTILINE)           # blockquotes
     s = _MD_EMPHASIS.sub("", s)
     return " ".join(s.split())
+
+
+def align_row(width: int, name: Any, date: Any = "", extra: Any = "", *, prefix: str = "",
+              name_min: int = 10, extra_min: int = 8, name_markup: str = "[b]%s[/b]") -> str:
+    """One list row that always fits `width` columns and never wraps:
+
+        <prefix><name……………>  <extra (optional)>  <date, right-aligned last>
+
+    The name flexes; `extra` (a place, a note) is shown only when at least
+    `extra_min` columns remain for it after the name keeps `name_min`; the date
+    keeps its full width. Brackets in the texts are escaped for markup.
+    """
+    def esc(t: Any) -> str:
+        return str(t if t is not None else "").replace("[", r"\[")
+    width = max(12, int(width))
+    date = str(date or "")
+    extra = str(extra or "")
+    date_w = display_width(date)
+    avail = width - display_width(prefix) - (date_w + 1 if date else 0)
+    name_w = min(display_width(name), max(name_min, avail))
+    extra_w = 0
+    if extra:
+        room = avail - name_w - 1
+        if room >= extra_min:
+            extra_w = min(display_width(extra), room)
+        elif avail - name_min - 1 >= extra_min:
+            extra_w = extra_min
+            name_w = avail - extra_w - 1
+    if name_w + (extra_w + 1 if extra_w else 0) > avail:
+        name_w = max(name_min, avail - (extra_w + 1 if extra_w else 0))
+    parts = [prefix, name_markup % esc(pad(name, name_w))]
+    used = display_width(prefix) + name_w
+    if extra_w:
+        parts.append(" " + esc(pad(extra, extra_w)))
+        used += extra_w + 1
+    if date:
+        parts.append(" " * max(1, width - used - date_w) + date)
+    return "".join(parts)
