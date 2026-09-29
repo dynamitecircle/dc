@@ -10,7 +10,7 @@ from textual.binding import Binding
 from textual.widgets import Static
 
 from .data import Fetched
-from .format import flag, fmt_date, plural, trunc
+from .format import flag, fmt_date, guard_flags, plural, trunc
 from .profile import profile_lines
 from .listing import dict_of, esc, items_of, plain
 from .screens import DCScreen, WEB_APP
@@ -77,7 +77,7 @@ class MeScreen(DCScreen):
         p = dict_of(f)
         chapter = p.get("chapter") if isinstance(p.get("chapter"), dict) else {}
         lines = profile_lines(p, width=max(40, self.main_pane().size.width - 8))
-        return lines, self._flag(f, esc(("%s %s" % (flag(chapter.get("countryCode")), chapter.get("cityName") or "")).strip()))
+        return lines, guard_flags(self._flag(f, esc(("%s %s" % (flag(chapter.get("countryCode")), chapter.get("cityName") or "")).strip())))
 
     def _membership(self, f: Fetched):
         m = dict_of(f).get("membership")

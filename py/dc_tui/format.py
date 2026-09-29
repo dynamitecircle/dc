@@ -158,7 +158,7 @@ def align_row(width: int, name: Any, date: Any = "", extra: Any = "", *, prefix:
         used += extra_w + 1
     if date:
         parts.append(" " * max(1, width - used - date_w) + date)
-    return "".join(parts)
+    return guard_flags("".join(parts))
 
 
 def flag(country_code: Any) -> str:
@@ -177,3 +177,13 @@ def event_dates(event: dict) -> str:
         d = _parse(start) or _parse(end)
         return d.strftime("%b %Y") if d else ""
     return date_range(start, end)
+
+
+_FLAG_PAIR = re.compile("([\U0001F1E6-\U0001F1FF]{2})")
+
+
+def guard_flags(markup: str) -> str:
+    """Wrap every flag pair in a default-foreground span. Ghostty draws a flag
+    as a box when an explicit RGB foreground precedes it; with `ESC[39m` it
+    renders. Widths are unaffected (markup is not counted by the terminal)."""
+    return _FLAG_PAIR.sub(r"[default]\1[/default]", markup)

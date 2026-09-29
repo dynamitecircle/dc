@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, List
 
-from .format import flag, fmt_date, trunc
+from .format import flag, fmt_date, guard_flags, trunc
 
 
 def _esc(t: Any) -> str:
@@ -50,5 +50,5 @@ def profile_lines(p: dict, *, width: int = 80, header: bool = True) -> List[str]
         lines.append("")
         lines.append("[b]%s[/b]" % title)
         for label, value in rows:
-            lines.append("[dim]%s:[/dim] %s" % (label, _esc(trunc(value, max(20, width * 3)))))
+            lines.append(guard_flags("[dim]%s:[/dim] %s" % (label, _esc(trunc(value, max(20, width * 3))))))
     return lines

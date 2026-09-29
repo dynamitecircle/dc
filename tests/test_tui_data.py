@@ -359,3 +359,10 @@ def test_profile_lines_follow_web_order():
     text = "\n".join(lines)
     assert text.index("Location") < text.index("Primary Business") < text.index("About Me")
     assert "Home Chapter:" in text and "Business Name:" in text and "Non-Business Hobbies:" in text
+
+
+def test_flags_are_wrapped_in_a_default_foreground_span():
+    from dc_tui.format import align_row, flag, guard_flags
+    assert guard_flags("x " + flag("JP") + " y") == "x [default]" + flag("JP") + "[/default] y"
+    row = align_row(60, flag("IT") + " Bologna", "01–06 Oct 2026", prefix="    ", name_markup="%s")
+    assert "[default]" + flag("IT") + "[/default]" in row

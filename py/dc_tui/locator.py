@@ -15,7 +15,7 @@ from textual.binding import Binding
 from textual.widgets import OptionList, Static, Tabs
 
 from .data import Fetched
-from .format import align_row, date_range, event_dates, flag, fmt_date, pad, plural, trunc
+from .format import align_row, date_range, event_dates, flag, fmt_date, guard_flags, pad, plural, trunc
 from .labels import event_type_label
 from .screens import DCScreen, WEB_APP
 from .widgets import Panel
@@ -144,7 +144,7 @@ class LocatorScreen(DCScreen):
         rows += _trip_section(_n(home.get("comingToCity"), "DCer", "coming to %s" % city), home.get("comingToCity"), width, show_place=False)
         n = sum(len(home.get(k) or []) for k in ("newMembers", "planningToCity", "comingToCity", "createdEvents", "comingEvents"))
         title = "%s DC %s Chapter · Home" % (flag(home.get("countryCode")), city) if home.get("cityName") else "set your home city in your profile"
-        return rows or [("[dim]quiet week in %s[/dim]" % _esc(city), None)], "%s · %s" % (_esc(title.strip()), plural(n, "item"))
+        return rows or [("[dim]quiet week in %s[/dim]" % _esc(city), None)], guard_flags("%s · %s" % (_esc(title.strip()), plural(n, "item")))
 
     def _cities(self, digest: dict, width: int) -> Tuple[List[Tuple[str, Any]], str]:
         cities = [c for c in digest.get("favoriteCities") or [] if isinstance(c, dict)]
@@ -153,7 +153,7 @@ class LocatorScreen(DCScreen):
             name = c.get("cityName") or "a city"
             n = sum(len(c.get(k) or []) for k in ("newTrips", "comingTrips", "newEvents", "comingEvents"))
             link = c.get("shortURL") or c.get("chapterURL")
-            rows.append(("%s [b]DC %s Chapter[/b]  [dim]%s[/dim]" % (flag(c.get("countryCode")) or "★", _esc(name), plural(n, "item")),
+            rows.append((guard_flags("%s [b]DC %s Chapter[/b]  [dim]%s[/dim]" % (flag(c.get("countryCode")) or "★", _esc(name), plural(n, "item"))),
                          ("url", link) if link else None))
             rows += _event_section(_n(c.get("newEvents"), "new event", "in %s" % name), c.get("newEvents"), width, indent="  ")
             rows += _event_section(_n(c.get("comingEvents"), "upcoming event", "in %s" % name), c.get("comingEvents"), width, indent="  ")
