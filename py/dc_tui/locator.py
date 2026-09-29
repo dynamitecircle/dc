@@ -78,14 +78,24 @@ class LocatorScreen(DCScreen):
         self.app.call_from_thread(self.app.refresh_status)  # type: ignore[attr-defined]
 
     def _card_width(self) -> int:
+        pane = self.main_pane().size.width or self.app.size.width
+        width = pane - 6                                   # pane padding + card border + card padding
         try:
-            width = self.query_one("#l-home", Panel).size.width - 4     # border + padding
+            panel_w = self.query_one("#l-home", Panel).size.width
+            if panel_w > 10:
+                width = panel_w - 4
         except Exception:  # noqa: BLE001
-            width = self.main_pane().size.width - 6
-        return max(24, width - 1)
+            pass
+        return max(20, width - 1)
+
+    def on_resize(self, event) -> None:
+        super().on_resize(event)
+        if getattr(self, "_last_fetched", None) is not None:
+            self._render_digest(self._last_fetched)            # rows re-fit to the new width
 
     # ── rendering — mirrors the web digest (LocatorDigest.vue) ─────────
     def _render_digest(self, f: Fetched) -> None:
+        self._last_fetched = f
         digest = f.data if isinstance(f.data, dict) else {}
         flag = (" · ⚠ " + trunc(f.error, 30)) if f.error else (" · stale" if f.stale else "")
         width = self._card_width()
@@ -363,7 +373,7 @@ def _event_group_section(title: str, grouped: Any, flat: Any, verb_one: str, ver
         sentence = "%s %s %s" % (_name_list(names), verb, trunc(g.get("eventName") or "Untitled event", 40))
         when = date_range(g.get("startDate") or (g.get("eventDates") or {}).get("startDate"), g.get("endDate") or (g.get("eventDates") or {}).get("endDate"))
         target = ("events", g.get("eventID")) if g.get("eventID") else (("url", g.get("shortURL")) if g.get("shortURL") else None)
-        rows.append(("  %s  [dim]%s[/dim]" % (sentence, when), target))
+        rows.append((align_row(width, sentence, when, prefix="  ", name_markup="%s"), target))
     return rows
 
 

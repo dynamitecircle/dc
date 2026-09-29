@@ -521,13 +521,17 @@ class HomeScreen(DCScreen):
         return self.app.layout_mode_name == "compact"  # type: ignore[attr-defined]
 
     def _card_width(self) -> int:
+        pane = self.main_pane().size.width or self.app.size.width
+        width = pane - 6
+        if self._columns == 2:
+            width = (pane - 2) * 3 // 5 - 4
         try:
-            width = self.query_one("#p-inbox", Panel).size.width - 4     # border + padding
+            panel_w = self.query_one("#p-inbox", Panel).size.width
+            if panel_w > 10:
+                width = panel_w - 4
         except Exception:  # noqa: BLE001
-            width = self.app.size.width - 6
-            if self._columns == 2:
-                width = width * 3 // 5
-        return max(24, width - 1)
+            pass
+        return max(20, width - 1)
 
     # ── renderers: (results) -> (lines, subtitle) ─────────────────────
 
