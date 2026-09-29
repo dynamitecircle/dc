@@ -238,6 +238,7 @@ class PlaceholderScreen(DCScreen):
 
     def populate(self) -> None:
         self.set_main(
+            Static("[@click=app.back]← Back[/]", classes="muted"),
             Static(self.TITLE_TEXT, classes="section-title"),
             Static(self.HINT, classes="muted"),
             Static(""),

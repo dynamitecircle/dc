@@ -101,6 +101,7 @@ class ListDetailScreen(DCScreen):
     }
     ListDetailScreen .detail-actions Button.action:hover { background: $primary; color: #FFFFFF; }
     ListDetailScreen .detail-actions Button.action:focus { background: $primary; color: #FFFFFF; text-style: bold; }
+    ListDetailScreen .detail-actions Button.action.back { background: $surface; color: $primary; }
     ListDetailScreen .detail-body { height: auto; }
     ListDetailScreen .detail-table { height: auto; max-height: 100%; }
     ListDetailScreen .-hidden { display: none; }
@@ -149,6 +150,8 @@ class ListDetailScreen(DCScreen):
 
     def _sync_actions(self) -> None:
         actions = list(self.detail_actions())
+        if not self.two_pane:
+            actions.insert(0, ("← Back", "close_detail"))      # nested view: always a visible way up
         self._action_map = {i: action for i, (_, action) in enumerate(actions)}
         labels = [label for label, _ in actions]
         for suffix in ("pane", "inline"):
@@ -163,7 +166,8 @@ class ListDetailScreen(DCScreen):
 
     async def _rebuild_actions(self, row: Horizontal, suffix: str, labels: List[str]) -> None:
         await row.remove_children()
-        await row.mount(*[Button(label, id="act-%s-%d" % (suffix, i), classes="action") for i, label in enumerate(labels)])
+        await row.mount(*[Button(label, id="act-%s-%d" % (suffix, i), classes="action back" if label.startswith("←") else "action")
+                          for i, label in enumerate(labels)])
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = str(event.button.id or "")
@@ -196,6 +200,8 @@ class ListDetailScreen(DCScreen):
         self._fill_table()
         if self.two_pane and self._detail_open:
             self._show_inline_detail(False)
+        if self._detail_item is not None:
+            self._sync_actions()
         self._paint_detail()
 
     def on_resize(self, event) -> None:

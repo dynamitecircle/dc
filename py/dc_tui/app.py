@@ -16,7 +16,7 @@ from textual.binding import Binding
 from textual.command import DiscoveryHit, Hit, Hits, Provider
 from textual.containers import Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Static
+from textual.widgets import Button, Static
 
 from .data import DataClient, Fetched
 from .layout import layout_mode
@@ -64,11 +64,16 @@ class HelpScreen(ModalScreen):
     HelpScreen { align: center middle; }
     #help-box { width: 72; max-width: 100%; height: auto; max-height: 90%;
                 border: round $primary; background: $surface; padding: 1 2; }
+    #help-back { height: 1; min-width: 0; border: none; padding: 0 1; margin: 0 0 1 0; }
     """
 
     def compose(self) -> ComposeResult:
         with Vertical(id="help-box"):
+            yield Button("← Back", id="help-back", variant="primary")
             yield Static(HELP_TEXT, id="help-body")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss()
 
     def action_close_help(self) -> None:
         self.dismiss()
