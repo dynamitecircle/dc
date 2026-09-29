@@ -292,3 +292,12 @@ def test_locator_grouping_helpers():
     assert ev[0]["count"] == 2
     assert _name_list(["A"]) == "A" and _name_list(["A", "B"]) == "A and B"
     assert _name_list(list("ABCDEFGH")) == "A, B, C, D, E and 3 others"
+
+
+def test_announcement_channel_resolves_from_url():
+    pytest.importorskip("textual")
+    from dc_tui.screens import _announcement_channel
+    a = {"announcementURL": "https://dc.dynamitecircle.com/channel/yUoLEhfJb4JSJptyZ1O6/message/TBK"}
+    assert _announcement_channel(a, {"yUoLEhfJb4JSJptyZ1O6": "DC Announcements"}) == "DC Announcements"
+    assert _announcement_channel(a, {}) == "Announcements"
+    assert _announcement_channel({"channelName": "DCBKK Announcements"}, {}) == "DCBKK Announcements"
