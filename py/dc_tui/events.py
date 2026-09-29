@@ -51,7 +51,7 @@ class EventsScreen(ListDetailScreen):
     LIST_TABS = (("global", "Global"), ("local", "Local"), ("calls", "Live Calls"))
     COLUMNS = ("Event", "Dates", "City", "Type", "🎟")
     COLUMNS_COMPACT = ("Event", "Dates", "🎟")
-    COLUMN_WIDTHS = {"Dates": 12, "City": 14, "Type": 16, "🎟": 2, "When": 12, "Kind": 8, "Going": 5, "RSVP": 7}
+    COLUMN_WIDTHS = {"Dates": 15, "City": 14, "Type": 16, "🎟": 2, "When": 15, "Kind": 8, "Going": 5, "RSVP": 7}
     EMPTY_TEXT = "no upcoming events"
 
     BINDINGS = [

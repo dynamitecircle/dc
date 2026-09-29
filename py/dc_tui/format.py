@@ -121,6 +121,9 @@ def strip_markdown(text: Any) -> str:
     return " ".join(s.split())
 
 
+DATE_W = 15   # "Sep 30 – Oct  2" — the widest date_range
+
+
 def align_row(width: int, name: Any, date: Any = "", extra: Any = "", *, prefix: str = "",
               name_min: int = 10, extra_min: int = 8, name_markup: str = "[b]%s[/b]") -> str:
     """One list row that always fits `width` columns and never wraps:
@@ -136,19 +139,23 @@ def align_row(width: int, name: Any, date: Any = "", extra: Any = "", *, prefix:
     width = max(12, int(width))
     date = str(date or "")
     extra = str(extra or "")
+    # one date field for every list: DATE_W columns, left-aligned, so a single
+    # date and a range start at the same column and the months line up
+    if date:
+        date = pad(date, DATE_W) if width >= 40 else date
     date_w = display_width(date)
     avail = width - display_width(prefix) - (date_w + 1 if date else 0)
-    name_w = min(display_width(name), max(name_min, avail))
+    if avail < 4 and date:                       # too narrow for a padded date: unpad it
+        date = date.rstrip()
+        date_w = display_width(date)
+        avail = width - display_width(prefix) - date_w - 1
+    name_w = max(4, min(display_width(name), max(name_min, avail)))
+    name_w = min(name_w, max(4, avail))
     extra_w = 0
     if extra:
         room = avail - name_w - 1
-        if room >= extra_min:
+        if room >= extra_min:                     # extras only when the name keeps its width
             extra_w = min(display_width(extra), room)
-        elif avail - name_min - 1 >= extra_min:
-            extra_w = extra_min
-            name_w = avail - extra_w - 1
-    if name_w + (extra_w + 1 if extra_w else 0) > avail:
-        name_w = max(name_min, avail - (extra_w + 1 if extra_w else 0))
     parts = [prefix, name_markup % esc(pad(name, name_w))]
     used = display_width(prefix) + name_w
     if extra_w:

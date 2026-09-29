@@ -15,7 +15,7 @@ from textual.binding import Binding
 from textual.widgets import OptionList, Static, Tabs
 
 from .data import Fetched
-from .format import date_range, fmt_date, pad, plural, trunc
+from .format import align_row, date_range, fmt_date, pad, plural, trunc
 from .screens import DCScreen, WEB_APP
 from .widgets import Panel
 
@@ -77,11 +77,18 @@ class LocatorScreen(DCScreen):
         self.app.call_from_thread(self._render_digest, fetched)
         self.app.call_from_thread(self.app.refresh_status)  # type: ignore[attr-defined]
 
+    def _card_width(self) -> int:
+        try:
+            width = self.query_one("#l-home", Panel).size.width - 4     # border + padding
+        except Exception:  # noqa: BLE001
+            width = self.main_pane().size.width - 6
+        return max(24, width - 1)
+
     # ── rendering — mirrors the web digest (LocatorDigest.vue) ─────────
     def _render_digest(self, f: Fetched) -> None:
         digest = f.data if isinstance(f.data, dict) else {}
         flag = (" · ⚠ " + trunc(f.error, 30)) if f.error else (" · stale" if f.stale else "")
-        width = max(40, self.main_pane().size.width - 6)
+        width = self._card_width()
         self._paint("l-home", *self._home(digest, width), flag)
         self._paint("l-cities", *self._cities(digest, width), flag)
         self._paint("l-people", *self._people(digest, width), flag)
@@ -149,7 +156,7 @@ class LocatorScreen(DCScreen):
             leads = [x for x in t.get("chapterLeads") or [] if isinstance(x, dict)]
             locals_ = [x for x in t.get("localMembers") or [] if isinstance(x, dict)]
             pill = " · ".join(b for b in (plural(len(overlap), "DCer") + " overlap" if overlap else "", plural(len(leads), "chapter lead") if leads else "") if b)
-            rows.append(("✈  [b]%s[/b] %s [dim]%s[/dim]" % (_esc(pad("Your trip to " + city, 22)), pad(date_range(t.get("startDate"), t.get("endDate")), 15), _esc(pill)),
+            rows.append((align_row(width, "Your trip to " + city, date_range(t.get("startDate"), t.get("endDate")), pill, prefix="✈  "),
                          ("trips", t.get("tripID")) if t.get("tripID") else None))
             rows += _trip_section("DCers also visiting", overlap, width, show_place=False, indent="  ")
             if leads or locals_:
@@ -283,14 +290,12 @@ def _trip_group_rows(groups: List[dict], width: int, *, show_place: bool, indent
             continue
         if len(trips) == 1:
             t = trips[0]
-            where = ("→ %s " % _esc(pad(_place(t) or "somewhere", 16))) if show_place else ""
-            note = ("[dim]%s[/dim]" % _esc(trunc(t.get("note") or "", 40))) if t.get("note") else ""
-            rows.append(("%s[b]%s[/b] %s%s %s" % (indent, _esc(pad(_name(m), 22)), where,
-                                                 pad(date_range(t.get("startDate"), t.get("endDate")), 15), note), _person_target(m)))
+            extra = ("→ " + (_place(t) or "somewhere")) if show_place else (t.get("note") or "")
+            rows.append((align_row(width, _name(m), date_range(t.get("startDate"), t.get("endDate")), extra, prefix=indent), _person_target(m)))
         else:
-            rows.append(("%s[b]%s[/b] [dim]planned %s[/dim]" % (indent, _esc(pad(_name(m), 22)), plural(len(trips), "trip")), _person_target(m)))
+            rows.append((align_row(width, _name(m), "", "planned %s" % plural(len(trips), "trip"), prefix=indent), _person_target(m)))
             for t in trips:
-                rows.append(("%s    %s %s" % (indent, _esc(pad(_place(t) or "somewhere", 18)), pad(date_range(t.get("startDate"), t.get("endDate")), 15)),
+                rows.append((align_row(width, _place(t) or "somewhere", date_range(t.get("startDate"), t.get("endDate")), prefix=indent + "    ", name_markup="%s"),
                              ("url", t.get("shortURL") or t.get("tripURL")) if (t.get("shortURL") or t.get("tripURL")) else _person_target(m)))
     return rows
 
@@ -355,7 +360,7 @@ def _event_group_section(title: str, grouped: Any, flat: Any, verb_one: str, ver
         names = [_name(m) for m in members] or [str(x) for x in g.get("memberNames") or []]
         count = int(g.get("count") or len(names))
         verb = verb_many if count > 1 else verb_one
-        sentence = "%s %s [b]%s[/b]" % (_esc(_name_list(names)), verb, _esc(trunc(g.get("eventName") or "Untitled event", 40)))
+        sentence = "%s %s %s" % (_name_list(names), verb, trunc(g.get("eventName") or "Untitled event", 40))
         when = date_range(g.get("startDate") or (g.get("eventDates") or {}).get("startDate"), g.get("endDate") or (g.get("eventDates") or {}).get("endDate"))
         target = ("events", g.get("eventID")) if g.get("eventID") else (("url", g.get("shortURL")) if g.get("shortURL") else None)
         rows.append(("  %s  [dim]%s[/dim]" % (sentence, when), target))
@@ -375,9 +380,8 @@ def _dedupe_events(events: List[dict]) -> List[dict]:
 
 def _event_row(e: dict, width: int, indent: str = "  ") -> Tuple[str, Any]:
     city = e.get("city") if isinstance(e.get("city"), dict) else {}
-    return ("%s📅 %s %s  [dim]%s[/dim]" % (indent, _esc(pad(trunc(e.get("name") or e.get("eventName") or "Untitled event", 40), 40)),
-                                           pad(date_range(e.get("startDate"), e.get("endDate")), 15),
-                                           _esc(city.get("name") or e.get("eventType") or "")),
+    return (align_row(width, e.get("name") or e.get("eventName") or "Untitled event", date_range(e.get("startDate"), e.get("endDate")),
+                      city.get("name") or e.get("eventType") or "", prefix=indent + "📅 ", name_markup="%s"),
             ("events", e.get("eventID")) if e.get("eventID") else None)
 
 
