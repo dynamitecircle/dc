@@ -149,7 +149,7 @@ class LocatorScreen(DCScreen):
             leads = [x for x in t.get("chapterLeads") or [] if isinstance(x, dict)]
             locals_ = [x for x in t.get("localMembers") or [] if isinstance(x, dict)]
             pill = " · ".join(b for b in (plural(len(overlap), "DCer") + " overlap" if overlap else "", plural(len(leads), "chapter lead") if leads else "") if b)
-            rows.append(("✈  [b]Your trip to %s[/b]  %s  [dim]%s[/dim]" % (_esc(city), date_range(t.get("startDate"), t.get("endDate")), _esc(pill)),
+            rows.append(("✈  [b]%s[/b] %s [dim]%s[/dim]" % (_esc(pad("Your trip to " + city, 22)), pad(date_range(t.get("startDate"), t.get("endDate")), 15), _esc(pill)),
                          ("trips", t.get("tripID")) if t.get("tripID") else None))
             rows += _trip_section("DCers also visiting", overlap, width, show_place=False, indent="  ")
             if leads or locals_:
@@ -283,13 +283,14 @@ def _trip_group_rows(groups: List[dict], width: int, *, show_place: bool, indent
             continue
         if len(trips) == 1:
             t = trips[0]
-            where = (" → " + _esc(_place(t) or "somewhere")) if show_place else ""
-            note = ("  [dim]%s[/dim]" % _esc(trunc(t.get("note") or "", 40))) if t.get("note") else ""
-            rows.append(("%s[b]%s[/b]%s  %s%s" % (indent, _esc(_name(m)), where, date_range(t.get("startDate"), t.get("endDate")), note), _person_target(m)))
+            where = ("→ %s " % _esc(pad(_place(t) or "somewhere", 16))) if show_place else ""
+            note = ("[dim]%s[/dim]" % _esc(trunc(t.get("note") or "", 40))) if t.get("note") else ""
+            rows.append(("%s[b]%s[/b] %s%s %s" % (indent, _esc(pad(_name(m), 22)), where,
+                                                 pad(date_range(t.get("startDate"), t.get("endDate")), 15), note), _person_target(m)))
         else:
-            rows.append(("%s[b]%s[/b]  [dim]planned %s[/dim]" % (indent, _esc(_name(m)), plural(len(trips), "trip")), _person_target(m)))
+            rows.append(("%s[b]%s[/b] [dim]planned %s[/dim]" % (indent, _esc(pad(_name(m), 22)), plural(len(trips), "trip")), _person_target(m)))
             for t in trips:
-                rows.append(("%s    %s  %s" % (indent, _esc(pad(_place(t) or "somewhere", 22)), date_range(t.get("startDate"), t.get("endDate"))),
+                rows.append(("%s    %s %s" % (indent, _esc(pad(_place(t) or "somewhere", 18)), pad(date_range(t.get("startDate"), t.get("endDate")), 15)),
                              ("url", t.get("shortURL") or t.get("tripURL")) if (t.get("shortURL") or t.get("tripURL")) else _person_target(m)))
     return rows
 

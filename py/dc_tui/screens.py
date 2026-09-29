@@ -639,12 +639,12 @@ class HomeScreen(DCScreen):
             lines.append(("[dim]🏠 coming to %s[/dim]" % _escape(city), None))
             for t in visitors[:4]:
                 m = member(t)
-                lines.append(("   [b]%s[/b]  %s" % (_escape(trunc(m.get("displayName") or m.get("userName") or "DCer", 24)),
-                                                    date_range(t.get("startDate"), t.get("endDate"))), ("person", m)))
+                lines.append(("   [b]%s[/b] %s" % (_escape(pad(m.get("displayName") or m.get("userName") or "DCer", 22)),
+                                                   pad(date_range(t.get("startDate"), t.get("endDate")), 15)), ("person", m)))
         new = [m for m in home.get("newMembers") or [] if isinstance(m, dict)]
         for m in new[:3]:
             mm = member(m)
-            lines.append(("   👋 [b]%s[/b]  [dim]new in %s[/dim]" % (_escape(trunc(mm.get("displayName") or "DCer", 24)), _escape(city)), ("person", mm)))
+            lines.append(("   [b]%s[/b] [dim]new in %s[/dim]" % (_escape(pad(mm.get("displayName") or "DCer", 22)), _escape(city)), ("person", mm)))
         for c in [c for c in (digest.get("favoriteCities") or []) if isinstance(c, dict)][:3]:
             trips = [t for t in (c.get("comingTrips") or []) + (c.get("newTrips") or []) if isinstance(t, dict)]
             ev = len(c.get("comingEvents") or []) + len(c.get("newEvents") or [])
@@ -652,7 +652,7 @@ class HomeScreen(DCScreen):
             lines.append(("[dim]★ %s · %s[/dim]" % (_escape(c.get("cityName") or ""), " · ".join(bits) or "quiet"), ("locator", None)))
             for t in trips[:3]:
                 m = member(t)
-                lines.append(("   [b]%s[/b]  %s" % (_escape(trunc(m.get("displayName") or "DCer", 24)), date_range(t.get("startDate"), t.get("endDate"))), ("person", m)))
+                lines.append(("   [b]%s[/b] %s" % (_escape(pad(m.get("displayName") or "DCer", 22)), pad(date_range(t.get("startDate"), t.get("endDate")), 15)), ("person", m)))
         people = digest.get("favoritePeople") if isinstance(digest.get("favoritePeople"), dict) else {}
         seen = set()
         moving = []
@@ -666,8 +666,8 @@ class HomeScreen(DCScreen):
             lines.append(("[dim]♥ people you follow[/dim]", None))
             for m, row in moving[:4]:
                 where = row.get("eventName") or (row.get("location") or {}).get("city") if isinstance(row.get("location"), dict) else row.get("eventName")
-                lines.append(("   [b]%s[/b]  %s  [dim]%s[/dim]" % (_escape(trunc(m.get("displayName") or "DCer", 24)),
-                                                                 date_range(row.get("startDate"), row.get("endDate")), _escape(trunc(where or "", 26))), ("person", m)))
+                lines.append(("   [b]%s[/b] %s [dim]%s[/dim]" % (_escape(pad(m.get("displayName") or "DCer", 22)),
+                                                                pad(date_range(row.get("startDate"), row.get("endDate")), 15), _escape(trunc(where or "", 30))), ("person", m)))
             if len(moving) > 4:
                 lines.append(("   [dim]+%d more in the Locator[/dim]" % (len(moving) - 4), ("locator", None)))
         lines.append(("[dim]open the full Locator →[/dim]", ("locator", None)))
