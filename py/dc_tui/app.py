@@ -123,13 +123,17 @@ class DCApp(App):
     Header { background: $surface; color: $text; }
     DataTable > .datatable--hover { background: #4D7D55; color: #FFFFFF; }
     OptionList > .option-list--option-hover { background: #4D7D55; color: #FFFFFF; }
-    Tab:hover { background: #4D7D55; color: #FFFFFF; }
-    Button.action:hover { background: #4D7D55; color: #FFFFFF; }
+    Button.action:hover { background: #FF8C5C; color: #FFFFFF; }
+    /* Tabs: text colour only — never a background — in orange shades */
+    Tabs { background: $background; }
     #nav-tabs { height: 2; background: $surface; }
-    #nav-tabs Tab { color: $text-muted; }
-    #nav-tabs Tab.-active { color: #FFFFFF; text-style: bold; }
-    #nav-tabs:focus Tab.-active { background: $primary; color: #FFFFFF; }
-    #nav-tabs .underline--bar { color: $primary; background: $panel; }
+    Tab { color: $text-muted; background: transparent; }
+    Tab:hover { color: #FF8C5C; background: transparent; text-style: none; }
+    Tab.-active { color: $primary; background: transparent; text-style: bold; }
+    Tab.-active:hover { color: #FFC499; background: transparent; }
+    Tabs:focus Tab.-active { color: #FFC499; background: transparent; text-style: bold; }
+    Tabs .underline--bar { color: $primary; background: $panel; }
+    Tabs:focus .underline--bar { color: #FFC499; }
     HeaderIcon { display: none; }
     Header HeaderTitle { color: $primary; text-style: bold; }
     Footer { background: $surface; }
