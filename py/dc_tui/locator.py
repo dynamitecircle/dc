@@ -126,7 +126,7 @@ class LocatorScreen(DCScreen):
             rows.append(_head("New DCers in %s" % city, len(new)))
             for m in new:
                 mm = _member(m) or m
-                rows.append((align_row(width, _name(mm), "", mm.get("headline") or "", prefix="  👤 "), _person_target(mm)))
+                rows.append((align_row(width, _name(mm), "", mm.get("headline") or "", prefix="👤 "), _person_target(mm)))
         rows += _trip_section("Planning trips to %s" % city, home.get("planningToCity"), width, show_place=False)
         rows += _trip_section("Coming to %s soon" % city, home.get("comingToCity"), width, show_place=False)
         rows += _event_section("New events in %s" % city, home.get("createdEvents"), width)
@@ -176,7 +176,7 @@ class LocatorScreen(DCScreen):
                 rows.append(_head("Local DCers", len(leads) + len(locals_), indent="  "))
                 for m in (leads + locals_)[:10]:
                     mm = _member(m) or m
-                    rows.append((align_row(width, _name(mm), "", "chapter lead" if m in leads else "", prefix="    👤 "), _person_target(mm)))
+                    rows.append((align_row(width, _name(mm), "", "chapter lead" if m in leads else "", prefix="👤 "), _person_target(mm)))
         return rows or [("[dim]no upcoming trips[/dim] — Enter to plan one", ("trips", None))], plural(len(trips), "trip")
 
     # ── navigation (same model as Home) ───────────────────────────────
@@ -304,9 +304,9 @@ def _trip_group_rows(groups: List[dict], width: int, *, show_place: bool, indent
         if len(trips) == 1:
             t = trips[0]
             extra = ("→ " + (_place(t) or "somewhere")) if show_place else (t.get("note") or "")
-            rows.append((align_row(width, _name(m), date_range(t.get("startDate"), t.get("endDate")), extra, prefix=indent + "👤 "), _person_target(m)))
+            rows.append((align_row(width, _name(m), date_range(t.get("startDate"), t.get("endDate")), extra, prefix="👤 "), _person_target(m)))
         else:
-            rows.append((align_row(width, _name(m), "", "planned %s" % plural(len(trips), "trip"), prefix=indent + "👤 "), _person_target(m)))
+            rows.append((align_row(width, _name(m), "", "planned %s" % plural(len(trips), "trip"), prefix="👤 "), _person_target(m)))
             for t in trips:
                 rows.append((align_row(width, _place(t) or "somewhere", date_range(t.get("startDate"), t.get("endDate")), prefix=indent + "    ", name_markup="%s"),
                              ("url", t.get("shortURL") or t.get("tripURL")) if (t.get("shortURL") or t.get("tripURL")) else _person_target(m)))

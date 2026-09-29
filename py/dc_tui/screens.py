@@ -647,11 +647,11 @@ class HomeScreen(DCScreen):
             for t in visitors[:4]:
                 m = member(t)
                 lines.append((align_row(width, m.get("displayName") or m.get("userName") or "DCer",
-                                        date_range(t.get("startDate"), t.get("endDate")), prefix="   👤 "), ("person", m)))
+                                        date_range(t.get("startDate"), t.get("endDate")), prefix="👤 "), ("person", m)))
         new = [m for m in home.get("newMembers") or [] if isinstance(m, dict)]
         for m in new[:3]:
             mm = member(m)
-            lines.append((align_row(width, mm.get("displayName") or "DCer", "", "new in %s" % city, prefix="   👤 "), ("person", mm)))
+            lines.append((align_row(width, mm.get("displayName") or "DCer", "", "new in %s" % city, prefix="👤 "), ("person", mm)))
         for c in [c for c in (digest.get("favoriteCities") or []) if isinstance(c, dict)][:3]:
             trips = [t for t in (c.get("comingTrips") or []) + (c.get("newTrips") or []) if isinstance(t, dict)]
             ev = len(c.get("comingEvents") or []) + len(c.get("newEvents") or [])
@@ -659,7 +659,7 @@ class HomeScreen(DCScreen):
             lines.append(("[dim]%s %s · %s[/dim]" % (flag(c.get("countryCode")) or "★", _escape(c.get("cityName") or ""), " · ".join(bits) or "quiet"), ("locator", None)))
             for t in trips[:3]:
                 m = member(t)
-                lines.append((align_row(width, m.get("displayName") or "DCer", date_range(t.get("startDate"), t.get("endDate")), prefix="   👤 "), ("person", m)))
+                lines.append((align_row(width, m.get("displayName") or "DCer", date_range(t.get("startDate"), t.get("endDate")), prefix="👤 "), ("person", m)))
         people = digest.get("favoritePeople") if isinstance(digest.get("favoritePeople"), dict) else {}
         seen = set()
         moving = []
@@ -673,7 +673,7 @@ class HomeScreen(DCScreen):
             lines.append(("[dim]♥ people you follow[/dim]", None))
             for m, row in moving[:4]:
                 where = row.get("eventName") or (row.get("location") or {}).get("city") if isinstance(row.get("location"), dict) else row.get("eventName")
-                lines.append((align_row(width, m.get("displayName") or "DCer", date_range(row.get("startDate"), row.get("endDate")), where or "", prefix="   👤 "), ("person", m)))
+                lines.append((align_row(width, m.get("displayName") or "DCer", date_range(row.get("startDate"), row.get("endDate")), where or "", prefix="👤 "), ("person", m)))
             if len(moving) > 4:
                 lines.append(("   [dim]+%d more in the Locator[/dim]" % (len(moving) - 4), ("locator", None)))
         lines.append(("[dim]open the full Locator →[/dim]", ("locator", None)))
