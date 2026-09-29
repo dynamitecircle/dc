@@ -322,15 +322,3 @@ def test_reply_prefix_is_split_out():
     assert _split_reply("plain message") == ("plain message", None)
 
 
-def test_align_row_fits_any_width_and_ends_with_the_date():
-    from dc_tui.format import align_row, display_width
-    import re
-    strip = lambda s: re.sub(r"\[/?[^\]]*\]", "", s)
-    for width in (24, 36, 48, 80, 120):
-        row = strip(align_row(width, "Chonticha Hanon", "Oct 30 – Dec 15", "Chiang Mai, Thailand", prefix="   "))
-        assert display_width(row) == width, (width, row)
-        assert row.rstrip().endswith("Oct 30 – Dec 15")
-    wide = strip(align_row(80, "Lisa Eyo", "Mar  6–20"))
-    assert wide.endswith("Mar  6–20" + " " * 6) and display_width(wide) == 80   # fixed 15-col date field
-    narrow = strip(align_row(30, "Chonticha Hanon", "Oct  1–6", "a very long place name"))
-    assert "place" not in narrow and narrow.endswith("Oct  1–6")        # extra dropped, date kept

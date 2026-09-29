@@ -49,8 +49,8 @@ class EventsScreen(ListDetailScreen):
     HINT = "↑↓ pick an event · → open it · tabs and buttons in the detail"
     URL = WEB_APP + "/events"
     LIST_TABS = (("global", "Global"), ("local", "Local"), ("calls", "Live Calls"))
-    COLUMNS = ("Event", "Dates", "City", "Type", "🎟")
-    COLUMNS_COMPACT = ("Event", "Dates", "🎟")
+    COLUMNS = ("Event", "City", "Type", "🎟", "Dates")
+    COLUMNS_COMPACT = ("Event", "🎟", "Dates")
     COLUMN_WIDTHS = {"Dates": 22, "City": 14, "Type": 16, "🎟": 2, "When": 17, "Kind": 8, "Going": 5, "RSVP": 7}
     EMPTY_TEXT = "no upcoming events"
 
@@ -84,7 +84,7 @@ class EventsScreen(ListDetailScreen):
     def _columns(self) -> Sequence[str]:
         compact = self.app.layout_mode_name in ("compact", "single")  # type: ignore[attr-defined]
         if self.list_tab == "calls":
-            return ("Call", "When", "RSVP") if compact else ("Call", "When", "Kind", "Going", "RSVP")
+            return ("Call", "RSVP", "When") if compact else ("Call", "Kind", "Going", "RSVP", "When")
         return super()._columns()
 
     def detail_actions(self):
