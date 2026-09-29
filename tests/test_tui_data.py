@@ -301,3 +301,10 @@ def test_announcement_channel_resolves_from_url():
     assert _announcement_channel(a, {"yUoLEhfJb4JSJptyZ1O6": "DC Announcements"}) == "DC Announcements"
     assert _announcement_channel(a, {}) == "Announcements"
     assert _announcement_channel({"channelName": "DCBKK Announcements"}, {}) == "DCBKK Announcements"
+
+
+def test_reply_prefix_is_split_out():
+    pytest.importorskip("textual")
+    from dc_tui.rooms import _split_reply
+    assert _split_reply("▌ Replying to Sharif ElKomi in SaaS The app generates reports") == ("The app generates reports", "Sharif ElKomi")
+    assert _split_reply("plain message") == ("plain message", None)

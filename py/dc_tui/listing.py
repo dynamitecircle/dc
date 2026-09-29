@@ -457,6 +457,20 @@ class ListDetailScreen(DCScreen):
             except Exception:  # noqa: BLE001
                 pass
 
+    def detail_width(self) -> int:
+        """Usable columns inside the detail (pane in split/wide, main pane inline)."""
+        pane = self.detail_pane() if self.two_pane else self.main_pane()
+        return max(30, (pane.size.width or self.app.size.width) - 2)
+
+    def _detail_scroll(self, step: int, *, page: bool = False, edge: bool = False) -> None:
+        pane = self.detail_pane() if self.two_pane else self.main_pane()
+        if edge:
+            (pane.scroll_home if step < 0 else pane.scroll_end)(animate=False)
+        elif page:
+            (pane.scroll_page_up if step < 0 else pane.scroll_page_down)()
+        else:
+            (pane.scroll_up if step < 0 else pane.scroll_down)()
+
     def detail_table(self) -> DataTable:
         return self.query_one("#detail-table-" + ("pane" if self.two_pane else "inline"), DataTable)
 
@@ -545,6 +559,9 @@ class ListDetailScreen(DCScreen):
         if isinstance(focused, DataTable) and focused.row_count:
             getattr(focused, table_action)()
             return
+        if isinstance(focused, Button) or self._detail_open:
+            self._detail_scroll(page_step, **page_kw)
+            return
         self._page(page_step, **page_kw)
 
     def action_page_up_page(self) -> None:
@@ -588,13 +605,17 @@ class ListDetailScreen(DCScreen):
                 (self.top_input() or self.query_one("#nav-tabs", Tabs)).focus()
             return
         if isinstance(focused, Button):
+            pane = self.detail_pane() if self.two_pane else self.main_pane()
+            if pane.scroll_y > 0:
+                self._detail_scroll(-1)          # scroll the messages first …
+                return
             tabs = None
             try:
                 tabs = self.query_one("#detail-tabs-" + ("pane" if self.two_pane else "inline"), Tabs)
             except Exception:  # noqa: BLE001
                 pass
             if tabs is not None and not tabs.has_class("-hidden"):
-                tabs.focus()
+                tabs.focus()                     # … then up into the detail tabs
             return
         self.query_one("#list", DataTable).focus()
 
@@ -623,6 +644,13 @@ class ListDetailScreen(DCScreen):
             return
         if isinstance(focused, DataTable):
             focused.action_cursor_down()
+            return
+        if isinstance(focused, Button):
+            table = self.detail_table()
+            if not table.has_class("-hidden") and table.row_count:
+                table.focus()
+            else:
+                self._detail_scroll(1)           # text detail (messages): scroll it
             return
         self.query_one("#list", DataTable).focus()
 

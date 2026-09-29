@@ -7,7 +7,9 @@ from typing import Any, List, Optional, Tuple
 from textual.binding import Binding
 
 from .data import Fetched
-from .format import fmt_date, plural, trunc
+import re
+
+from .format import fmt_date, pad, plural, trunc
 from .listing import ListDetailScreen, dict_of, esc, items_of, plain
 from .screens import SECTIONS, WEB_APP
 
@@ -164,6 +166,7 @@ class RoomsScreen(ListDetailScreen):
         if "messages" not in data:
             return ["[dim]Enter, → or the Read messages button loads the latest messages (read-only).[/dim]"]
         messages = items_of(data["messages"])
+        width = self.detail_width()
         lines: List[str] = []
         if data["messages"].error and not messages:
             lines.append("[$warning]%s[/]" % esc(data["messages"].error))
@@ -171,11 +174,18 @@ class RoomsScreen(ListDetailScreen):
         for m in reversed(messages[:25]):
             author = m.get("author") if isinstance(m.get("author"), dict) else {}
             who = author.get("displayName") or author.get("userName") or "system"
-            text = "[dim](deleted)[/dim]" if m.get("isDeleted") else esc(trunc(plain(m.get("text"), bool(m.get("isHTML"))), 400))
-            lines.append("[b]%s[/b] [dim]%s[/dim]  %s" % (esc(who), fmt_date(m.get("sentAt")), text))
+            when = fmt_date(m.get("sentAt"))
+            lines.append("[b]%s[/b]%s[dim]%s[/dim]" % (esc(pad(who, width - 8)), " ", when))
+            if m.get("isDeleted"):
+                lines.append("[dim](deleted)[/dim]")
+            else:
+                text, reply_to = _split_reply(plain(m.get("text"), bool(m.get("isHTML"))))
+                if reply_to:
+                    lines.append("[dim]↳ replying to %s[/dim]" % esc(reply_to))
+                lines.append(esc(trunc(text, 1200)) if text else "[dim](attachment)[/dim]")
+            lines.append("")
         if not messages and not data["messages"].error:
             lines.append("[dim]no messages yet[/dim]")
-        lines.append("")
         lines.append("[dim]read-only — Open in app to reply[/dim]")
         return lines
 
@@ -227,3 +237,15 @@ def _dm_label(room: dict) -> str:
     """Unnamed DMs come back as `dm_<a>_<b>`; label them by type instead of the raw id."""
     rid = str(room.get("roomID") or "")
     return "Direct message" if rid.startswith("dm_") else rid
+
+
+_REPLY = re.compile(r"^[\s▌│┃💬]*Replying to (.+?) in (?:.+?)\s+(.*)$", re.DOTALL)
+
+
+def _split_reply(text: str):
+    """The app prefixes quoted replies with 'Replying to <name> in <room>' — lift
+    that into its own line and return (body, replied_to_name)."""
+    m = _REPLY.match(text or "")
+    if not m:
+        return text, None
+    return m.group(2).strip(), m.group(1).strip()
