@@ -84,7 +84,7 @@ def fmt_date(value: Any) -> str:
     """`06 Oct 2026` — zero-padded day, month, year: every date is the same
     shape, so a right-aligned column lines up digit for digit."""
     d = _parse(value)
-    return "%02d %b %Y" % (d.day, d.strftime("%b"), d.year) if d else ""
+    return "%02d %s %d" % (d.day, d.strftime("%b"), d.year) if d else ""
 
 
 def date_range(start: Any, end: Any) -> str:
