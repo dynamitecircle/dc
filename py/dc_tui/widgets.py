@@ -29,6 +29,7 @@ class Panel(Vertical):
     }
     Panel > OptionList:focus { border: none; }
     Panel > OptionList > .option-list--option-highlighted { background: $primary; color: #FFFFFF; text-style: bold; }
+    Panel > OptionList:focus > .option-list--option-highlighted { background: $primary; color: #FFFFFF; text-style: bold; }
     Panel > OptionList:blur > .option-list--option-highlighted { background: $background; color: $text; text-style: none; }
     Panel > OptionList > .option-list--option-disabled { color: $text-muted; }
     Panel.-loading { border-subtitle-color: $warning; }

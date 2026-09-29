@@ -266,3 +266,12 @@ def test_trunc_and_pad_are_cell_aware():
     assert display_width("🗺 Trip") == 7                      # emoji = 2 columns + space + 4
     assert display_width(trunc("🗺 Traveling soon", 8)) <= 8
     assert display_width(pad("日本", 6)) == 6 and rpad("Sep 29", 8) == "  Sep 29"
+
+
+def test_dates_are_fixed_width_and_month_aligned():
+    from dc_tui.format import date_range, fmt_date
+    assert fmt_date("2026-10-06") == "Oct  6" and fmt_date("2026-09-28T10:00:00Z") == "Sep 28"
+    assert date_range("2026-10-22", "2026-10-25") == "Oct 22–25"
+    assert date_range("2027-03-02", "2027-03-04") == "Mar  2–4"
+    assert date_range("2026-09-30", "2026-10-02") == "Sep 30 – Oct  2"
+    assert len(fmt_date("2026-01-01")) == len(fmt_date("2026-12-31"))

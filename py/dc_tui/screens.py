@@ -523,12 +523,12 @@ class HomeScreen(DCScreen):
         if total is None:
             total = sum(int(r.get("badgeCount") or 0) for r in rooms)
         width = self._card_width()
-        rows = [("[b]%s[/b]  [$primary]%d[/]  [dim]%s[/dim]" % (
+        rows = [("[b]%s[/b]  [b]%d[/b]  [dim]%s[/dim]" % (
                     _escape(trunc(r.get("roomName") or r.get("roomID", ""), max(12, width - 16))),
                     int(r.get("badgeCount") or 0),
                     r.get("roomType") or ""), ("rooms", r.get("roomID")))
                 for r in rooms[:8]]
-        return rows or [("[$success]all caught up[/] [dim]— Enter opens your inbox[/dim]", ("rooms", None))], _subtitle(plural(int(total), "unread"), f)
+        return rows or [("all caught up [dim]— Enter opens your inbox[/dim]", ("rooms", None))], _subtitle(plural(int(total), "unread"), f)
 
     def _render_announcements(self, results: List[Fetched]) -> Tuple[List[str], str]:
         f = results[0]
@@ -567,11 +567,11 @@ class HomeScreen(DCScreen):
                 my_places.update(x for x in (c.get("cityID"), c.get("placeID")) if x)
         held = {t.get("eventID") for t in tickets}
         width = self._card_width()
-        date_w = 12
+        date_w = 15
         name_w = max(16, width - date_w - 6)
 
         def row(prefix: str, name: str, start, end) -> str:
-            return "%s%s %s" % (prefix, _escape(pad(name, name_w - len(prefix))), rpad(date_range(start, end), date_w))
+            return "%s%s %s" % (prefix, _escape(pad(name, name_w - len(prefix))), pad(date_range(start, end), date_w))
 
         lines = []
         for t in tickets[:5]:
@@ -602,7 +602,7 @@ class HomeScreen(DCScreen):
             loc = t.get("location") if isinstance(t.get("location"), dict) else {}
             place = t.get("place") if isinstance(t.get("place"), dict) else {}
             name = loc.get("cityName") or loc.get("name") or place.get("name") or t.get("placeName") or "?"
-            lines.append(("✈  [b]%s[/b] %s" % (_escape(pad(name, name_w)), rpad(date_range(t.get("startDate"), t.get("endDate")), 12)), ("trips", t.get("tripID"))))
+            lines.append(("✈  [b]%s[/b] %s" % (_escape(pad(name, name_w)), pad(date_range(t.get("startDate"), t.get("endDate")), 12)), ("trips", t.get("tripID"))))
         return lines or [("[dim]no upcoming trips[/dim] — Enter to plan one", ("trips", None))], _subtitle(plural(len(trips), "trip"), f)
 
     def _render_locator(self, results: List[Fetched]) -> Tuple[List[str], str]:

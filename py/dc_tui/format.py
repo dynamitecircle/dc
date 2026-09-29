@@ -81,19 +81,22 @@ def _parse(value: Any) -> Optional[datetime]:
 
 
 def fmt_date(value: Any) -> str:
+    """`Sep 28` / `Oct  6` — month first, day space-padded to 2, so a column of
+    dates keeps the month aligned and the day digits under each other."""
     d = _parse(value)
-    return d.strftime("%b %-d") if d else ""
+    return "%s %2d" % (d.strftime("%b"), d.day) if d else ""
 
 
 def date_range(start: Any, end: Any) -> str:
+    """`Oct 22–25`, `Mar  2–4`, `Sep 30 – Oct  2` — same fixed-width lead as fmt_date."""
     a, b = _parse(start), _parse(end)
     if not a:
         return ""
     if not b or a.date() == b.date():
-        return a.strftime("%b %-d")
-    if a.month == b.month:
-        return f"{a.strftime('%b')} {a.day}–{b.day}"
-    return f"{a.strftime('%b %-d')} – {b.strftime('%b %-d')}"
+        return fmt_date(a)
+    if a.month == b.month and a.year == b.year:
+        return "%s–%d" % (fmt_date(a), b.day)
+    return "%s – %s" % (fmt_date(a), fmt_date(b))
 
 
 _MD_IMAGE_LINK = re.compile(r"\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)")   # [![](img)](url)
