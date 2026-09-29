@@ -24,7 +24,7 @@ class RoomsScreen(ListDetailScreen):
     LIST_FILTERS = (("show-all", "All"), ("unread", "Unread"))       # the web's visibility filter
     COLUMNS = ("Room", "Type", "Unread", "Activity")
     COLUMNS_COMPACT = ("Room", "Unread", "Activity")
-    COLUMN_WIDTHS = {"Type": 14, "Unread": 6, "Activity": 8}
+    COLUMN_WIDTHS = {"Type": 14, "Unread": 6, "Activity": 11}
     EMPTY_TEXT = "nothing here — Browse finds channels, discussions and quick questions to join"
 
     BINDINGS = [

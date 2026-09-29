@@ -570,8 +570,8 @@ class HomeScreen(DCScreen):
             if compact:
                 lines.append((align_row(width, who, when) + "\n  " + _escape(trunc(text, max(20, width - 4))), target))
             else:
-                head = "[dim]%s[/dim] [b]%s[/b]  " % (pad(when, 6), _escape(pad(who, 22)))
-                lines.append((head + _escape(trunc(text, max(20, width - 6 - 22 - 3))), target))
+                head = "[dim]%s[/dim] [b]%s[/b]  " % (pad(when, 11), _escape(pad(who, 22)))
+                lines.append((head + _escape(trunc(text, max(20, width - 11 - 22 - 3))), target))
         return lines or [("[dim]no announcements[/dim]", None)], _subtitle(plural(len(items), "channel"), f, *( [rooms_f] if rooms_f else [] ))
 
     def _render_tickets(self, results: List[Fetched]) -> Tuple[List[str], str]:

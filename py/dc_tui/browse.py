@@ -18,7 +18,7 @@ class BrowseScreen(ListDetailScreen):
     LIST_TABS = (("channel", "Channels"), ("discussion", "Discussions"), ("quick-question", "Quick Questions"))
     COLUMNS = ("Room", "Members", "Activity")
     COLUMNS_COMPACT = ("Room", "Activity")
-    COLUMN_WIDTHS = {"Members": 8, "Activity": 8}
+    COLUMN_WIDTHS = {"Members": 8, "Activity": 11}
     EMPTY_TEXT = "nothing to discover in this type right now"
 
     def __init__(self, *args, **kwargs) -> None:

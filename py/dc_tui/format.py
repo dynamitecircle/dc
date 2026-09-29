@@ -81,6 +81,100 @@ def _parse(value: Any) -> Optional[datetime]:
 
 
 def fmt_date(value: Any) -> str:
+    """`06 Oct 2026` — zero-padded day, month, year: every date is the same
+    shape, so a right-aligned column lines up digit for digit."""
+    d = _parse(value)
+    return "%02d %b %Y" % (d.day, d.strftime("%b"), d.year) if d else ""
+
+
+def date_range(start: Any, end: Any) -> str:
+    """`21–24 Oct 2026` · `30 Sep – 02 Oct 2026` · `21 Dec 2026 – 06 Jan 2027`."""
+    a, b = _parse(start), _parse(end)
+    if not a:
+        return ""
+    if not b or a.date() == b.date():
+        return fmt_date(a)
+    if a.year == b.year and a.month == b.month:
+        return "%02d–%02d %s %d" % (a.day, b.day, a.strftime("%b"), a.year)
+    if a.year == b.year:
+        return "%02d %s – %02d %s %d" % (a.day, a.strftime("%b"), b.day, b.strftime("%b"), a.year)
+    return "%s – %s" % (fmt_date(a), fmt_date(b))
+
+
+def cell_width(ch: str) -> int:
+    """Terminal columns one character takes (wide/fullwidth and most emoji = 2)."""
+    if ch in ("\u200d", "\ufe0f") or unicodedata.combining(ch):
+        return 0
+    if unicodedata.east_asian_width(ch) in ("W", "F"):
+        return 2
+    o = ord(ch)
+    if 0x1F300 <= o <= 0x1FAFF or 0x2600 <= o <= 0x27BF or 0x1F900 <= o <= 0x1F9FF:
+        return 2
+    return 1
+
+
+def display_width(text: Any) -> int:
+    return sum(cell_width(ch) for ch in str(text or ""))
+
+
+def trunc(text: Any, width: int) -> str:
+    """Truncate to `width` terminal columns (not characters) with an ellipsis."""
+    s = str(text or "")
+    width = max(4, int(width))
+    if display_width(s) <= width:
+        return s
+    out, used = [], 0
+    for ch in s:
+        w = cell_width(ch)
+        if used + w > width - 1:
+            break
+        out.append(ch)
+        used += w
+    return "".join(out).rstrip() + "…"
+
+
+def pad(text: Any, width: int) -> str:
+    """Left-align to `width` columns (cell-aware ljust)."""
+    s = trunc(text, width)
+    return s + " " * max(0, width - display_width(s))
+
+
+def rpad(text: Any, width: int) -> str:
+    """Right-align to `width` columns (cell-aware rjust)."""
+    s = trunc(text, width)
+    return " " * max(0, width - display_width(s)) + s
+
+
+def plural(n: int, word: str) -> str:
+    return f"{n:,} {word}{'' if n == 1 else 's'}"
+
+
+def initials(name: str) -> str:
+    parts = [p for p in str(name).split() if p]
+    return "".join(p[0].upper() for p in parts[:2]) or "DC"
+
+
+def _parse(value: Any) -> Optional[datetime]:
+    if not value:
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.fromtimestamp(value / (1000 if value > 1e11 else 1))
+        except (OverflowError, OSError, ValueError):
+            return None
+    s = str(value).strip()
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(s)
+    except ValueError:
+        try:
+            return datetime.strptime(s[:10], "%Y-%m-%d")
+        except ValueError:
+            return None
+
+
+def fmt_date(value: Any) -> str:
     """`Sep 28` / `Oct  6` — month first, day space-padded to 2, so a column of
     dates keeps the month aligned and the day digits under each other."""
     d = _parse(value)
@@ -121,9 +215,6 @@ def strip_markdown(text: Any) -> str:
     return " ".join(s.split())
 
 
-DATE_W = 15   # "Sep 30 – Oct  2" — the widest date_range
-
-
 def align_row(width: int, name: Any, date: Any = "", extra: Any = "", *, prefix: str = "",
               name_min: int = 10, extra_min: int = 8, name_markup: str = "[b]%s[/b]") -> str:
     """One list row that always fits `width` columns and never wraps:
@@ -139,16 +230,10 @@ def align_row(width: int, name: Any, date: Any = "", extra: Any = "", *, prefix:
     width = max(12, int(width))
     date = str(date or "")
     extra = str(extra or "")
-    # one date field for every list: DATE_W columns, left-aligned, so a single
-    # date and a range start at the same column and the months line up
-    if date:
-        date = pad(date, DATE_W) if width >= 40 else date
+    # the date is right-aligned at the very end; days are zero-padded so a column
+    # of dates lines up digit for digit
     date_w = display_width(date)
     avail = width - display_width(prefix) - (date_w + 1 if date else 0)
-    if avail < 4 and date:                       # too narrow for a padded date: unpad it
-        date = date.rstrip()
-        date_w = display_width(date)
-        avail = width - display_width(prefix) - date_w - 1
     name_w = max(4, min(display_width(name), max(name_min, avail)))
     name_w = min(name_w, max(4, avail))
     extra_w = 0

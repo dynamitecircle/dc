@@ -819,12 +819,19 @@ class ListDetailScreen(DCScreen):
         return self.URL
 
 
+_DATE_CELL = re.compile(r"^\d{2}(–\d{2})? [A-Z][a-z]{2}( \d{4})?( – \d{2} [A-Z][a-z]{2})?( \d{4})?$")
+
+
 def _fit(cell: Any, width: int) -> Any:
     """A table cell truncated to its column. Rich `Text` passes through styled
-    (truncated in place); plain strings are escaped so data never renders as markup."""
+    (truncated in place); plain strings are escaped so data never renders as
+    markup; a date cell is right-justified so digits line up."""
     if isinstance(cell, Text):
         cell.truncate(max(1, width), overflow="ellipsis")
         return cell
+    text = str(cell or "")
+    if _DATE_CELL.match(text):
+        return Text(text, justify="right")
     return esc(trunc(cell, width))
 
 

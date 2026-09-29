@@ -1,3 +1,15 @@
+def test_align_row_fits_any_width_and_ends_with_the_date():
+    from dc_tui.format import align_row, display_width
+    import re
+    strip = lambda s: re.sub(r"\[/?[^\]]*\]", "", s)
+    for width in (30, 36, 48, 80, 120):
+        row = strip(align_row(width, "Chonticha Hanon", "30 Oct – 15 Dec 2026", "Chiang Mai, Thailand", prefix="   "))
+        assert display_width(row) == width, (width, row)
+        assert row.endswith("30 Oct – 15 Dec 2026")                        # flush right
+    narrow = strip(align_row(32, "Chonticha Hanon", "01–06 Oct 2026", "a very long place name"))
+    assert "place" not in narrow and narrow.endswith("01–06 Oct 2026")   # extra dropped, date kept
+
+
 """Offline tests for the `dc tui` data layer — cache, rate budget, layout maths,
 and the DataClient's stale-while-revalidate behaviour with a stub client.
 
@@ -268,13 +280,13 @@ def test_trunc_and_pad_are_cell_aware():
     assert display_width(pad("日本", 6)) == 6 and rpad("Sep 29", 8) == "  Sep 29"
 
 
-def test_dates_are_fixed_width_and_month_aligned():
+def test_dates_are_zero_padded_with_year():
     from dc_tui.format import date_range, fmt_date
-    assert fmt_date("2026-10-06") == "Oct  6" and fmt_date("2026-09-28T10:00:00Z") == "Sep 28"
-    assert date_range("2026-10-22", "2026-10-25") == "Oct 22–25"
-    assert date_range("2027-03-02", "2027-03-04") == "Mar  2–4"
-    assert date_range("2026-09-30", "2026-10-02") == "Sep 30 – Oct  2"
-    assert len(fmt_date("2026-01-01")) == len(fmt_date("2026-12-31"))
+    assert fmt_date("2026-10-06") == "06 Oct 2026" and fmt_date("2026-09-28T10:00:00Z") == "28 Sep 2026"
+    assert date_range("2026-10-22", "2026-10-25") == "22–25 Oct 2026"
+    assert date_range("2027-03-02", "2027-03-04") == "02–04 Mar 2027"
+    assert date_range("2026-09-30", "2026-10-02") == "30 Sep – 02 Oct 2026"
+    assert date_range("2026-12-21", "2027-01-06") == "21 Dec 2026 – 06 Jan 2027"
 
 
 def test_locator_grouping_helpers():
