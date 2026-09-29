@@ -603,13 +603,13 @@ class HomeScreen(DCScreen):
         if near:
             lines.append(("[dim]near you — home + followed chapters[/dim]", None))
             for e in near[:5]:
-                lines.append((row("   ", e.get("name") or "", e.get("startDate"), e.get("endDate")), ("events", e.get("eventID"))))
+                lines.append((row("📅 ", e.get("name") or "", e.get("startDate"), e.get("endDate")), ("events", e.get("eventID"))))
         near_ids = {e.get("eventID") for e in near[:5]}
         rest = [e for e in events if e.get("eventID") not in held and e.get("eventID") not in near_ids][:3]
         if rest:
             lines.append(("[dim]elsewhere[/dim]", None))
             for e in rest:
-                lines.append((row("   ", e.get("name") or "", e.get("startDate"), e.get("endDate")), ("events", e.get("eventID"))))
+                lines.append((row("📅 ", e.get("name") or "", e.get("startDate"), e.get("endDate")), ("events", e.get("eventID"))))
         if not lines:
             lines.append(("[dim]nothing upcoming[/dim]", None))
         subtitle = plural(len(tickets), "ticket") + (" · %s near you" % plural(len(near), "event") if near else "")
@@ -643,7 +643,7 @@ class HomeScreen(DCScreen):
 
         visitors = [t for t in (home.get("comingToCity") or []) + (home.get("planningToCity") or []) if isinstance(t, dict)]
         if visitors:
-            lines.append(("[dim]🏠 coming to %s[/dim]" % _escape(city), None))
+            lines.append(("🏠 [dim]coming to %s[/dim]" % _escape(city), None))
             for t in visitors[:4]:
                 m = member(t)
                 lines.append((align_row(width, m.get("displayName") or m.get("userName") or "DCer",
@@ -656,7 +656,7 @@ class HomeScreen(DCScreen):
             trips = [t for t in (c.get("comingTrips") or []) + (c.get("newTrips") or []) if isinstance(t, dict)]
             ev = len(c.get("comingEvents") or []) + len(c.get("newEvents") or [])
             bits = [b for b in ((plural(len(trips), "visitor") if trips else ""), (plural(ev, "event") if ev else "")) if b]
-            lines.append(("[dim]%s %s · %s[/dim]" % (flag(c.get("countryCode")) or "★", _escape(c.get("cityName") or ""), " · ".join(bits) or "quiet"), ("locator", None)))
+            lines.append(("%s [dim]%s · %s[/dim]" % (flag(c.get("countryCode")) or "★", _escape(c.get("cityName") or ""), " · ".join(bits) or "quiet"), ("locator", None)))
             for t in trips[:3]:
                 m = member(t)
                 lines.append((align_row(width, m.get("displayName") or "DCer", date_range(t.get("startDate"), t.get("endDate")), prefix="👤 "), ("person", m)))
@@ -670,7 +670,7 @@ class HomeScreen(DCScreen):
                     seen.add(m["userID"])
                     moving.append((m, row))
         if moving:
-            lines.append(("[dim]♥ people you follow[/dim]", None))
+            lines.append(("♥ [dim]people you follow[/dim]", None))
             for m, row in moving[:4]:
                 where = row.get("eventName") or (row.get("location") or {}).get("city") if isinstance(row.get("location"), dict) else row.get("eventName")
                 lines.append((align_row(width, m.get("displayName") or "DCer", date_range(row.get("startDate"), row.get("endDate")), where or "", prefix="👤 "), ("person", m)))
