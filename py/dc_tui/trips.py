@@ -94,7 +94,7 @@ class TripsScreen(ListDetailScreen):
                 name = prof.get("displayName") or prof.get("userName") or "?"
                 head = prof.get("headline") or prof.get("businessName") or ""
                 why = p.get("whyToMeet") or p.get("why") or p.get("reason") or ""
-                lines.append("[b]%s[/b]  [dim]%s[/dim]" % (esc(name), esc(trunc(plain(head), 60))))
+                lines.append("👤 [b]%s[/b]  [dim]%s[/dim]" % (esc(name), esc(trunc(plain(head), 60))))
                 if why:
                     lines.append("   %s" % esc(trunc(plain(why), 260)))
         if pool:

@@ -91,7 +91,8 @@ class SearchScreen(ListDetailScreen):
         return "%s:%s" % (item.get("_kind"), _id(item) or index)
 
     def row_cells(self, item: dict) -> Tuple[str, ...]:
-        cells = {"Result": _title(item), "Type": _kind_label(item.get("_kind")), "Where": _detail(item)}
+        icon = {"profiles": "👤 ", "events": "📅 ", "rooms": "# ", "messages": "💬 ", "chapters": "📍 "}.get(str(item.get("_kind")), "")
+        cells = {"Result": icon + _title(item), "Type": _kind_label(item.get("_kind")), "Where": _detail(item)}
         return tuple(cells[c] for c in self._columns())
 
     # ── detail ────────────────────────────────────────────────────────

@@ -23,6 +23,7 @@ class PeopleScreen(ListDetailScreen):
     HINT = "↑↓ pick a DCer · → open · Search / Match / Follow are buttons in the detail"
     URL = WEB_APP + "/members"
     COLUMNS = ("Name", "Headline", "Chapter")
+    COLUMN_WIDTHS = {"Handle": 18, "Headline": 40, "Chapter": 16}
     COLUMNS_COMPACT = ("Name", "Headline")
     EMPTY_TEXT = "nobody here yet — press Enter to search DCers"
 
@@ -107,8 +108,7 @@ class PeopleScreen(ListDetailScreen):
         chapter = item.get("chapter")
         chapter = chapter.get("cityName") if isinstance(chapter, dict) else (chapter or "")
         name = item.get("displayName") or item.get("userName") or ""
-        if item.get("userID") in self._following:
-            name = "♥ " + name
+        name = ("♥ " if item.get("userID") in self._following else "👤 ") + name
         cells = {"Name": trunc(name, 26), "Handle": "@" + str(item.get("userName") or ""),
                  "Headline": trunc(plain(item.get("headline") or item.get("businessName") or ""), 40),
                  "Chapter": trunc(str(chapter or ""), 16)}
