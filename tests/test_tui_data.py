@@ -328,3 +328,10 @@ def test_flag_from_country_code():
     from dc_tui.format import flag
     assert flag("JP") == "\U0001F1EF\U0001F1F5" and flag("th") == "\U0001F1F9\U0001F1ED"
     assert flag("") == "" and flag("X1") == "" and flag(None) == ""
+
+
+def test_unconfirmed_event_dates_show_month_only():
+    from dc_tui.format import event_dates
+    assert event_dates({"startDate": "2027-07-26", "endDate": "2027-07-30", "isDateConfirmed": False}) == "Jul 2027"
+    assert event_dates({"startDate": "2027-07-26", "endDate": "2027-07-30", "isDateConfirmed": True}) == "26–30 Jul 2027"
+    assert event_dates({"startDate": "2027-07-26", "endDate": "2027-07-30"}) == "26–30 Jul 2027"

@@ -165,3 +165,13 @@ def flag(country_code: Any) -> str:
     if len(code) != 2 or not code.isalpha():
         return ""
     return "".join(chr(0x1F1E6 + ord(c) - ord("A")) for c in code)
+
+
+def event_dates(event: dict) -> str:
+    """Event dates the way dc-web shows them (`formatDates(dates, false, !isDateConfirmed)`):
+    confirmed → the range; not yet confirmed → month + year only, e.g. `Jul 2027`."""
+    start, end = event.get("startDate") or event.get("startAt"), event.get("endDate") or event.get("endAt")
+    if event.get("isDateConfirmed") is False:
+        d = _parse(start) or _parse(end)
+        return d.strftime("%b %Y") if d else ""
+    return date_range(start, end)

@@ -11,7 +11,7 @@ from rich.text import Text
 from textual.binding import Binding
 
 from .data import Fetched
-from .format import date_range, fmt_date, plural, strip_markdown, trunc
+from .format import date_range, event_dates, fmt_date, plural, strip_markdown, trunc
 from .listing import ListDetailScreen, Table, dict_of, esc, items_of, plain
 from .screens import WEB_APP
 
@@ -163,7 +163,7 @@ class EventsScreen(ListDetailScreen):
         else:
             cells = {
                 "Event": str(item.get("name") or ""),
-                "Dates": date_range(item.get("startDate"), item.get("endDate")),
+                "Dates": event_dates(item),
                 "City":  _city(item),
                 "Type":  str(item.get("eventType") or ""),
                 "🎟":    "🎟" if item.get("eventID") in self._tickets else "",
@@ -181,7 +181,7 @@ class EventsScreen(ListDetailScreen):
         ticket = self._tickets.get(item.get("eventID"))
         venue = item.get("venue") if isinstance(item.get("venue"), dict) else {}
         where = " · ".join(x for x in (venue.get("name"), _city(item)) if x)
-        return "%s  [dim]%s · %s%s[/dim]" % (esc(item.get("name")), date_range(item.get("startDate"), item.get("endDate")),
+        return "%s  [dim]%s · %s%s[/dim]" % (esc(item.get("name")), event_dates(item) + ("" if item.get("isDateConfirmed") is not False else " (dates TBC)"),
                                              esc(where), "  · 🎟 " + esc(ticket) if ticket else "")
 
     def fetch_detail(self, item: dict, force: bool) -> Any:

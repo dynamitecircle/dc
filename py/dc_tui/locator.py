@@ -15,7 +15,7 @@ from textual.binding import Binding
 from textual.widgets import OptionList, Static, Tabs
 
 from .data import Fetched
-from .format import align_row, date_range, flag, fmt_date, pad, plural, trunc
+from .format import align_row, date_range, event_dates, flag, fmt_date, pad, plural, trunc
 from .screens import DCScreen, WEB_APP
 from .widgets import Panel
 
@@ -393,7 +393,7 @@ def _dedupe_events(events: List[dict]) -> List[dict]:
 
 def _event_row(e: dict, width: int, indent: str = "  ") -> Tuple[str, Any]:
     city = e.get("city") if isinstance(e.get("city"), dict) else {}
-    return (align_row(width, e.get("name") or e.get("eventName") or "Untitled event", date_range(e.get("startDate"), e.get("endDate")),
+    return (align_row(width, e.get("name") or e.get("eventName") or "Untitled event", event_dates(e),
                       city.get("name") or e.get("eventType") or "", prefix=indent + "📅 ", name_markup="%s"),
             ("events", e.get("eventID")) if e.get("eventID") else None)
 

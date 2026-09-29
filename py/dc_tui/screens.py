@@ -24,7 +24,7 @@ from textual import work
 from textual.containers import Vertical
 
 from .data import Fetched
-from .format import align_row, date_range, flag, fmt_date, pad, plural, rpad, strip_markdown, trunc
+from .format import align_row, date_range, event_dates, flag, fmt_date, pad, plural, rpad, strip_markdown, trunc
 from .layout import MODES, layout_mode
 from .widgets import Panel
 
@@ -592,8 +592,9 @@ class HomeScreen(DCScreen):
         held = {t.get("eventID") for t in tickets}
         width = self._card_width()
 
-        def row(prefix: str, name: str, start, end) -> str:
-            return align_row(width, name, date_range(start, end), prefix=prefix, name_markup="%s")
+        def row(prefix: str, name: str, start, end, event: Optional[dict] = None) -> str:
+            when = event_dates(event) if event is not None else date_range(start, end)
+            return align_row(width, name, when, prefix=prefix, name_markup="%s")
 
         lines = []
         for t in tickets[:5]:
@@ -603,13 +604,13 @@ class HomeScreen(DCScreen):
         if near:
             lines.append(("[dim]near you — home + followed chapters[/dim]", None))
             for e in near[:5]:
-                lines.append((row("📅 ", e.get("name") or "", e.get("startDate"), e.get("endDate")), ("events", e.get("eventID"))))
+                lines.append((row("📅 ", e.get("name") or "", e.get("startDate"), e.get("endDate"), e), ("events", e.get("eventID"))))
         near_ids = {e.get("eventID") for e in near[:5]}
         rest = [e for e in events if e.get("eventID") not in held and e.get("eventID") not in near_ids][:3]
         if rest:
             lines.append(("[dim]elsewhere[/dim]", None))
             for e in rest:
-                lines.append((row("📅 ", e.get("name") or "", e.get("startDate"), e.get("endDate")), ("events", e.get("eventID"))))
+                lines.append((row("📅 ", e.get("name") or "", e.get("startDate"), e.get("endDate"), e), ("events", e.get("eventID"))))
         if not lines:
             lines.append(("[dim]nothing upcoming[/dim]", None))
         subtitle = plural(len(tickets), "ticket") + (" · %s near you" % plural(len(near), "event") if near else "")
