@@ -425,8 +425,10 @@ def _dedupe_events(events: List[dict]) -> List[dict]:
 
 def _event_row(e: dict, width: int, indent: str = "  ") -> Tuple[str, Any]:
     city = e.get("city") if isinstance(e.get("city"), dict) else {}
-    return (align_row(width, e.get("name") or e.get("eventName") or "Untitled event", event_dates(e),
-                      city.get("name") or event_type_label(e.get("eventType")), prefix=indent + "📅 ", name_markup="%s"),
+    name = e.get("name") or e.get("eventName") or "Untitled event"
+    kind = event_type_label(e.get("eventType"))
+    extra = city.get("name") or ("" if kind.lower() in str(name).lower() else kind)   # no "Junto Junto"
+    return (align_row(width, name, event_dates(e), extra, prefix=indent + "📅 ", name_markup="%s"),
             ("events", e.get("eventID")) if e.get("eventID") else None)
 
 
