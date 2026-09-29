@@ -19,8 +19,9 @@ class RoomsScreen(ListDetailScreen):
     HINT = "↑↓ pick a room · Enter opens its messages · buttons in the detail do the rest"
     URL = WEB_APP + "/inbox"
     # same filters as the web inbox (SidebarInbox.vue) plus Unread; discovery lives in Browse
-    LIST_TABS = (("all", "All"), ("unread", "Unread"), ("dm", "DMs"), ("group", "Groups"), ("channel", "Channels"),
+    LIST_TABS = (("all", "All"), ("dm", "DMs"), ("group", "Groups"), ("channel", "Channels"),
                  ("discussion", "Discussions"), ("quick-question", "Quick Questions"))
+    LIST_FILTERS = (("show-all", "All"), ("unread", "Unread"))       # the web's visibility filter
     COLUMNS = ("Room", "Type", "Unread", "Activity")
     COLUMNS_COMPACT = ("Room", "Unread", "Activity")
     COLUMN_WIDTHS = {"Type": 14, "Unread": 6, "Activity": 8}
@@ -46,7 +47,7 @@ class RoomsScreen(ListDetailScreen):
 
     @property
     def room_type(self) -> str:
-        return "" if self.list_tab in ("all", "unread") else self.list_tab
+        return "" if self.list_tab == "all" else self.list_tab
 
     # ── rows ──────────────────────────────────────────────────────────
     def fetch_rows(self, force: bool) -> List[dict]:
@@ -57,7 +58,7 @@ class RoomsScreen(ListDetailScreen):
         if fetched.error and fetched.data is None:
             raise RuntimeError(fetched.error)
         rooms = items_of(fetched)
-        if self.list_tab == "unread":
+        if self.list_filter == "unread":
             rooms = [r for r in rooms if self._unread.get(r.get("roomID"), 0) > 0]
         rooms.sort(key=lambda r: str(r.get("lastActivityAt") or ""), reverse=True)
         rooms.sort(key=lambda r: -self._unread.get(r.get("roomID"), 0))

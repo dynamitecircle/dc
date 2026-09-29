@@ -68,6 +68,7 @@ class ListDetailScreen(DCScreen):
     COLUMNS_COMPACT: Sequence[str] = ()   # subset used under 100 cols; empty = same as COLUMNS
     COLUMN_WIDTHS: Dict[str, int] = {}    # fixed widths; the first column is flexible
     LIST_TABS: Sequence[Tuple[str, str]] = ()
+    LIST_FILTERS: Sequence[Tuple[str, str]] = ()   # chips under the tabs (e.g. All / Unread)
     EMPTY_TEXT = "nothing here yet"
     DETAIL_DEBOUNCE = 0.45
 
@@ -102,6 +103,12 @@ class ListDetailScreen(DCScreen):
     ListDetailScreen .detail-actions Button.action:hover { background: $primary; color: #FFFFFF; }
     ListDetailScreen .detail-actions Button.action:focus { background: $primary; color: #FFFFFF; text-style: bold; }
     ListDetailScreen .detail-actions Button.action.back { background: $surface; color: $primary; }
+    ListDetailScreen #list-filters { height: 1; margin: 0 0 0 1; }
+    ListDetailScreen Button.chip { height: 1; min-width: 0; border: none; padding: 0 1; margin: 0 1 0 0;
+                                   background: transparent; color: $text-muted; text-style: none; }
+    ListDetailScreen Button.chip:hover { background: transparent; color: #FF8C5C; }
+    ListDetailScreen Button.chip.-on { color: $primary; text-style: bold; }
+    ListDetailScreen Button.chip:focus { background: transparent; color: #FFC499; text-style: bold; }
     ListDetailScreen .detail-body { height: auto; }
     ListDetailScreen .detail-table { height: auto; max-height: 100%; }
     ListDetailScreen .-hidden { display: none; }
@@ -116,6 +123,7 @@ class ListDetailScreen(DCScreen):
         self._detail_item: Optional[dict] = None
         self._detail_data: Any = None
         self.list_tab: str = self.LIST_TABS[0][0] if self.LIST_TABS else ""
+        self.list_filter: str = self.LIST_FILTERS[0][0] if self.LIST_FILTERS else ""
         self.detail_tab: str = ""
         self.flex_width = 30
         self._syncing_tabs = False
@@ -128,6 +136,9 @@ class ListDetailScreen(DCScreen):
         widgets: List[Any] = []
         if self.LIST_TABS:
             widgets.append(Tabs(*[Tab(label, id=tid) for tid, label in self.LIST_TABS], id="list-tabs"))
+        if self.LIST_FILTERS:
+            widgets.append(Horizontal(*[Button(label, id="chip-" + fid, classes="chip" + (" -on" if fid == self.list_filter else ""))
+                                        for fid, label in self.LIST_FILTERS], id="list-filters"))
         widgets += [Static("", id="list-hint"), DataTable(id="list", cursor_type="row", zebra_stripes=True),
                     Vertical(*self._detail_widgets_for("inline"), id="detail-inline", classes="-hidden")]
         self.set_main(*widgets)
@@ -169,8 +180,21 @@ class ListDetailScreen(DCScreen):
         await row.mount(*[Button(label, id="act-%s-%d" % (suffix, i), classes="action back" if label.startswith("←") else "action")
                           for i, label in enumerate(labels)])
 
+    def set_filter(self, fid: str) -> None:
+        if fid == self.list_filter:
+            return
+        self.list_filter = fid
+        for b in self.query("Button.chip"):
+            b.set_class(str(b.id) == "chip-" + fid, "-on")
+        self._detail_item = None
+        self.refresh_data(force=False)
+
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = str(event.button.id or "")
+        if bid.startswith("chip-"):
+            event.stop()
+            self.set_filter(bid[5:])
+            return
         if bid.startswith("act-"):
             event.stop()
             action = getattr(self, "_action_map", {}).get(int(bid.rsplit("-", 1)[-1]))
@@ -489,10 +513,11 @@ class ListDetailScreen(DCScreen):
         self._detail_open = show
         self.query_one("#list", DataTable).set_class(show, "-hidden")
         self.query_one("#list-hint", Static).set_class(show, "-hidden")
-        try:
-            self.query_one("#list-tabs", Tabs).set_class(show, "-hidden")
-        except Exception:  # noqa: BLE001
-            pass
+        for sel in ("#list-tabs", "#list-filters"):
+            try:
+                self.query_one(sel).set_class(show, "-hidden")
+            except Exception:  # noqa: BLE001
+                pass
         self.query_one("#detail-inline", Vertical).set_class(not show, "-hidden")
 
     def action_open_detail(self) -> None:
@@ -576,6 +601,16 @@ class ListDetailScreen(DCScreen):
     def action_page_end(self) -> None:
         self._table_key("action_scroll_bottom", 1, edge=True)
 
+    def _chips(self) -> Optional[Button]:
+        """The active filter chip (or the first), if this screen has a filter row."""
+        chips = list(self.query("Button.chip"))
+        if not chips:
+            return None
+        for b in chips:
+            if b.has_class("-on"):
+                return b
+        return chips[0]
+
     def top_input(self) -> Optional[Input]:
         """A visible text field above the list (Search / People), if any."""
         for inp in self.query(Input):
@@ -594,6 +629,11 @@ class ListDetailScreen(DCScreen):
             if focused.cursor_row is not None and focused.cursor_row > 0 and focused.row_count:
                 focused.action_cursor_up()
                 return
+            if focused.id == "list":
+                chip = self._chips()
+                if chip is not None:
+                    chip.focus()
+                    return
             tabs = self._tabs_for(focused)
             if tabs is not None:
                 tabs.focus()
@@ -603,6 +643,14 @@ class ListDetailScreen(DCScreen):
         if isinstance(focused, Tabs):
             if focused.id == "list-tabs":
                 (self.top_input() or self.query_one("#nav-tabs", Tabs)).focus()
+            return
+        if isinstance(focused, Button) and focused.has_class("chip"):
+            tabs = None
+            try:
+                tabs = self.query_one("#list-tabs", Tabs)
+            except Exception:  # noqa: BLE001
+                pass
+            (tabs if tabs is not None and not tabs.has_class("-hidden") else (self.top_input() or self.query_one("#nav-tabs", Tabs))).focus()
             return
         if isinstance(focused, Button):
             pane = self.detail_pane() if self.two_pane else self.main_pane()
@@ -640,10 +688,14 @@ class ListDetailScreen(DCScreen):
             self.query_one("#list", DataTable).focus()
             return
         if isinstance(focused, Tabs):
-            self._table_for(focused).focus()
+            chip = self._chips() if focused.id == "list-tabs" else None
+            (chip if chip is not None else self._table_for(focused)).focus()
             return
         if isinstance(focused, DataTable):
             focused.action_cursor_down()
+            return
+        if isinstance(focused, Button) and focused.has_class("chip"):
+            self.query_one("#list", DataTable).focus()
             return
         if isinstance(focused, Button):
             table = self.detail_table()
@@ -660,6 +712,10 @@ class ListDetailScreen(DCScreen):
             return False
         buttons = list(focused.parent.query(Button)) if focused.parent is not None else []
         i = buttons.index(focused) if focused in buttons else -1
+        if focused.has_class("chip"):
+            if 0 <= i + step < len(buttons):
+                buttons[i + step].focus()
+            return True
         if 0 <= i + step < len(buttons):
             buttons[i + step].focus()
         elif step > 0:
