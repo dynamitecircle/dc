@@ -195,6 +195,14 @@ class DCApp(App):
         if key and hasattr(screen, "select_key"):
             screen.select_key(key)  # type: ignore[attr-defined]
 
+    def open_person(self, member: dict) -> None:
+        """Show a DCer's profile in the People section (terminal first; the web
+        profile is a button inside it)."""
+        self.action_goto_section("people")
+        screen = self.screen
+        if hasattr(screen, "show_person"):
+            screen.show_person(member)  # type: ignore[attr-defined]
+
     def action_back(self) -> None:
         """Esc / Backspace: close an open modal, else the previous section, else Home."""
         if isinstance(self.screen, ModalScreen):

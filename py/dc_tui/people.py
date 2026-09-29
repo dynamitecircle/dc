@@ -3,7 +3,7 @@ Profiles show exactly what the API exposes to any DCer; `o` opens the full
 profile in the app."""
 from __future__ import annotations
 
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 from textual import work
 from textual.binding import Binding
@@ -39,6 +39,15 @@ class PeopleScreen(ListDetailScreen):
         self.mode = "follows"
         self.query_text = ""
         self._following = set()
+        self._person: Optional[dict] = None
+
+    def show_person(self, member: dict) -> None:
+        """Open one DCer (from Home, Locator, Search, an attendee list…) in the detail."""
+        self.mode = "person"
+        self._person = dict(member)
+        self._detail_item = None
+        self._pending_key = str(member.get("userID") or "")
+        self.refresh_data(force=False)
 
     def populate(self) -> None:
         super().populate()
@@ -49,7 +58,19 @@ class PeopleScreen(ListDetailScreen):
         data = self.app.data  # type: ignore[attr-defined]
         follows = data.fetch("follows-profiles", force=force)
         self._following = {p.get("userID") for p in _profiles(follows)}
-        if self.mode == "search" and self.query_text:
+        if self.mode == "person" and self._person:
+            person = dict(self._person)
+            # enrich from search (headline, business) — the full profile arrives with API 2.5
+            name = person.get("displayName") or person.get("userName") or ""
+            if name and not person.get("headline"):
+                hit = data.fetch("search-profiles", name, limit=5)
+                for h in dict_of(hit).get("hits") or []:
+                    if isinstance(h, dict) and str(h.get("userID")) == str(person.get("userID")):
+                        person.update({k: v for k, v in h.items() if v not in (None, "")})
+                        break
+            fetched = follows
+            rows = [person]
+        elif self.mode == "search" and self.query_text:
             fetched = data.fetch("search-profiles", self.query_text, limit=30)
             hits = dict_of(fetched).get("hits") or dict_of(fetched).get("items") or []
             rows = [_flatten(h) for h in hits if isinstance(h, dict)]
@@ -94,7 +115,9 @@ class PeopleScreen(ListDetailScreen):
         return tuple(cells[c] for c in self._columns())
 
     def hint_text(self) -> str:
-        what = {"follows": "you follow", "search": "matching “%s”" % self.query_text, "match": "matched" + (" for “%s”" % self.query_text if self.query_text else " for you")}[self.mode]
+        what = {"follows": "you follow", "search": "matching “%s”" % self.query_text,
+                "match": "matched" + (" for “%s”" % self.query_text if self.query_text else " for you"),
+                "person": "· Esc for the people you follow"}[self.mode]
         return "%s %s  [dim]%s[/dim]" % (plural(len(self.items), "DCer"), what, self.HINT)
 
     def detail_actions(self):

@@ -427,6 +427,8 @@ class HomeScreen(DCScreen):
         if kind == "url":
             webbrowser.open(str(key))
             self.app.notify("Opened in browser", timeout=2)
+        elif kind == "person":
+            self.app.open_person(key)  # type: ignore[attr-defined]
         else:
             self.app.open_in_section(kind, key)  # type: ignore[attr-defined]
 
@@ -620,32 +622,54 @@ class HomeScreen(DCScreen):
         return lines or [("[dim]no upcoming trips[/dim] — Enter to plan one", ("trips", None))], _subtitle(plural(len(trips), "trip"), f)
 
     def _render_locator(self, results: List[Fetched]) -> Tuple[List[str], str]:
+        """Who is coming to your city, what moves in the cities and people you follow —
+        each row a person (opens their profile here) or a jump into the Locator."""
         f = results[0]
         digest = _dict(f)
-        lines = []
+        lines: List[Tuple[str, Any]] = []
         home = digest.get("homeCity") if isinstance(digest.get("homeCity"), dict) else {}
-        if home:
-            counts = [plural(len(home.get(k) or []), label)
-                      for k, label in (("newMembers", "new member"), ("comingToCity", "visitor"),
-                                       ("planningToCity", "planning"), ("comingEvents", "event"))
-                      if isinstance(home.get(k), list) and home.get(k)]
-            lines.append(("🏠 [b]%s[/b]  %s" % (_escape(trunc(home.get("cityName") or "home", 26)),
-                                                " · ".join(counts) if counts else "[dim]quiet week[/dim]"), ("people", None)))
-        for city in [c for c in (digest.get("favoriteCities") or []) if isinstance(c, dict)][:4]:
-            n = len(city.get("comingTrips") or []) + len(city.get("newTrips") or [])
-            ev = len(city.get("comingEvents") or []) + len(city.get("newEvents") or [])
-            bits = [b for b in ((plural(n, "trip") if n else ""), (plural(ev, "event") if ev else "")) if b]
-            lines.append(("★ %s  [dim]%s[/dim]" % (_escape(trunc(city.get("cityName") or "", 22)), " · ".join(bits) or "quiet"), None))
+        city = home.get("cityName") or "your city"
+
+        def member(row: dict) -> dict:
+            m = row.get("member")
+            return m if isinstance(m, dict) else row
+
+        visitors = [t for t in (home.get("comingToCity") or []) + (home.get("planningToCity") or []) if isinstance(t, dict)]
+        if visitors:
+            lines.append(("[dim]🏠 coming to %s[/dim]" % _escape(city), None))
+            for t in visitors[:4]:
+                m = member(t)
+                lines.append(("   [b]%s[/b]  %s" % (_escape(trunc(m.get("displayName") or m.get("userName") or "DCer", 24)),
+                                                    date_range(t.get("startDate"), t.get("endDate"))), ("person", m)))
+        new = [m for m in home.get("newMembers") or [] if isinstance(m, dict)]
+        for m in new[:3]:
+            mm = member(m)
+            lines.append(("   👋 [b]%s[/b]  [dim]new in %s[/dim]" % (_escape(trunc(mm.get("displayName") or "DCer", 24)), _escape(city)), ("person", mm)))
+        for c in [c for c in (digest.get("favoriteCities") or []) if isinstance(c, dict)][:3]:
+            trips = [t for t in (c.get("comingTrips") or []) + (c.get("newTrips") or []) if isinstance(t, dict)]
+            ev = len(c.get("comingEvents") or []) + len(c.get("newEvents") or [])
+            bits = [b for b in ((plural(len(trips), "visitor") if trips else ""), (plural(ev, "event") if ev else "")) if b]
+            lines.append(("[dim]★ %s · %s[/dim]" % (_escape(c.get("cityName") or ""), " · ".join(bits) or "quiet"), ("locator", None)))
+            for t in trips[:3]:
+                m = member(t)
+                lines.append(("   [b]%s[/b]  %s" % (_escape(trunc(m.get("displayName") or "DCer", 24)), date_range(t.get("startDate"), t.get("endDate"))), ("person", m)))
         people = digest.get("favoritePeople") if isinstance(digest.get("favoritePeople"), dict) else {}
-        names: List[str] = []
+        seen = set()
+        moving = []
         for key in ("newTrips", "comingTrips", "attending"):
             for row in people.get(key) or []:
-                member = row.get("member") if isinstance(row, dict) and isinstance(row.get("member"), dict) else {}
-                who = member.get("displayName") or member.get("userName")
-                if who and who not in names:
-                    names.append(str(who))
-        if names:
-            lines.append(("♥ %s" % _escape(trunc(", ".join(names[:6]), self._card_width() - 4)), ("people", None)))
+                m = member(row) if isinstance(row, dict) else {}
+                if m.get("userID") and m["userID"] not in seen:
+                    seen.add(m["userID"])
+                    moving.append((m, row))
+        if moving:
+            lines.append(("[dim]♥ people you follow[/dim]", None))
+            for m, row in moving[:4]:
+                where = row.get("eventName") or (row.get("location") or {}).get("city") if isinstance(row.get("location"), dict) else row.get("eventName")
+                lines.append(("   [b]%s[/b]  %s  [dim]%s[/dim]" % (_escape(trunc(m.get("displayName") or "DCer", 24)),
+                                                                 date_range(row.get("startDate"), row.get("endDate")), _escape(trunc(where or "", 26))), ("person", m)))
+            if len(moving) > 4:
+                lines.append(("   [dim]+%d more in the Locator[/dim]" % (len(moving) - 4), ("locator", None)))
         lines.append(("[dim]open the full Locator →[/dim]", ("locator", None)))
         return lines, _subtitle("Friday digest", f)
 

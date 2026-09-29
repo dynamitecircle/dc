@@ -116,7 +116,9 @@ class SearchScreen(ListDetailScreen):
         if item is None:
             return
         kind = item.get("_kind")
-        if kind == "rooms" and item.get("roomID"):
+        if kind == "profiles":
+            self.app.open_person(item)  # type: ignore[attr-defined]
+        elif kind == "rooms" and item.get("roomID"):
             self.app.open_in_section("rooms", str(item["roomID"]))  # type: ignore[attr-defined]
         elif kind == "events" and item.get("eventID"):
             self.app.open_in_section("events", str(item["eventID"]))  # type: ignore[attr-defined]

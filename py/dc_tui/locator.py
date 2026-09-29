@@ -39,8 +39,7 @@ def _name(m: dict) -> str:
 
 
 def _person_target(m: dict):
-    url = m.get("shortURL") or m.get("profileURL")
-    return ("url", url) if url else ("people", None)
+    return ("person", m) if m else ("people", None)
 
 
 class LocatorScreen(DCScreen):
@@ -250,6 +249,8 @@ class LocatorScreen(DCScreen):
         if kind == "url":
             webbrowser.open(str(key))
             self.app.notify("Opened in browser", timeout=2)
+        elif kind == "person":
+            self.app.open_person(key)  # type: ignore[attr-defined]
         else:
             self.app.open_in_section(kind, key)  # type: ignore[attr-defined]
 
