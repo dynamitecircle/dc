@@ -11,6 +11,7 @@ from textual.widgets import Static
 
 from .data import Fetched
 from .format import flag, fmt_date, plural, trunc
+from .profile import profile_lines
 from .listing import dict_of, esc, items_of, plain
 from .screens import DCScreen, WEB_APP
 from .widgets import Panel
@@ -75,14 +76,7 @@ class MeScreen(DCScreen):
     def _profile(self, f: Fetched):
         p = dict_of(f)
         chapter = p.get("chapter") if isinstance(p.get("chapter"), dict) else {}
-        lines = ["[b]%s[/b]  [dim]@%s[/dim]" % (esc(p.get("displayName") or ""), esc(p.get("userName") or ""))]
-        for label, key in (("", "headline"), ("Business", "businessName"), ("Industry", "businessIndustry"),
-                           ("Website", "businessWebsite"), ("Expertise", "expertise"), ("Ask me about", "askMeAnythingTopics"),
-                           ("Challenge", "currentChallenge"), ("Wants to meet", "peopleOfInterest")):
-            val = p.get(key)
-            if val:
-                text = esc(trunc(plain(val), 200))
-                lines.append(text if not label else "[dim]%s:[/dim] %s" % (label, text))
+        lines = profile_lines(p, width=max(40, self.main_pane().size.width - 8))
         return lines, self._flag(f, esc(("%s %s" % (flag(chapter.get("countryCode")), chapter.get("cityName") or "")).strip()))
 
     def _membership(self, f: Fetched):

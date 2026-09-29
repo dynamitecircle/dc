@@ -270,7 +270,8 @@ def test_events_global_vs_local_split():
     pytest.importorskip("textual")
     from dc_tui.events import _is_global
     assert _is_global({"eventType": "dcbkk"}) and _is_global({"eventType": "dc-black"})
-    assert not _is_global({"eventType": "junto"}) and not _is_global({"eventType": "dc-chapter-event"})
+    assert _is_global({"eventType": "dc-chapter-event"})                  # GlobalEventList in shared/enum.ts
+    assert not _is_global({"eventType": "junto"}) and not _is_global({"eventType": "dinner"})
 
 
 def test_trunc_and_pad_are_cell_aware():
@@ -335,3 +336,26 @@ def test_unconfirmed_event_dates_show_month_only():
     assert event_dates({"startDate": "2027-07-26", "endDate": "2027-07-30", "isDateConfirmed": False}) == "Jul 2027"
     assert event_dates({"startDate": "2027-07-26", "endDate": "2027-07-30", "isDateConfirmed": True}) == "26–30 Jul 2027"
     assert event_dates({"startDate": "2027-07-26", "endDate": "2027-07-30"}) == "26–30 Jul 2027"
+
+
+def test_labels_and_global_set_follow_the_web_enum():
+    from dc_tui.labels import call_kind_label, event_type_label, is_global_event, room_type_label
+    assert is_global_event({"eventType": "dc-chapter-event"}) and is_global_event({"eventType": "dc-x"})
+    assert not is_global_event({"eventType": "junto"}) and not is_global_event({"eventType": "mastermind-meetup"})
+    assert event_type_label("mastermind-meetup") == "Mastermind" and event_type_label("dc-black") == "DC BLACK"
+    assert room_type_label("quick-question") == "Quick Question" and call_kind_label("welcome") == "Community Welcome Call"
+
+
+def test_date_range_edge_cases_match_formatdates():
+    from dc_tui.format import date_range
+    assert date_range("2026-10-08", "2026-10-06") == "06–08 Oct 2026"     # reversed endpoints swapped
+    assert date_range(None, "2026-10-08") == "08 Oct 2026"                # end-only
+
+
+def test_profile_lines_follow_web_order():
+    from dc_tui.profile import profile_lines
+    lines = profile_lines({"displayName": "A", "userName": "a", "businessName": "Acme", "chapter": {"cityName": "Osaka", "countryCode": "JP"},
+                           "hobbies": "chess"}, width=80)
+    text = "\n".join(lines)
+    assert text.index("Location") < text.index("Primary Business") < text.index("About Me")
+    assert "Home Chapter:" in text and "Business Name:" in text and "Non-Business Hobbies:" in text

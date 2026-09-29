@@ -11,6 +11,7 @@ from textual.widgets import Input
 
 from .data import Fetched
 from .format import flag, plural, trunc
+from .profile import profile_lines
 from .listing import ListDetailScreen, dict_of, esc, items_of, plain
 from .screens import WEB_APP
 
@@ -108,7 +109,7 @@ class PeopleScreen(ListDetailScreen):
         chapter = item.get("chapter")
         chapter = ("%s %s" % (flag(chapter.get("countryCode")), chapter.get("cityName") or "")).strip() if isinstance(chapter, dict) else (chapter or "")
         name = item.get("displayName") or item.get("userName") or ""
-        name = ("♥ " if item.get("userID") in self._following else "👤 ") + name
+        name = ("★ " if item.get("userID") in self._following else "👤 ") + name
         cells = {"Name": trunc(name, 26), "Handle": "@" + str(item.get("userName") or ""),
                  "Headline": trunc(plain(item.get("headline") or item.get("businessName") or ""), 40),
                  "Chapter": trunc(str(chapter or ""), 16)}
@@ -151,25 +152,14 @@ class PeopleScreen(ListDetailScreen):
         lines: List[str] = []
         if prof.get("_score") is not None:
             lines.append("[dim]match score %.2f[/dim]" % float(prof["_score"]))
-        for label, key in (("", "headline"), ("Business", "businessName"), ("About", "businessDescription"),
-                           ("Industry", "businessIndustry"), ("Website", "businessWebsite"), ("Chapter", "chapter"),
-                           ("Now in", "currentLocation"), ("Expertise", "expertise"), ("Ask me about", "askMeAnythingTopics"),
-                           ("Challenge", "currentChallenge"), ("Wants to meet", "peopleOfInterest"), ("Hobbies", "hobbies"),
-                           ("Team", "teamSize"), ("Revenue", "annualRevenue"), ("Years", "yearsInBusiness"), ("Joined", "joinedDate")):
-            val = prof.get(key)
-            if isinstance(val, dict):
-                val = val.get("cityName") or val.get("name") or ""
-            if val in (None, "", [], {}):
-                continue
-            text = esc(trunc(plain(val), 400))
-            lines.append(("[b]%s[/b]" % text) if not label else "[dim]%s:[/dim] %s" % (label, text))
+        lines += profile_lines(prof, width=self.detail_width())
         if data is None and "businessName" not in prof:
             lines.append("")
-            lines.append("[dim]full profile view arrives with Member API 2.5 — press o to open in the app[/dim]")
+            lines.append("[dim]the full profile arrives with Member API 2.5 — Open profile shows it in the app[/dim]")
         if data is not None and data.error:
             lines.append("[$warning]%s[/]" % esc(data.error))
         lines.append("")
-        lines.append("[dim]%s[/dim]" % ("♥ following" if prof.get("userID") in self._following else "not following"))
+        lines.append("[dim]%s[/dim]" % ("★ following" if prof.get("userID") in self._following else "not following"))
         return lines
 
     # ── actions ───────────────────────────────────────────────────────

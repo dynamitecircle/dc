@@ -90,8 +90,10 @@ def fmt_date(value: Any) -> str:
 def date_range(start: Any, end: Any) -> str:
     """`21–24 Oct 2026` · `30 Sep – 02 Oct 2026` · `21 Dec 2026 – 06 Jan 2027`."""
     a, b = _parse(start), _parse(end)
+    if a and b and a > b:
+        a, b = b, a                      # reversed endpoints, like formatDates
     if not a:
-        return ""
+        return fmt_date(b) if b else ""
     if not b or a.date() == b.date():
         return fmt_date(a)
     if a.year == b.year and a.month == b.month:

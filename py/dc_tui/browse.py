@@ -6,6 +6,7 @@ from typing import Any, List, Tuple
 
 from .data import Fetched
 from .format import fmt_date, plural
+from .labels import room_type_label
 from .listing import ListDetailScreen, dict_of, esc, items_of, plain
 from .screens import WEB_APP
 
@@ -58,7 +59,7 @@ class BrowseScreen(ListDetailScreen):
         return [("Subscribe", "subscribe"), ("Open in app", "app.open_in_browser")]
 
     def detail_title(self, item: dict) -> str:
-        return "%s  [dim]%s · %s[/dim]" % (esc(item.get("name")), item.get("type", ""), item.get("scope", ""))
+        return "%s  [dim]%s%s[/dim]" % (esc(item.get("name")), room_type_label(item.get("type")), " · DC BLACK" if item.get("scope") == "dcb" else "")
 
     def fetch_detail(self, item: dict, force: bool) -> Any:
         return self.app.data.fetch("room", item.get("roomID"), force=force)  # type: ignore[attr-defined]

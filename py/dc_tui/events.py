@@ -11,13 +11,12 @@ from rich.text import Text
 from textual.binding import Binding
 
 from .data import Fetched
+from datetime import datetime, timezone as _tz
+
 from .format import date_range, event_dates, fmt_date, plural, strip_markdown, trunc
+from .labels import call_kind_label, event_type_label, is_global_event
 from .listing import ListDetailScreen, Table, dict_of, esc, items_of, plain
 from .screens import WEB_APP
-
-#: Flagship / global event types; everything else is a local chapter event.
-GLOBAL_TYPES = {"dcbkk", "dcmex", "dcbcn", "dc-black", "dcb", "dc-week", "dcweek", "flagship", "global"}
-
 
 def _hhmm(value: Any) -> str:
     s = str(value or "")
@@ -27,8 +26,18 @@ def _hhmm(value: Any) -> str:
 
 
 def _when(value: Any) -> str:
+    """Live calls are instants: show them in the viewer's local time."""
     s = str(value or "")
-    return "%s %s" % (fmt_date(s), s[11:16]) if "T" in s else fmt_date(s)
+    if "T" not in s:
+        return fmt_date(s)
+    try:
+        d = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=_tz.utc)
+        local = d.astimezone()
+        return "%s %s" % (fmt_date(local.strftime("%Y-%m-%d")), local.strftime("%H:%M"))
+    except ValueError:
+        return "%s %s" % (fmt_date(s), s[11:16])
 
 
 def _city(event: dict) -> str:
@@ -39,8 +48,7 @@ def _city(event: dict) -> str:
 
 
 def _is_global(event: dict) -> bool:
-    kind = str(event.get("eventType") or "").lower()
-    return kind in GLOBAL_TYPES or (kind.startswith("dc") and not kind.startswith("dc-chapter"))
+    return is_global_event(event)
 
 
 class EventsScreen(ListDetailScreen):
@@ -90,14 +98,16 @@ class EventsScreen(ListDetailScreen):
     def detail_actions(self):
         item = self._detail_item or {}
         if self.list_tab == "calls":
-            return [("RSVP yes", "rsvp('yes')"), ("RSVP no", "rsvp('no')"), ("Open call link", "app.open_in_browser")]
+            return [("Going", "rsvp('yes')"), ("Not going", "rsvp('no')"), ("Open call link", "app.open_in_browser")]
         acts = []
         if self.detail_tab in ("schedule", "agenda"):
             acts.append(("Bookmark session", "bookmark"))
         if self.detail_tab in ("schedule", "agenda", "meetups"):
             acts.append(("Join meetup", "join_meetup"))
         if item.get("rsvpEnabled"):
-            acts += [("RSVP yes", "rsvp('yes')"), ("RSVP no", "rsvp('no')")]
+            acts += [("Going", "rsvp('yes')"), ("Not going", "rsvp('no')")]
+        elif item.get("ticketsEnabled") and item.get("eventID") not in self._tickets:
+            acts.append(("Get tickets", "app.open_in_browser"))
         acts.append(("Open in app", "app.open_in_browser"))
         return acts
 
@@ -156,16 +166,16 @@ class EventsScreen(ListDetailScreen):
             cells = {
                 "Call":  ("● " if item.get("isLive") else "") + str(item.get("name") or ""),
                 "When":  _when(item.get("scheduledAt")),
-                "Kind":  str(item.get("kind") or ""),
+                "Kind":  call_kind_label(item.get("kind")),
                 "Going": str(item.get("attendeeCount") or ""),
-                "RSVP":  {"yes": "✓ yes", "no": "✗ no", "maybe": "? maybe"}.get(str(item.get("myRsvp") or ""), ""),
+                "RSVP":  {"yes": "Going", "no": "Not going", "maybe": "Maybe"}.get(str(item.get("myRsvp") or ""), ""),
             }
         else:
             cells = {
                 "Event": str(item.get("name") or ""),
                 "Dates": event_dates(item),
                 "City":  _city(item),
-                "Type":  str(item.get("eventType") or ""),
+                "Type":  event_type_label(item.get("eventType")),
                 "🎟":    "🎟" if item.get("eventID") in self._tickets else "",
             }
         return tuple(cells[c] for c in self._columns())
@@ -177,12 +187,12 @@ class EventsScreen(ListDetailScreen):
     # ── detail ────────────────────────────────────────────────────────
     def detail_title(self, item: dict) -> str:
         if self.list_tab == "calls":
-            return "%s  [dim]%s · %s min[/dim]" % (esc(item.get("name")), _when(item.get("scheduledAt")), item.get("duration") or "?")
+            return "%s  [dim]%s local · %s min · %s[/dim]" % (esc(item.get("name")), _when(item.get("scheduledAt")), item.get("duration") or "?", call_kind_label(item.get("kind")))
         ticket = self._tickets.get(item.get("eventID"))
         venue = item.get("venue") if isinstance(item.get("venue"), dict) else {}
         where = " · ".join(x for x in (venue.get("name"), _city(item)) if x)
         return "%s  [dim]%s · %s%s[/dim]" % (esc(item.get("name")), event_dates(item) + ("" if item.get("isDateConfirmed") is not False else " (dates TBC)"),
-                                             esc(where), "  · 🎟 " + esc(ticket) if ticket else "")
+                                             esc(where), "  · 🎟 You have a ticket (%s)" % esc(ticket) if ticket else "")
 
     def fetch_detail(self, item: dict, force: bool) -> Any:
         data = self.app.data  # type: ignore[attr-defined]
@@ -284,7 +294,7 @@ class EventsScreen(ListDetailScreen):
                 what = "%s%s" % (obj.get("title") or "", ("  · " + who) if who else "")
                 place = obj.get("place") if isinstance(obj.get("place"), dict) else {}
                 where = obj.get("locationNote") or place.get("name") or ""
-                rows.append(("session:" + ident, [what, time, Text(mark, style="bold #FF4921"), "%s %s" % (obj.get("type") or "", where)]))
+                rows.append(("session:" + ident, [what, time, Text(mark, style="bold #FF4921"), "%s %s" % (str(obj.get("type") or "").title(), where)]))
             else:
                 mark = "✓" if ident in joined else ""
                 time = "%s–%s" % (_hhmm(obj.get("startTime")), _hhmm(obj.get("endTime")))
@@ -305,6 +315,9 @@ class EventsScreen(ListDetailScreen):
             f = data.get(key)
             if isinstance(f, Fetched) and f.error:
                 bits.append("[$warning]%s: %s[/]" % (key, esc(trunc(f.error, 40))))
+        tz = dict_of(data.get("schedule")).get("timezone") or dict_of(data.get("meetups")).get("timezone")
+        if tz:
+            bits.append("times in %s" % esc(str(tz)))
         title = " · ".join(bits)
         if not rows:
             return [title, "", "[dim]%s[/dim]" % ("nothing on your agenda yet — bookmark sessions in the Schedule tab"
@@ -321,7 +334,8 @@ class EventsScreen(ListDetailScreen):
         if desc:
             lines.append(esc(trunc(desc, 700)))
         lines.append("")
-        lines.append("[dim]%s · %s going · your RSVP: %s[/dim]" % (esc(ev.get("kind") or ""), ev.get("attendeeCount") or 0, esc(ev.get("myRsvp") or "—")))
+        lines.append("[dim]%s · %s going · you: %s[/dim]" % (call_kind_label(ev.get("kind")), ev.get("attendeeCount") or 0,
+                                                            {"yes": "Going", "no": "Not going", "maybe": "Maybe"}.get(str(ev.get("myRsvp") or ""), "no answer")))
         if ev.get("meetUrl"):
             lines.append("[dim]link:[/dim] %s  [dim](o opens it)[/dim]" % esc(ev.get("meetUrl")))
         if fetched is not None and fetched.error:

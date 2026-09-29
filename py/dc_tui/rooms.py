@@ -10,6 +10,7 @@ from .data import Fetched
 import re
 
 from .format import fmt_date, pad, plural, trunc
+from .labels import room_type_label
 from .listing import ListDetailScreen, dict_of, esc, items_of, plain
 from .screens import SECTIONS, WEB_APP
 
@@ -25,7 +26,7 @@ class RoomsScreen(ListDetailScreen):
     COLUMNS = ("Room", "Type", "Unread", "Activity")
     COLUMNS_COMPACT = ("Room", "Unread", "Activity")
     COLUMN_WIDTHS = {"Type": 14, "Unread": 6, "Activity": 11}
-    EMPTY_TEXT = "nothing here — Browse finds channels, discussions and quick questions to join"
+    EMPTY_TEXT = "No chats match your filters. Browse finds channels, discussions and quick questions to join."
 
     BINDINGS = [
         Binding("v", "read_messages", "Read msgs", show=False),
@@ -60,8 +61,9 @@ class RoomsScreen(ListDetailScreen):
         rooms = items_of(fetched)
         if self.list_filter == "unread":
             rooms = [r for r in rooms if self._unread.get(r.get("roomID"), 0) > 0]
+        # web order (SidebarInbox.vue): unread first as a boolean, then most recent activity
         rooms.sort(key=lambda r: str(r.get("lastActivityAt") or ""), reverse=True)
-        rooms.sort(key=lambda r: -self._unread.get(r.get("roomID"), 0))
+        rooms.sort(key=lambda r: 0 if self._unread.get(r.get("roomID"), 0) > 0 else 1)
         return rooms
 
     def row_key(self, item: dict, index: int) -> str:
@@ -71,13 +73,15 @@ class RoomsScreen(ListDetailScreen):
         unread = self._unread.get(item.get("roomID"), 0)
         cells = {
             "Room":     item.get("name") or _dm_label(item),
-            "Type":     str(item.get("type") or ""),
+            "Type":     room_type_label(item.get("type")),
             "Unread":   str(unread) if unread else "",
             "Activity": fmt_date(item.get("lastActivityAt")),
         }
         return tuple(cells[c] for c in self._columns())
 
     def hint_text(self) -> str:
+        if not self.items:
+            return self.EMPTY_TEXT
         total = sum(self._unread.values())
         return "%s · %s  [dim]%s[/dim]" % (plural(len(self.items), "room"), plural(total, "unread"), self.HINT)
 
@@ -94,7 +98,7 @@ class RoomsScreen(ListDetailScreen):
         return acts
 
     def detail_title(self, item: dict) -> str:
-        return "%s  [dim]%s · %s[/dim]" % (esc(item.get("name")), item.get("type", ""), item.get("scope", ""))
+        return "%s  [dim]%s%s[/dim]" % (esc(item.get("name") or _dm_label(item)), room_type_label(item.get("type")), " · DC BLACK" if item.get("scope") == "dcb" else "")
 
     def detail_tabs(self):
         return (("messages", "Messages"), ("summary", "AI summary"), ("info", "Info"))
@@ -127,7 +131,7 @@ class RoomsScreen(ListDetailScreen):
         if desc:
             lines.append(esc(trunc(desc, 400)))
         stats = item.get("stats") if isinstance(item.get("stats"), dict) else {}
-        bits = [item.get("type") or "", item.get("scope") or ""]
+        bits = [room_type_label(item.get("type")), "DC BLACK" if item.get("scope") == "dcb" else ""]
         if stats.get("subscribers"):
             bits.append(plural(int(stats["subscribers"]), "member"))
         if stats.get("comments"):

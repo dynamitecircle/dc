@@ -6,7 +6,8 @@ from typing import Any, List, Sequence, Tuple
 
 from textual.widgets import Input
 
-from .format import flag, fmt_date, plural, strip_markdown, trunc
+from .format import event_dates, flag, fmt_date, plural, strip_markdown, trunc
+from .labels import event_type_label, room_type_label
 from .listing import ListDetailScreen, dict_of, esc, items_of, plain
 from .screens import WEB_APP
 
@@ -186,12 +187,13 @@ def _detail(item: dict) -> str:
     if kind == "profiles":
         return plain(item.get("headline") or item.get("businessName") or "")
     if kind == "rooms":
-        return " · ".join(x for x in (item.get("type") or "", plain(item.get("description") or "")) if x)
+        return " · ".join(x for x in (room_type_label(item.get("type")), plain(item.get("description") or "")) if x)
     if kind == "messages":
         author = item.get("author") if isinstance(item.get("author"), dict) else {}
         return "%s · %s · %s" % (item.get("roomName") or "", author.get("displayName") or item.get("authorName") or "", fmt_date(item.get("sentAt") or item.get("createdAt")))
     if kind == "events":
-        return "%s · %s" % (fmt_date(item.get("startDate")), item.get("eventType") or "")
+        return "%s · %s" % (event_dates({"startDate": item.get("startDate") or item.get("startAt"), "endDate": item.get("endDate") or item.get("endAt"),
+                                          "isDateConfirmed": item.get("isDateConfirmed")}), event_type_label(item.get("eventType")))
     if kind == "chapters":
         return "%s · %s members" % (item.get("country") or "", item.get("memberCount") or "?")
     return ""

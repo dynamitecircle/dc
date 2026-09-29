@@ -671,7 +671,7 @@ class HomeScreen(DCScreen):
                     seen.add(m["userID"])
                     moving.append((m, row))
         if moving:
-            lines.append(("♥ [dim]people you follow[/dim]", None))
+            lines.append(("★ [dim]DCers you follow[/dim]", None))
             for m, row in moving[:4]:
                 where = row.get("eventName") or (row.get("location") or {}).get("city") if isinstance(row.get("location"), dict) else row.get("eventName")
                 lines.append((align_row(width, m.get("displayName") or "DCer", date_range(row.get("startDate"), row.get("endDate")), where or "", prefix="👤 "), ("person", m)))
