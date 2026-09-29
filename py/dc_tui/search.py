@@ -159,9 +159,13 @@ def _title(item: dict) -> str:
     kind = item.get("_kind")
     if kind == "messages":
         body = str(item.get("body") or item.get("text") or item.get("content") or item.get("snippet") or "")
-        # drop a quoted-reply prefix ("> Replying to X in Y …") and any markdown, keep the message itself
-        lines = [ln for ln in body.splitlines() if ln.strip() and not ln.lstrip().startswith(">")]
-        return strip_markdown(" ".join(lines) if lines else body) or "(attachment)"
+        # HTML → text, drop a quoted-reply prefix ("Replying to X in Y …"), then any markdown
+        text = plain(body, True)
+        if text.lower().startswith("replying to ") and " in " in text:
+            text = text.split(" in ", 1)[1]
+            text = text.split(" ", 1)[1] if " " in text else ""     # after the room name
+        lines = [ln for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith(">")]
+        return strip_markdown(" ".join(lines) if lines else text) or "(attachment)"
     if kind == "chapters":
         return str(item.get("cityName") or item.get("name") or item.get("cityID") or "")
     if kind == "rooms":
@@ -178,7 +182,7 @@ def _detail(item: dict) -> str:
     if kind == "profiles":
         return plain(item.get("headline") or item.get("businessName") or "")
     if kind == "rooms":
-        return "%s · %s" % (item.get("type") or "", plain(item.get("description") or ""))
+        return " · ".join(x for x in (item.get("type") or "", plain(item.get("description") or "")) if x)
     if kind == "messages":
         author = item.get("author") if isinstance(item.get("author"), dict) else {}
         return "%s · %s · %s" % (item.get("roomName") or "", author.get("displayName") or item.get("authorName") or "", fmt_date(item.get("sentAt") or item.get("createdAt")))

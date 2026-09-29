@@ -14,7 +14,7 @@ from .screens import SECTIONS, WEB_APP
 class RoomsScreen(ListDetailScreen):
     SECTION = "rooms"
     TITLE_TEXT = "Rooms"
-    HINT = "↑↓ pick a room · → open it · buttons in the detail do the rest"
+    HINT = "↑↓ pick a room · Enter opens its messages · buttons in the detail do the rest"
     URL = WEB_APP + "/inbox"
     LIST_TABS = (("all", "All"), ("channel", "Channels"), ("discussion", "Discussions"), ("dm", "DMs"),
                  ("group", "Groups"), ("quick-question", "Quick Q"), ("event", "Events"))
@@ -79,7 +79,7 @@ class RoomsScreen(ListDetailScreen):
     # ── detail ────────────────────────────────────────────────────────
     def detail_actions(self):
         item = self._detail_item or {}
-        acts = [("Read messages", "read_messages"), ("Mark read", "mark_read"),
+        acts = [("Mark read", "mark_read"),
                 ("Mute", "room('room-mute', 'muted')"), ("Unmute", "room('room-unmute', 'unmuted')"),
                 ("Pin", "room('room-pin', 'pinned')"), ("Unpin", "room('room-unpin', 'unpinned')"),
                 ("Archive", "room('room-archive', 'archived')"), ("Unarchive", "room('room-unarchive', 'unarchived')")]
@@ -91,58 +91,90 @@ class RoomsScreen(ListDetailScreen):
     def detail_title(self, item: dict) -> str:
         return "%s  [dim]%s · %s[/dim]" % (esc(item.get("name")), item.get("type", ""), item.get("scope", ""))
 
+    def detail_tabs(self):
+        return (("messages", "Messages"), ("summary", "AI summary"), ("info", "Info"))
+
     def fetch_detail(self, item: dict, force: bool) -> Any:
-        """Room info + AI summary on highlight; messages ONLY after an explicit read
-        (`v` / Enter) — opening a room in the list never counts as reading it."""
+        """Highlighting a room costs one cheap `room` call (info + summaries).
+        Messages are fetched only when the room was explicitly OPENED (Enter, →,
+        click, or the Read messages button) and the Messages tab is showing."""
         data = self.app.data  # type: ignore[attr-defined]
         room_id = item.get("roomID")
         out = {"room": data.fetch("room", room_id, force=force)}
-        if room_id in self._opened:
-            out["messages"] = data.fetch("room-messages", room_id, limit=15, force=force)
+        if room_id in self._opened and (self.detail_tab or "messages") == "messages":
+            out["messages"] = data.fetch("room-messages", room_id, limit=25, force=force)
         return out
 
     def render_detail(self, item: dict, data: Any) -> List[str]:
         if not isinstance(data, dict):
             return ["[dim]loading…[/dim]"]
+        tab = self.detail_tab or "messages"
+        room = dict_of(data["room"])
+        if tab == "info":
+            return self._render_info(item, room, data["room"])
+        if tab == "summary":
+            return self._render_summary(room, data["room"])
+        return self._render_messages(item, data)
+
+    def _render_info(self, item: dict, room: dict, f: Fetched) -> List[str]:
         lines: List[str] = []
         desc = plain(item.get("description"))
         if desc:
-            lines.append("[dim]%s[/dim]" % esc(trunc(desc, 240)))
-        room = dict_of(data["room"])
-        weekly = room.get("aiSummaryWeekly") if isinstance(room.get("aiSummaryWeekly"), dict) else None
-        daily = room.get("aiSummaryDaily") if isinstance(room.get("aiSummaryDaily"), dict) else None
-        summary = weekly or daily
-        if summary:
-            lines.append("")
+            lines.append(esc(trunc(desc, 400)))
+        stats = item.get("stats") if isinstance(item.get("stats"), dict) else {}
+        bits = [item.get("type") or "", item.get("scope") or ""]
+        if stats.get("subscribers"):
+            bits.append(plural(int(stats["subscribers"]), "member"))
+        if stats.get("comments"):
+            bits.append(plural(int(stats["comments"]), "message"))
+        if item.get("lastActivityAt"):
+            bits.append("last activity %s" % fmt_date(item.get("lastActivityAt")))
+        lines.append("[dim]%s[/dim]" % " · ".join(b for b in bits if b))
+        if f.error:
+            lines.append("[$warning]%s[/]" % esc(f.error))
+        lines.append("")
+        lines.append("[dim]Enter or → opens the messages · Open in app to reply[/dim]")
+        return lines
+
+    def _render_summary(self, room: dict, f: Fetched) -> List[str]:
+        lines: List[str] = []
+        for key in ("aiSummaryWeekly", "aiSummaryDaily"):
+            summary = room.get(key) if isinstance(room.get(key), dict) else None
+            if not summary:
+                continue
             lines.append("[b]%s summary[/b]  [dim]%s · %s msgs · %s people[/dim]" % (
-                summary.get("type", "").title(), fmt_date(summary.get("intervalEndAt")),
+                str(summary.get("type", "")).title(), fmt_date(summary.get("intervalEndAt")),
                 summary.get("messageCount", "?"), summary.get("participantCount", "?")))
             text = plain(summary.get("html"), True)
             if text:
-                lines.append(esc(trunc(text, 600)))
+                lines.append(esc(trunc(text, 1200)))
             topics = summary.get("topics") if isinstance(summary.get("topics"), list) else []
-            names = [t.get("title") or t.get("name") or t.get("topic") if isinstance(t, dict) else str(t) for t in topics[:6]]
+            names = [t.get("title") or t.get("name") or t.get("topic") if isinstance(t, dict) else str(t) for t in topics[:8]]
             names = [n for n in names if n]
             if names:
                 lines.append("[dim]topics:[/dim] " + esc(" · ".join(names)))
-        if data["room"].error:
-            lines.append("[$warning]%s[/]" % esc(data["room"].error))
-        if "messages" not in data:
             lines.append("")
-            lines.append("[dim]Read messages loads the latest 15 (read-only) · Open in app to reply[/dim]")
-            return lines
+        if f.error:
+            lines.append("[$warning]%s[/]" % esc(f.error))
+        return lines or ["[dim]no AI summary for this room yet[/dim]"]
+
+    def _render_messages(self, item: dict, data: dict) -> List[str]:
+        if "messages" not in data:
+            return ["[dim]Enter, → or the Read messages button loads the latest messages (read-only).[/dim]"]
         messages = items_of(data["messages"])
-        lines.append("")
-        lines.append("[b]Latest messages[/b]  [dim]read-only — press o to reply in the app[/dim]")
+        lines: List[str] = []
         if data["messages"].error and not messages:
             lines.append("[$warning]%s[/]" % esc(data["messages"].error))
-        for m in messages[:15]:
+        # chat order: oldest first, the newest message last (the "last page")
+        for m in reversed(messages[:25]):
             author = m.get("author") if isinstance(m.get("author"), dict) else {}
             who = author.get("displayName") or author.get("userName") or "system"
-            text = "[dim](deleted)[/dim]" if m.get("isDeleted") else esc(trunc(plain(m.get("text"), bool(m.get("isHTML"))), 220))
+            text = "[dim](deleted)[/dim]" if m.get("isDeleted") else esc(trunc(plain(m.get("text"), bool(m.get("isHTML"))), 400))
             lines.append("[b]%s[/b] [dim]%s[/dim]  %s" % (esc(who), fmt_date(m.get("sentAt")), text))
         if not messages and not data["messages"].error:
-            lines.append("[dim]no messages[/dim]")
+            lines.append("[dim]no messages yet[/dim]")
+        lines.append("")
+        lines.append("[dim]read-only — Open in app to reply[/dim]")
         return lines
 
     # ── actions ───────────────────────────────────────────────────────
@@ -157,16 +189,21 @@ class RoomsScreen(ListDetailScreen):
         if item is None:
             return
         self._opened.add(item.get("roomID"))
+        self.detail_tab = "messages"
         if not self.two_pane and not self._detail_open:
             self._show_inline_detail(True)
         self.load_detail(item)
+        self.call_after_refresh(self.focus_detail)
 
     def action_open_detail(self) -> None:
-        """Enter: in two-pane mode the room is already shown, so Enter reads it."""
-        if self.two_pane and self._detail_item is not None and self.selected() is self._detail_item:
-            self.action_read_messages()
-            return
-        super().action_open_detail()
+        """Opening a room (Enter / → / click) = its last page of messages."""
+        self.action_read_messages()
+
+    def _queue_detail(self, item: dict) -> None:
+        """Highlighting shows Info (cheap) unless this room was already opened."""
+        if item.get("roomID") not in self._opened:
+            self.detail_tab = "info"
+        super()._queue_detail(item)
 
     def action_mark_read(self) -> None:
         item = self.selected()
