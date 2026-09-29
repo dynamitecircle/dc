@@ -43,7 +43,8 @@ class Section:
 
 SECTIONS: List[Section] = [
     Section("home",   "Home",       "unread · announcements · tickets · trips · locator", WEB_APP + "/"),
-    Section("rooms",  "Rooms",      "inbox by type · messages · daily/weekly summaries",   WEB_APP + "/inbox"),
+    Section("rooms",  "Inbox",      "DMs · groups · channels · discussions · quick questions", WEB_APP + "/inbox"),
+    Section("browse", "Browse",     "discover channels · discussions · quick questions",      WEB_APP + "/inbox/browse"),
     Section("trips",  "Trips",      "your trips · create/edit · who to meet",              WEB_APP + "/trips"),
     Section("events", "Events",     "global · local · live calls · schedule · my agenda",  WEB_APP + "/events"),
     Section("locator", "Locator",   "your city · followed cities · followed people · your trips", WEB_APP + "/locator"),

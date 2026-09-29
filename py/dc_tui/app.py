@@ -20,6 +20,7 @@ from textual.widgets import Button, Static
 
 from .data import DataClient, Fetched
 from .layout import layout_mode
+from .browse import BrowseScreen
 from .events import EventsScreen
 from .locator import LocatorScreen
 from .me import MeScreen
@@ -32,7 +33,7 @@ from .theme import DC_THEME
 
 WEB_APP = "https://dc.dynamitecircle.com"
 
-SCREEN_CLASSES = {"home": HomeScreen, "rooms": RoomsScreen, "trips": TripsScreen, "events": EventsScreen,
+SCREEN_CLASSES = {"home": HomeScreen, "rooms": RoomsScreen, "browse": BrowseScreen, "trips": TripsScreen, "events": EventsScreen,
                   "locator": LocatorScreen, "people": PeopleScreen, "search": SearchScreen, "me": MeScreen}
 
 HELP_TEXT = """\

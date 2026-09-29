@@ -36,7 +36,7 @@ def run(dc: Any, argv: Optional[Sequence[str]] = None) -> int:
     if "--help" in argv or "-h" in argv:
         print("usage: dc tui [section] [--clear-cache]\n\n"
               "  Interactive terminal app for your DC membership.\n"
-              "  section: home | rooms | trips | events | calls | people | me\n"
+              "  section: home | rooms | browse | trips | events | locator | people | search | me\n"
               "  Keys: 1-7 sections · / palette · r refresh · o open in browser · ? help · q quit\n"
               "  --clear-cache   drop the on-disk response cache before starting")
         return 0
