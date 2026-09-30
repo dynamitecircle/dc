@@ -97,13 +97,16 @@ class FakeDC:
                 "myTrips": []}
 
     # rooms
-    def rooms(self, room_type="", limit=50, cursor=None):
-        self._log("rooms", room_type)
-        rooms = [{"roomID": "r1", "name": "DC Announcements", "type": "channel", "scope": "dc", "lastActivityAt": "2026-09-28T09:00:00Z", "stats": {"subscribers": 900}},
-                 {"roomID": "r2", "name": "SaaS", "type": "channel", "scope": "dc", "lastActivityAt": "2026-09-27T09:00:00Z", "stats": {"subscribers": 400}},
+    def rooms(self, room_type="", limit=50, cursor=None, filter=None):
+        self._log("rooms", room_type) if not filter else self._log("rooms", room_type, filter)
+        rooms = [{"roomID": "r1", "name": "DC Announcements", "type": "channel", "scope": "dc", "lastActivityAt": "2026-09-28T09:00:00Z", "stats": {"subscribers": 900},
+                  "seen": {"isPinned": False, "isMuted": False, "isArchived": False}},
+                 {"roomID": "r2", "name": "SaaS", "type": "channel", "scope": "dc", "lastActivityAt": "2026-09-27T09:00:00Z", "stats": {"subscribers": 400},
+                  "seen": {"isPinned": True, "isMuted": True, "isArchived": False}},
                  {"roomID": "dm_940_1", "name": "", "displayName": "Alex Harling", "type": "dm", "scope": "dc", "lastActivityAt": "2026-09-26T09:00:00Z",
                   "participant": {"userID": "1", "displayName": "Alex Harling", "userName": "AlexHarling", "profileURL": ""}}]
-        return _env([r for r in rooms if not room_type or r["type"] == room_type])
+        key = {"pinned": "isPinned", "muted": "isMuted", "archived": "isArchived"}.get(filter or "")
+        return _env([r for r in rooms if (not room_type or r["type"] == room_type) and (not key or (r.get("seen") or {}).get(key))])
 
     def browse_rooms(self, room_type, limit=50, cursor=None):
         return _env([{"roomID": "r9", "name": "SEO", "type": room_type, "scope": "dc", "stats": {"subscribers": 117}, "lastActivityAt": "2026-09-29T09:00:00Z"}])

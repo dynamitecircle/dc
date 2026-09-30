@@ -1163,7 +1163,7 @@ class _DCCore:
     def _parse_list_args(raw_args):
         return _DCCore._parse_paginated(
             raw_args,
-            extra_flags=("past", "status", "type", "sections", "q"),
+            extra_flags=("past", "status", "type", "sections", "q", "filter"),
         )
 
     @staticmethod
@@ -2339,12 +2339,13 @@ class _DCCore:
     # The API names two types differently from the app's internal ones; accept both.
     _ROOM_TYPE_ALIASES = {"direct": "dm", "activity": "quick-question"}
 
-    def rooms(self, room_type="", limit=50, cursor=None):
+    def rooms(self, room_type="", limit=50, cursor=None, filter=None):
         room_type = self._ROOM_TYPE_ALIASES.get(room_type, room_type)
         path = f"/rooms/inbox/{room_type}" if room_type else "/rooms"
         data = self._get(path, {
             "limit":  limit,
             "cursor": cursor or None,
+            "filter": filter or None,
         })
         return self._wrap_list(data, "rooms")
 
@@ -3175,14 +3176,16 @@ class DC(Runtime):
     # ── Rooms ──────────────────────────────────────────────────────
 
     @skill_command(name="rooms",
-                   help="List rooms you are subscribed to [--type channel|dm|group|discussion|quick-question|event] [--limit N] [--cursor TOKEN]",
+                   help="List rooms you are subscribed to [--type channel|dm|group|discussion|quick-question|event] [--filter pinned|muted|archived] [--limit N] [--cursor TOKEN]",
                    parser=_DCCore._parse_list_args,
                    args={**_PAGINATION_ARGS,
                          "type": {"type": "string",
                                   "enum": ["channel", "dm", "group", "discussion", "quick-question", "event"],
-                                  "description": "Filter rooms by type (includes DMs and group DMs)"}})
-    def rooms(self, room_type="", limit=50, cursor=None):
-        return self._core.rooms(room_type=room_type, limit=limit, cursor=cursor)
+                                  "description": "Filter rooms by type (includes DMs and group DMs)"},
+                         "filter": {"type": "string", "enum": ["pinned", "muted", "archived"],
+                                    "description": "Only your pinned, muted or archived rooms (the app's Inbox filter chips)"}})
+    def rooms(self, room_type="", limit=50, cursor=None, filter=None):
+        return self._core.rooms(room_type=room_type, limit=limit, cursor=cursor, filter=filter)
 
     @skill_command(name="browse-rooms",
                    help="Browse public rooms by type (channel|discussion|quick-question) [--limit N] [--cursor TOKEN]",

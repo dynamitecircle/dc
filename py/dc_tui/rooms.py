@@ -22,7 +22,8 @@ class RoomsScreen(ListDetailScreen):
     # same filters as the web inbox (SidebarInbox.vue) plus Unread; discovery lives in Browse
     LIST_TABS = (("all", "All"), ("dm", "DMs"), ("group", "Groups"), ("channel", "Channels"),
                  ("discussion", "Discussions"), ("quick-question", "Quick Questions"))
-    LIST_FILTERS = (("show-all", "All"), ("unread", "Unread"))       # the web's visibility filter
+    # the web's visibility filter (SidebarInbox.vue); Unsubscribed needs rooms you left, which the API does not list
+    LIST_FILTERS = (("show-all", "All"), ("unread", "Unread"), ("pinned", "Pinned"), ("muted", "Muted"), ("archived", "Archived"))
     COLUMNS = ("Room", "Type", "Unread", "Activity")
     COLUMN_DROP = ("Type",)
     COLUMNS_COMPACT = ("Room", "Unread", "Activity")
@@ -59,16 +60,27 @@ class RoomsScreen(ListDetailScreen):
         me = dict_of(data.fetch("profile"))
         self._me_name = str(me.get("displayName") or "")
         self._unread = {r.get("roomID"): int(r.get("badgeCount") or 0) for r in items_of(unread)}
-        fetched = data.fetch("rooms", self.room_type, force=force) if self.room_type else data.fetch("rooms", force=force)
+        seen_filter = self.list_filter if self.list_filter in ("pinned", "muted", "archived") else None
+        kwargs = {"filter": seen_filter} if seen_filter else {}
+        fetched = data.fetch("rooms", self.room_type, force=force, **kwargs) if self.room_type else data.fetch("rooms", force=force, **kwargs)
         if fetched.error and fetched.data is None:
             raise RuntimeError(fetched.error)
         rooms = items_of(fetched)
+        if seen_filter:                  # older servers ignore ?filter — apply it here too when flags are present
+            key = {"pinned": "isPinned", "muted": "isMuted", "archived": "isArchived"}[seen_filter]
+            if any(isinstance(r.get("seen"), dict) for r in rooms):
+                rooms = [r for r in rooms if self._flags(r).get(key)]
         if self.list_filter == "unread":
-            rooms = [r for r in rooms if self._unread.get(r.get("roomID"), 0) > 0]
-        # web order (SidebarInbox.vue): unread first as a boolean, then most recent activity
+            rooms = [r for r in rooms if self._unread.get(r.get("roomID"), 0) > 0 and not self._flags(r).get("isArchived")]
+        # web order (SidebarInbox.vue): pinned tier, active tier, archived tier; unread floats up
+        # inside the pinned and active tiers; then most recent activity
         rooms.sort(key=lambda r: str(r.get("lastActivityAt") or ""), reverse=True)
-        rooms.sort(key=lambda r: 0 if self._unread.get(r.get("roomID"), 0) > 0 else 1)
+        rooms.sort(key=lambda r: (self._tier(r), 0 if (self._tier(r) <= 1 and self._unread.get(r.get("roomID"), 0) > 0) else 1))
         return rooms
+
+    def _tier(self, room: dict) -> int:
+        flags = self._flags(room)
+        return 0 if flags.get("isPinned") else (2 if flags.get("isArchived") else 1)
 
     def row_key(self, item: dict, index: int) -> str:
         return str(item.get("roomID") or index)
@@ -78,6 +90,10 @@ class RoomsScreen(ListDetailScreen):
         if self.list_tab not in ("all", ""):
             cols = tuple(c for c in cols if c != "Type")     # every row has the tab's type
         return cols
+
+    def _marks(self, item: dict) -> str:
+        flags = self._flags(item)
+        return ("📌 " if flags.get("isPinned") else "") + ("🔕 " if flags.get("isMuted") else "")
 
     def title_of(self, item: dict) -> str:
         me = getattr(self, "_me_name", "")
@@ -90,7 +106,7 @@ class RoomsScreen(ListDetailScreen):
     def row_cells(self, item: dict) -> Tuple[str, ...]:
         unread = self._unread.get(item.get("roomID"), 0)
         cells = {
-            "Room":     self.title_of(item),
+            "Room":     self._marks(item) + self.title_of(item),
             "Type":     room_type_label(item.get("type")),
             "Unread":   str(unread) if unread else "",
             "Activity": fmt_date(item.get("lastActivityAt")),
