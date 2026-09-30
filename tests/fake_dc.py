@@ -101,7 +101,8 @@ class FakeDC:
         self._log("rooms", room_type)
         rooms = [{"roomID": "r1", "name": "DC Announcements", "type": "channel", "scope": "dc", "lastActivityAt": "2026-09-28T09:00:00Z", "stats": {"subscribers": 900}},
                  {"roomID": "r2", "name": "SaaS", "type": "channel", "scope": "dc", "lastActivityAt": "2026-09-27T09:00:00Z", "stats": {"subscribers": 400}},
-                 {"roomID": "dm_940_1", "name": "", "type": "dm", "scope": "dc", "lastActivityAt": "2026-09-26T09:00:00Z"}]
+                 {"roomID": "dm_940_1", "name": "", "displayName": "Alex Harling", "type": "dm", "scope": "dc", "lastActivityAt": "2026-09-26T09:00:00Z",
+                  "participant": {"userID": "1", "displayName": "Alex Harling", "userName": "AlexHarling", "profileURL": ""}}]
         return _env([r for r in rooms if not room_type or r["type"] == room_type])
 
     def browse_rooms(self, room_type, limit=50, cursor=None):

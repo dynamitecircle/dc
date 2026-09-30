@@ -25,7 +25,7 @@ from textual.containers import Vertical
 
 from .data import Fetched
 from .format import align_row, date_range, event_dates, flag, fmt_date, guard_flags, pad, plural, rpad, strip_markdown, trunc
-from .labels import room_type_label
+from .labels import room_title, room_type_label
 from .layout import MODES, layout_mode
 from .widgets import Panel
 
@@ -543,7 +543,9 @@ class HomeScreen(DCScreen):
         if total is None:
             total = sum(int(r.get("badgeCount") or 0) for r in rooms)
         width = self._card_width()
-        rows = [(align_row(width, r.get("roomName") or ("Direct message" if str(r.get("roomID", "")).startswith("dm_") else r.get("roomID", "")),
+        me = self.app.data.cached("profile")  # type: ignore[attr-defined]
+        me_name = str(_dict(me).get("displayName") or "") if me is not None else ""
+        rows = [(align_row(width, room_title(r, me_name),
                            "%d new" % int(r.get("badgeCount") or 0), room_type_label(r.get("roomType"))),
                  ("rooms", r.get("roomID")))
                 for r in rooms[:8]]

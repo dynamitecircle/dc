@@ -108,13 +108,14 @@ def test_inbox_tabs_filter_chips_and_messages(tmp_path):
             await press(pilot, "2"); await settle(pilot, 1.5)
             scr = app.screen
             assert [r.get("roomID") for r in scr.items][0] == "r1"          # unread first
-            assert scr.row_cells(scr.items[2])[0] == "Direct message"
+            assert scr.row_cells(scr.items[2])[0] == "Alex Harling"                 # DM named after the other person
             await pilot.click("#chip-unread"); await settle(pilot, 1.0)
             assert [r.get("roomID") for r in scr.items] == ["r1"]
             await pilot.click("#chip-show-all"); await settle(pilot, 1.0)
             assert len(scr.items) == 3
             scr.query_one("#list-tabs", Tabs).active = "dm"; await settle(pilot, 1.0)
             assert [r.get("type") for r in scr.items] == ["dm"]
+            assert "Type" not in scr._columns()                               # redundant inside the DMs tab
             scr.query_one("#list-tabs", Tabs).active = "all"; await settle(pilot, 1.0)
             scr.query_one("#list", DataTable).focus(); await settle(pilot, 0.2)
             await press(pilot, "enter"); await settle(pilot, 1.5)

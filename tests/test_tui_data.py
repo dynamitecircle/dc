@@ -386,3 +386,13 @@ def test_button_rows_wrap_to_width():
     assert sum(len(r) for r in rows) == len(labels) and len(rows) == 2
     assert _wrap_buttons(labels, 200) == [list(range(6))]
     assert _wrap_buttons(["A very long button label"], 5) == [[0]]     # never an empty row
+
+
+def test_room_title_follows_the_app_rule():
+    from dc_tui.labels import room_title
+    assert room_title({"roomID": "dm_1_940", "type": "dm", "name": "", "displayName": "Peter Moriarty"}) == "Peter Moriarty"
+    assert room_title({"roomID": "dm_1_940", "type": "dm", "name": "Matt Graham & Simon Payne"}, "Simon Payne") == "Matt Graham"
+    assert room_title({"roomID": "dm_1_940", "type": "dm", "name": "Simon Payne & Vera Nguyenova"}, "Simon Payne") == "Vera Nguyenova"
+    assert room_title({"roomID": "dm_1_940", "type": "dm", "name": ""}, "Simon Payne") == "Direct message"
+    assert room_title({"roomID": "r2", "roomType": "channel", "roomName": "SaaS"}) == "SaaS"
+    assert room_title({"roomID": "g1", "type": "group", "name": "Beatriz, Simon, Alex"}, "Simon Payne") == "Beatriz, Simon, Alex"

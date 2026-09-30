@@ -2336,7 +2336,11 @@ class _DCCore:
 
     # ── Rooms ─────────────────────────────────────────────────────
 
+    # The API names two types differently from the app's internal ones; accept both.
+    _ROOM_TYPE_ALIASES = {"direct": "dm", "activity": "quick-question"}
+
     def rooms(self, room_type="", limit=50, cursor=None):
+        room_type = self._ROOM_TYPE_ALIASES.get(room_type, room_type)
         path = f"/rooms/inbox/{room_type}" if room_type else "/rooms"
         data = self._get(path, {
             "limit":  limit,
@@ -2346,7 +2350,8 @@ class _DCCore:
 
     def browse_rooms(self, room_type, limit=50, cursor=None):
         if not room_type:
-            raise UsageError("browse-rooms requires a type (channel|discussion|activity)")
+            raise UsageError("browse-rooms requires a type (channel|discussion|quick-question)")
+        room_type = self._ROOM_TYPE_ALIASES.get(room_type, room_type)
         data = self._get(f"/rooms/browse/{room_type}", {
             "limit":  limit,
             "cursor": cursor or None,
@@ -3170,17 +3175,17 @@ class DC(Runtime):
     # ── Rooms ──────────────────────────────────────────────────────
 
     @skill_command(name="rooms",
-                   help="List rooms you are subscribed to [--type channel|direct|...] [--limit N] [--cursor TOKEN]",
+                   help="List rooms you are subscribed to [--type channel|dm|group|discussion|quick-question|event] [--limit N] [--cursor TOKEN]",
                    parser=_DCCore._parse_list_args,
                    args={**_PAGINATION_ARGS,
                          "type": {"type": "string",
-                                  "enum": ["channel", "direct", "group", "discussion", "activity", "event"],
+                                  "enum": ["channel", "dm", "group", "discussion", "quick-question", "event"],
                                   "description": "Filter rooms by type (includes DMs and group DMs)"}})
     def rooms(self, room_type="", limit=50, cursor=None):
         return self._core.rooms(room_type=room_type, limit=limit, cursor=cursor)
 
     @skill_command(name="browse-rooms",
-                   help="Browse public rooms by type (channel|discussion|activity) [--limit N] [--cursor TOKEN]",
+                   help="Browse public rooms by type (channel|discussion|quick-question) [--limit N] [--cursor TOKEN]",
                    parser=_DCCore._parse_id_with_limit,
                    args=_PAGINATION_ARGS)
     def browse_rooms(self, room_type, limit=50, cursor=None):

@@ -41,3 +41,30 @@ def call_kind_label(kind: Any) -> str:
 
 def is_global_event(event: dict) -> bool:
     return str(event.get("eventType") or "").lower() in GLOBAL_EVENT_TYPES
+
+
+def room_title(room: dict, me: str = "") -> str:
+    """The title the app shows for a room.
+
+    The API's `displayName` is the web's own rule (a DM is named after the other
+    participant). Older servers only send the stored `name`/`roomName`, which for
+    a DM is empty or "A & B" including you — drop your own name from that, and
+    label a nameless DM plainly rather than showing its raw id."""
+    if not isinstance(room, dict):
+        return ""
+    shown = str(room.get("displayName") or "").strip()
+    if shown:
+        return shown
+    participant = room.get("participant") if isinstance(room.get("participant"), dict) else {}
+    if participant.get("displayName"):
+        return str(participant["displayName"])
+    name = str(room.get("name") or room.get("roomName") or "").strip()
+    room_id = str(room.get("roomID") or "")
+    is_dm = room_id.startswith("dm_") or str(room.get("type") or room.get("roomType") or "") in ("dm", "direct")
+    if is_dm:
+        parts = [p.strip() for p in name.split(" & ") if p.strip()]
+        others = [p for p in parts if me and p.lower() != me.strip().lower()]
+        if me and others and len(others) < len(parts):
+            return " & ".join(others)
+        return name or "Direct message"
+    return name or room_id

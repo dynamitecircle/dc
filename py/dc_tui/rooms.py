@@ -10,7 +10,7 @@ from .data import Fetched
 import re
 
 from .format import fmt_date, pad, plural, trunc, display_width
-from .labels import room_type_label
+from .labels import room_title, room_type_label
 from .listing import ListDetailScreen, dict_of, esc, items_of, plain
 from .screens import SECTIONS, WEB_APP
 
@@ -56,6 +56,8 @@ class RoomsScreen(ListDetailScreen):
     def fetch_rows(self, force: bool) -> List[dict]:
         data = self.app.data  # type: ignore[attr-defined]
         unread = data.fetch("inbox", force=force)
+        me = dict_of(data.fetch("profile"))
+        self._me_name = str(me.get("displayName") or "")
         self._unread = {r.get("roomID"): int(r.get("badgeCount") or 0) for r in items_of(unread)}
         fetched = data.fetch("rooms", self.room_type, force=force) if self.room_type else data.fetch("rooms", force=force)
         if fetched.error and fetched.data is None:
@@ -71,10 +73,19 @@ class RoomsScreen(ListDetailScreen):
     def row_key(self, item: dict, index: int) -> str:
         return str(item.get("roomID") or index)
 
+    def base_columns(self):
+        cols = super().base_columns()
+        if self.list_tab not in ("all", ""):
+            cols = tuple(c for c in cols if c != "Type")     # every row has the tab's type
+        return cols
+
+    def title_of(self, item: dict) -> str:
+        return room_title(item, getattr(self, "_me_name", ""))
+
     def row_cells(self, item: dict) -> Tuple[str, ...]:
         unread = self._unread.get(item.get("roomID"), 0)
         cells = {
-            "Room":     item.get("name") or _dm_label(item),
+            "Room":     self.title_of(item),
             "Type":     room_type_label(item.get("type")),
             "Unread":   str(unread) if unread else "",
             "Activity": fmt_date(item.get("lastActivityAt")),
@@ -100,6 +111,8 @@ class RoomsScreen(ListDetailScreen):
         item = self._detail_item or {}
         flags = self._flags(item)
         acts = [("Mark read", "mark_read")]
+        if isinstance(item.get("participant"), dict) and item["participant"].get("userID"):
+            acts.append(("View profile", "view_participant"))
         for flag, on, off in _TOGGLES:
             label, command, done = (off if flags.get(flag) else on)
             acts.append((label, "room('%s', '%s')" % (command, done)))
@@ -109,7 +122,7 @@ class RoomsScreen(ListDetailScreen):
         return acts
 
     def detail_title(self, item: dict) -> str:
-        return "%s  [dim]%s%s[/dim]" % (esc(item.get("name") or _dm_label(item)), room_type_label(item.get("type")), " · DC BLACK" if item.get("scope") == "dcb" else "")
+        return "%s  [dim]%s%s[/dim]" % (esc(self.title_of(item)), room_type_label(item.get("type")), " · DC BLACK" if item.get("scope") == "dcb" else "")
 
     def detail_tabs(self):
         return (("messages", "Messages"), ("summary", "AI summary"), ("info", "Info"))
@@ -211,10 +224,20 @@ class RoomsScreen(ListDetailScreen):
         if item is None:
             return
         self._pending_toggle = (str(item.get("roomID")), command)
-        self.mutate(command, item.get("roomID"), ok_text="%s %s" % (item.get("name") or _dm_label(item), done))
+        self.mutate(command, item.get("roomID"), ok_text="%s %s" % (self.title_of(item), done))
+
+    def action_view_participant(self) -> None:
+        """A DM's other person, in the terminal's People view."""
+        item = self._detail_item or self.selected() or {}
+        person = item.get("participant") if isinstance(item.get("participant"), dict) else None
+        if person:
+            self.app.open_person(dict(person))  # type: ignore[attr-defined]
 
     def action_read_messages(self) -> None:
-        item = self._detail_item if (self._detail_open or self.two_pane) and self._detail_item else self.selected()
+        from_list = getattr(self.focused, "id", None) == "list"
+        # From the list it is always the highlighted row — `_detail_item` may still be
+        # the previous tab's room while the new highlight is debounced.
+        item = self.selected() if from_list or not self._detail_item else self._detail_item
         if item is None:
             return
         self._opened.add(item.get("roomID"))
