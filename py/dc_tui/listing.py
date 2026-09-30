@@ -96,7 +96,7 @@ class ListDetailScreen(DCScreen):
     ListDetailScreen Tabs:focus Tab.-active { color: #FFB000; background: transparent; text-style: bold; }
     ListDetailScreen Tabs .underline--bar { color: $primary; background: $panel; }
     ListDetailScreen Tabs:focus .underline--bar { color: $primary; }
-    ListDetailScreen .detail-title { color: $primary; text-style: bold; height: auto; }
+    ListDetailScreen .detail-title { color: $primary; text-style: bold; height: auto; padding: 0 1; }  /* text in column 2, like the tabs */
     ListDetailScreen .detail-actions { height: auto; margin: 0 0 1 0; }
     ListDetailScreen .detail-actions .action-row { height: 1; }
     ListDetailScreen .detail-actions Button.action {
@@ -114,7 +114,7 @@ class ListDetailScreen(DCScreen):
     ListDetailScreen Button.chip.-active { background: transparent; border: none; tint: transparent; }
     ListDetailScreen Button.chip.-on { color: $primary; text-style: bold; }
     ListDetailScreen Button.chip:focus { background: transparent; color: #FFB000; text-style: bold; border: none; }
-    ListDetailScreen .detail-body { height: auto; }
+    ListDetailScreen .detail-body { height: auto; padding: 0 1; }
     ListDetailScreen .detail-table { height: auto; max-height: 100%; }
     ListDetailScreen .-hidden { display: none; }
     """
@@ -364,16 +364,17 @@ class ListDetailScreen(DCScreen):
     # ── data ──────────────────────────────────────────────────────────
     def refresh_data(self, force: bool = False) -> None:
         self.set_hint("loading…")
-        self._load_rows(force)
+        self._load_gen = getattr(self, "_load_gen", 0) + 1
+        self._load_rows(force, self._load_gen)
 
     @work(thread=True, exclusive=True, group="rows", exit_on_error=False)
-    def _load_rows(self, force: bool) -> None:
+    def _load_rows(self, force: bool, gen: int = 0) -> None:
         try:
             rows = self.fetch_rows(force)
             error = ""
         except Exception as exc:  # noqa: BLE001
             rows, error = [], str(exc)
-        self.app.call_from_thread(self._rows_loaded, rows, error)
+        self.app.call_from_thread(self._rows_arrived, gen, rows, error)
         self.app.call_from_thread(self.app.refresh_status)  # type: ignore[attr-defined]
 
     def select_key(self, key: str) -> None:
@@ -385,8 +386,17 @@ class ListDetailScreen(DCScreen):
         for i, item in enumerate(self.items):
             if self.row_key(item, i) == key:
                 table.move_cursor(row=i)
+                table.focus()                     # the deep-linked row, not whatever was auto-selected first
+                self._detail_item = item
                 self.action_open_detail()
                 return
+
+    def _rows_arrived(self, gen: int, rows: List[dict], error: str) -> None:
+        """A thread worker cannot be cancelled: a slow load for the previous tab or
+        filter can land after a newer one started. Only the latest load paints."""
+        if gen != getattr(self, "_load_gen", 0):
+            return
+        self._rows_loaded(rows, error)
 
     def _rows_loaded(self, rows: List[dict], error: str) -> None:
         self.items = rows

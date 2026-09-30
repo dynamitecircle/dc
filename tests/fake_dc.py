@@ -116,9 +116,13 @@ class FakeDC:
                                                                   "intervalEndAt": "2026-09-28", "messageCount": 3, "participantCount": 2}}
 
     def room_messages(self, room_id, limit=50, before=None):
-        self._log("room-messages", room_id)
-        return _env([{"messageID": "m2", "sentAt": "2026-09-28T10:00:00Z", "author": _M("9", "Beatriz Alves"), "text": "▌ Replying to Simon Payne in SaaS Sure!", "isHTML": False},
+        self._log("room-messages", room_id) if not before else self._log("room-messages", room_id, before)
+        if before == "older-1":
+            return _env([{"messageID": "m0", "sentAt": "2026-09-20T10:00:00Z", "author": _M("1", "Alex Harling"), "text": "First post", "isHTML": False}])
+        out = _env([{"messageID": "m2", "sentAt": "2026-09-28T10:00:00Z", "author": _M("9", "Beatriz Alves"), "text": "▌ Replying to Simon Payne in SaaS Sure!", "isHTML": False},
                      {"messageID": "m1", "sentAt": "2026-09-27T10:00:00Z", "author": _M("940", "Simon Payne"), "text": "<p>Hi <b>all</b></p>", "isHTML": True}])
+        out["cursor"] = "older-1"
+        return out
 
     def room_mute(self, room_id):
         self._log("room-mute", room_id); return {"seen": {"isMuted": True}}

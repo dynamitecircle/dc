@@ -139,6 +139,11 @@ def test_inbox_tabs_filter_chips_and_messages(tmp_path):
             assert all(b.region.right <= scr.detail_pane().region.right for b in scr.query("Button.action") if b.display and b.region.width), width
             body = str(scr.query_one("#detail-body-pane").render())
             assert "replying to Simon" in body and "Hi all" in body and body.index("Simon") < body.index("Beatriz")
+            assert "scroll up for older messages" in body
+            scr.load_older(); await settle(pilot, 1.5)                        # what wheel / PageUp at the top does
+            body = str(scr.query_one("#detail-body-pane").render())
+            assert "First post" in body and body.index("First post") < body.index("Hi all")
+            assert "beginning of the conversation" in body
     run(go())
 
 
@@ -286,3 +291,20 @@ def test_every_section_fits_narrow_terminals(tmp_path, width):
                     assert labels and labels[0] == "← Back", labels
                     await press(pilot, "escape"); await settle(pilot, 0.6)
     run(go(), timeout=150)
+
+
+def test_a_slow_load_for_the_previous_tab_never_paints(tmp_path):
+    """Switching tabs while the old tab is still loading must not paint the old
+    tab's rows into the new one (Following: DCers rows shown as 'DC ? Chapter')."""
+    async def go():
+        app, _ = make_app(tmp_path)
+        async with app.run_test(size=(110, 30)) as pilot:
+            await settle(pilot, 1.0)
+            app.action_goto_section("following"); await settle(pilot, 1.5)
+            scr = app.screen
+            scr.refresh_data()                       # gen N  (DCers)
+            stale_gen = scr._load_gen
+            scr.list_tab = "chapters"; scr.refresh_data(); await settle(pilot, 1.5)
+            scr._rows_arrived(stale_gen, [{"userID": "1", "displayName": "Alex Harling"}], "")
+            assert all(r.get("cityID") for r in scr.items), scr.items
+    run(go())

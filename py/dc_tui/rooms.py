@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
+from textual import work
 from textual.binding import Binding
 
 from .data import Fetched
@@ -48,6 +49,9 @@ class RoomsScreen(ListDetailScreen):
         self._unread = {}
         self._opened = set()       # rooms whose messages the user explicitly asked to read
         self._toggled: Dict[str, Dict[str, bool]] = {}   # roomID → seen flags changed this session
+        # roomID → older pages loaded by scrolling up: {"items", "cursor", "loading", "done"}
+        self._older: Dict[str, Dict[str, Any]] = {}
+        self._keep_scroll: Optional[Tuple[float, float]] = None
 
     @property
     def room_type(self) -> str:
@@ -157,6 +161,8 @@ class RoomsScreen(ListDetailScreen):
         out = {"room": data.fetch("room", room_id, force=force)}
         if room_id in self._opened and (self.detail_tab or "messages") == "messages":
             out["messages"] = data.fetch("room-messages", room_id, limit=25, force=force)
+            if force:
+                self._older.pop(str(room_id), None)      # a refresh starts from the newest page again
         return out
 
     def render_detail(self, item: dict, data: Any) -> List[str]:
@@ -215,13 +221,22 @@ class RoomsScreen(ListDetailScreen):
     def _render_messages(self, item: dict, data: dict) -> List[str]:
         if "messages" not in data:
             return ["[dim]Enter, → or the Read messages button loads the latest messages (read-only).[/dim]"]
-        messages = items_of(data["messages"])
+        first = items_of(data["messages"])
+        older = self._older.get(str(item.get("roomID")), {})
+        messages = first + list(older.get("items") or [])          # newest first, then older pages
         width = self.detail_width()
         lines: List[str] = []
+        cursor = older.get("cursor") if older else dict_of(data["messages"]).get("cursor")
+        if older.get("loading"):
+            lines += ["[dim]loading older messages…[/dim]", ""]
+        elif cursor and not older.get("done"):
+            lines += ["[dim]↑ scroll up for older messages[/dim]", ""]
+        elif messages:
+            lines += ["[dim]beginning of the conversation[/dim]", ""]
         if data["messages"].error and not messages:
             lines.append("[$warning]%s[/]" % esc(data["messages"].error))
         # chat order: oldest first, the newest message last (the "last page")
-        for m in reversed(messages[:25]):
+        for m in reversed(messages):
             author = m.get("author") if isinstance(m.get("author"), dict) else {}
             who = author.get("displayName") or author.get("userName") or "system"
             when = fmt_date(m.get("sentAt"))
@@ -273,10 +288,74 @@ class RoomsScreen(ListDetailScreen):
         self.action_read_messages()
 
     def _paint_detail(self) -> None:
+        pane = self.detail_pane() if self.two_pane else self.main_pane()
+        keep, self._keep_scroll = self._keep_scroll, None
         super()._paint_detail()
         if (self.detail_tab or "messages") == "messages" and isinstance(self._detail_data, dict) and "messages" in self._detail_data:
-            pane = self.detail_pane() if self.two_pane else self.main_pane()
-            self.call_after_refresh(lambda: pane.scroll_end(animate=False))   # land on the newest message
+            if keep is not None:
+                # older messages were added above: stay on the message you were reading
+                old_max, old_y = keep
+                self.call_after_refresh(lambda: pane.scroll_to(y=pane.max_scroll_y - old_max + old_y, animate=False))
+            else:
+                self.call_after_refresh(lambda: pane.scroll_end(animate=False))   # land on the newest message
+
+    # ── older messages: scroll up past the top to load the previous page ──
+    def _at_messages_top(self) -> bool:
+        if (self.detail_tab or "messages") != "messages" or not isinstance(self._detail_data, dict) or "messages" not in self._detail_data:
+            return False
+        pane = self.detail_pane() if self.two_pane else self.main_pane()
+        return pane.scroll_y <= 0
+
+    def load_older(self) -> None:
+        item = self._detail_item
+        if item is None or not isinstance(self._detail_data, dict) or "messages" not in self._detail_data:
+            return
+        room_id = str(item.get("roomID"))
+        state = self._older.setdefault(room_id, {"items": [], "cursor": dict_of(self._detail_data["messages"]).get("cursor"),
+                                                 "loading": False, "done": False})
+        if state["loading"] or state["done"] or not state["cursor"]:
+            return
+        state["loading"] = True
+        self._paint_detail_keeping()
+        self._fetch_older(room_id, state["cursor"])
+
+    @work(thread=True, exclusive=True, group="older", exit_on_error=False)
+    def _fetch_older(self, room_id: str, cursor: str) -> None:
+        fetched = self.app.data.fetch("room-messages", room_id, limit=25, before=cursor)  # type: ignore[attr-defined]
+        self.app.call_from_thread(self._older_arrived, room_id, fetched)
+
+    def _older_arrived(self, room_id: str, fetched: Fetched) -> None:
+        state = self._older.get(room_id)
+        if state is None:
+            return
+        state["loading"] = False
+        if fetched.error:
+            self.notify("Couldn't load older messages: %s" % fetched.error, severity="warning", timeout=5)
+        else:
+            page = items_of(fetched)
+            seen = {m.get("messageID") for m in state["items"]}
+            state["items"] += [m for m in page if m.get("messageID") not in seen]
+            state["cursor"] = dict_of(fetched).get("cursor")
+            state["done"] = not state["cursor"] or not page
+        if self._detail_item is not None and str(self._detail_item.get("roomID")) == room_id:
+            self._paint_detail_keeping()
+
+    def _paint_detail_keeping(self) -> None:
+        pane = self.detail_pane() if self.two_pane else self.main_pane()
+        self._keep_scroll = (pane.max_scroll_y, pane.scroll_y)
+        self._paint_detail()
+
+    def _detail_scroll(self, step: int, *, page: bool = False, edge: bool = False) -> None:
+        at_top = self._at_messages_top()
+        super()._detail_scroll(step, page=page, edge=edge)
+        if step < 0 and at_top:
+            self.load_older()                 # ↑ / PageUp / Home at the top → the previous page
+
+    def on_mouse_scroll_up(self, event) -> None:
+        # the pane swallows wheel events while it can still scroll; one that reaches
+        # the screen means the conversation is already at its top
+        if self._at_messages_top():
+            self.load_older()
 
     def _queue_detail(self, item: dict) -> None:
         """Highlighting shows Info (cheap) unless this room was already opened."""
