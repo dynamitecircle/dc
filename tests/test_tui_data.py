@@ -394,6 +394,7 @@ def test_room_title_follows_the_app_rule():
     assert room_title({"roomID": "dm_1_940", "type": "dm", "name": "Matt Graham & Simon Payne"}, "Simon Payne") == "Matt Graham"
     assert room_title({"roomID": "dm_1_940", "type": "dm", "name": "Simon Payne & Vera Nguyenova"}, "Simon Payne") == "Vera Nguyenova"
     assert room_title({"roomID": "dm_1_940", "type": "dm", "name": ""}, "Simon Payne") == "Direct message"
+    assert room_title({"roomID": "dm_940_v", "type": "dm", "name": "Direct message dm_940_v"}, "Simon Payne") == "Direct message"
     assert room_title({"roomID": "r2", "roomType": "channel", "roomName": "SaaS"}) == "SaaS"
     assert room_title({"roomID": "g1", "type": "group", "name": "Beatriz, Simon, Alex"}, "Simon Payne") == "Beatriz, Simon, Alex"
 
@@ -426,3 +427,13 @@ def test_profile_fields_strip_editor_html():
     lines = "\n".join(profile_lines({"displayName": "S", "relevantLocations": "<ul><li><p>Osaka</p></li><li><p>Prague</p></li></ul>",
                                      "expertise": "<ul><li><p>SAAS</p></li></ul>"}, width=80))
     assert "<" not in lines and "Osaka, Prague" in lines
+
+
+def test_search_message_titles_drop_the_reply_quote():
+    pytest.importorskip("textual")
+    from dc_tui.search import _title
+    hit = {"_kind": "messages", "roomName": "International Tax & Finance",
+           "body": "▌ Replying to Gert Jan van Hardeveld in International Tax & Finance Thanks, that helps"}
+    assert _title(hit) == "Thanks, that helps"
+    assert _title({"_kind": "messages", "roomName": "SEO", "body": "▌ Replying to Simon Payne in SEO What works very well"}) == "What works very well"
+    assert _title({"_kind": "messages", "roomName": "SEO", "body": "plain text"}) == "plain text"

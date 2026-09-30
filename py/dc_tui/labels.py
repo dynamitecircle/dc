@@ -62,6 +62,8 @@ def room_title(room: dict, me: str = "") -> str:
     room_id = str(room.get("roomID") or "")
     is_dm = room_id.startswith("dm_") or str(room.get("type") or room.get("roomType") or "") in ("dm", "direct")
     if is_dm:
+        if name.lower().startswith("direct message"):
+            return "Direct message"          # search-index placeholder ("Direct message dm_940_…")
         parts = [p.strip() for p in name.split(" & ") if p.strip()]
         others = [p for p in parts if me and p.lower() != me.strip().lower()]
         if me and others and len(others) < len(parts):

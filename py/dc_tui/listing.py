@@ -34,6 +34,7 @@ from textual.widgets import Button, DataTable, Input, Static, Tab, Tabs
 
 from .data import Fetched
 from .format import display_width, trunc
+from .widgets import HoverTable
 from .screens import DCScreen
 
 _TAGS = re.compile(r"<[^>]+>")
@@ -101,9 +102,9 @@ class ListDetailScreen(DCScreen):
         height: 1; min-width: 0; border: none; padding: 0 1; margin: 0 1 0 0;
         background: $panel; color: $text; text-style: none;
     }
-    ListDetailScreen .detail-actions Button.action:hover { background: $primary; color: #FFFFFF; border: none; }
+    ListDetailScreen .detail-actions Button.action:hover { background: $block-cursor-background; color: $block-cursor-foreground; border: none; }
     ListDetailScreen .detail-actions Button.action.-active { border: none; tint: transparent; }
-    ListDetailScreen .detail-actions Button.action:focus { background: $primary; color: #FFFFFF; text-style: bold; border: none; }
+    ListDetailScreen .detail-actions Button.action:focus { background: $block-cursor-background; color: $block-cursor-foreground; text-style: bold; border: none; }
     ListDetailScreen .detail-actions Button.action.back { background: $surface; color: $primary; }
     ListDetailScreen #list-filters { height: 1; margin: 0; }
     ListDetailScreen Button.chip { height: 1; min-width: 0; border: none; padding: 0; margin: 0 1 0 0;  /* Button line-pad (1) is the only inset: label starts in column 2 */
@@ -142,7 +143,7 @@ class ListDetailScreen(DCScreen):
         if self.LIST_FILTERS:
             widgets.append(Horizontal(*[Button(label, id="chip-" + fid, classes="chip" + (" -on" if fid == self.list_filter else ""))
                                         for fid, label in self.LIST_FILTERS], id="list-filters"))
-        widgets += [Static("", id="list-hint"), DataTable(id="list", cursor_type="row", zebra_stripes=True),
+        widgets += [Static("", id="list-hint"), HoverTable(id="list", cursor_type="row", zebra_stripes=True),
                     Vertical(*self._detail_widgets_for("inline"), id="detail-inline", classes="-hidden")]
         self.set_main(*widgets)
         self.detail_pane().mount(*self._detail_widgets_for("pane"))
@@ -155,7 +156,7 @@ class ListDetailScreen(DCScreen):
                 Static("", id="detail-title-" + suffix, classes="detail-title"),
                 Vertical(id="detail-actions-" + suffix, classes="detail-actions"),
                 Static("", id="detail-body-" + suffix, classes="detail-body"),
-                DataTable(id="detail-table-" + suffix, cursor_type="row", zebra_stripes=True, classes="detail-table")]
+                HoverTable(id="detail-table-" + suffix, cursor_type="row", zebra_stripes=True, classes="detail-table")]
 
     # ── action buttons (mouse-first; Tab/Enter on the keyboard) ───────
     def detail_actions(self) -> Sequence[Tuple[str, str]]:

@@ -2,12 +2,13 @@
 Messages · Events · Chapters. Enter on a hit jumps to it."""
 from __future__ import annotations
 
+import re
 from typing import Any, List, Sequence, Tuple
 
 from textual.widgets import Input
 
 from .format import event_dates, flag, fmt_date, plural, strip_markdown, trunc
-from .labels import event_type_label, room_type_label
+from .labels import event_type_label, room_title, room_type_label
 from .profile import profile_lines
 from .listing import ListDetailScreen, dict_of, esc, items_of, plain
 from .screens import WEB_APP
@@ -94,9 +95,12 @@ class SearchScreen(ListDetailScreen):
         return "%s:%s" % (item.get("_kind"), _id(item) or index)
 
     def row_cells(self, item: dict) -> Tuple[str, ...]:
-        icon = {"profiles": "👤 ", "events": "📅 ", "rooms": "# ", "messages": "💬 ",
+        room_icon = {"dm": "👤 ", "group": "👥 "}.get(str(item.get("type") or ""), "# ")
+        icon = {"profiles": "👤 ", "events": "📅 ", "rooms": room_icon, "messages": "💬 ",
                 "chapters": (flag(item.get("countryCode")) or "📍") + " "}.get(str(item.get("_kind")), "")
-        cells = {"Result": icon + _title(item), "Type": _kind_label(item.get("_kind")), "Where": _detail(item)}
+        me = self._me()
+        kind = room_type_label(item.get("type")) if item.get("_kind") == "rooms" else _kind_label(item.get("_kind"))
+        cells = {"Result": icon + _title(item, me), "Type": kind, "Where": _detail(item, me)}
         return tuple(cells[c] for c in self._columns())
 
     # ── detail ────────────────────────────────────────────────────────
@@ -104,7 +108,11 @@ class SearchScreen(ListDetailScreen):
         return [("Open", "open_hit"), ("Open in app", "app.open_in_browser")]
 
     def detail_title(self, item: dict) -> str:
-        return "%s  [dim]%s[/dim]" % (esc(_title(item)), _kind_label(item.get("_kind")))
+        return "%s  [dim]%s[/dim]" % (esc(_title(item, self._me())), _kind_label(item.get("_kind")))
+
+    def _me(self) -> str:
+        cached = self.app.data.cached("profile")  # type: ignore[attr-defined]
+        return str(dict_of(cached).get("displayName") or "") if cached is not None else ""
 
     def render_detail(self, item: dict, data: Any) -> List[str]:
         """A readable preview per content type — Open (or Enter) goes to the full thing."""
@@ -181,37 +189,49 @@ def _kind_label(kind) -> str:
     return {"profiles": "DCer", "rooms": "room", "messages": "message", "events": "event", "chapters": "chapter"}.get(str(kind), str(kind or ""))
 
 
-def _title(item: dict) -> str:
+_REPLY_LEAD = re.compile(r"^[^\w@]*replying to ", re.IGNORECASE)
+
+
+def _strip_reply(text: str, room: str) -> str:
+    """A reply's body starts with a quote bar and "Replying to <who> in <room>";
+    show only what was actually written. The hit names the room, so the cut is exact."""
+    m = _REPLY_LEAD.match(text)
+    if not m:
+        return text.lstrip("▌▍▎▏│┃> ")
+    rest = text[m.end():]
+    if room and (" in " + room) in rest:
+        return rest.split(" in " + room, 1)[1].strip()
+    return rest.split(" in ", 1)[1].split(" ", 1)[-1].strip() if " in " in rest else rest
+
+
+def _title(item: dict, me: str = "") -> str:
     kind = item.get("_kind")
     if kind == "messages":
         body = str(item.get("body") or item.get("text") or item.get("content") or item.get("snippet") or "")
         # HTML → text, drop a quoted-reply prefix ("Replying to X in Y …"), then any markdown
         text = plain(body, True)
-        if text.lower().startswith("replying to ") and " in " in text:
-            text = text.split(" in ", 1)[1]
-            text = text.split(" ", 1)[1] if " " in text else ""     # after the room name
+        text = _strip_reply(text, str(item.get("roomName") or ""))
         lines = [ln for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith(">")]
         return strip_markdown(" ".join(lines) if lines else text) or "(attachment)"
     if kind == "chapters":
         return str(item.get("cityName") or item.get("name") or item.get("cityID") or "")
     if kind == "rooms":
-        name = item.get("name") or item.get("roomName")
-        if name:
-            return str(name)
-        kind_label = {"dm": "Direct message", "group": "Group chat"}.get(str(item.get("type") or ""), "Room")
-        return "%s %s" % (kind_label, str(item.get("roomID") or "")[:8])
+        return room_title(item, me) or "Room"          # the app's name: a DM is the other person
     return str(item.get("displayName") or item.get("name") or item.get("title") or item.get("roomName") or item.get("userName") or "")
 
 
-def _detail(item: dict) -> str:
+def _detail(item: dict, me: str = "") -> str:
     kind = item.get("_kind")
     if kind == "profiles":
         return plain(item.get("headline") or item.get("businessName") or "")
     if kind == "rooms":
-        return " · ".join(x for x in (room_type_label(item.get("type")), plain(item.get("description") or "")) if x)
+        stats = item.get("stats") if isinstance(item.get("stats"), dict) else {}
+        members = "%s members" % stats["subscribers"] if stats.get("subscribers") and item.get("type") != "dm" else ""
+        return " · ".join(x for x in (plain(item.get("description") or ""), members) if x)
     if kind == "messages":
         author = item.get("author") if isinstance(item.get("author"), dict) else {}
-        return "%s · %s · %s" % (item.get("roomName") or "", author.get("displayName") or item.get("authorName") or "", fmt_date(item.get("sentAt") or item.get("createdAt")))
+        room = room_title({"roomName": item.get("roomName"), "roomID": item.get("roomID"), "roomType": item.get("roomType")}, me)
+        return "%s · %s · %s" % (room, author.get("displayName") or item.get("authorName") or "", fmt_date(item.get("sentAt") or item.get("createdAt")))
     if kind == "events":
         return "%s · %s" % (event_dates({"startDate": item.get("startDate") or item.get("startAt"), "endDate": item.get("endDate") or item.get("endAt"),
                                           "isDateConfirmed": item.get("isDateConfirmed")}), event_type_label(item.get("eventType")))

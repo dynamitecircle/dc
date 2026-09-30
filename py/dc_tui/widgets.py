@@ -7,8 +7,52 @@ from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 from textual.app import ComposeResult
 from textual.containers import Vertical
-from textual.widgets import OptionList
+from textual.widgets import DataTable, Input, OptionList
 from textual.widgets.option_list import Option
+
+
+def _focus_unless_typing(widget) -> None:
+    """Pointing at a list takes the keyboard too — unless you are typing in a field."""
+    focused = widget.screen.focused if widget.is_attached else None
+    if not isinstance(focused, Input) and focused is not widget:
+        widget.focus()
+
+
+class HoverTable(DataTable):
+    """A row table where the mouse and the keyboard share ONE highlight: pointing
+    at a row moves the cursor there, so there is never a hover row and a cursor
+    row coloured at the same time."""
+
+    def watch_hover_coordinate(self, old, value) -> None:
+        super().watch_hover_coordinate(old, value)
+        if not self.is_mounted or value == old or not self.row_count:
+            return
+        if not getattr(self, "_mouse_inside", False):
+            return                      # a programmatic reset (clear / refill), not the mouse
+        if 0 <= value.row < self.row_count and value.row != self.cursor_row:
+            self.move_cursor(row=value.row, animate=False)
+        _focus_unless_typing(self)
+
+    def on_enter(self, event) -> None:
+        self._mouse_inside = True
+
+    def on_leave(self, event) -> None:
+        self._mouse_inside = False
+
+
+class HoverOptionList(OptionList):
+    """Same single-highlight rule for the card lists (Home, Locator, Me)."""
+
+    def watch__mouse_hovering_over(self, value) -> None:
+        if value is None or value == self.highlighted:
+            return
+        try:
+            if self.get_option_at_index(value).disabled:
+                return                  # headings are not rows you can pick
+        except Exception:  # noqa: BLE001
+            return
+        self.highlighted = value
+        _focus_unless_typing(self)
 
 
 class Panel(Vertical):
@@ -28,8 +72,9 @@ class Panel(Vertical):
         height: auto; border: none; padding: 0; background: $background; scrollbar-size: 0 0;
     }
     Panel > OptionList:focus { border: none; }
-    Panel > OptionList > .option-list--option-highlighted { background: $primary; color: #FFFFFF; text-style: bold; }
-    Panel > OptionList:focus > .option-list--option-highlighted { background: $primary; color: #FFFFFF; text-style: bold; }
+    Panel > OptionList > .option-list--option-highlighted { background: $block-cursor-background; color: $block-cursor-foreground; text-style: bold; }
+    Panel > OptionList:focus > .option-list--option-highlighted { background: $block-cursor-background; color: $block-cursor-foreground; text-style: bold; }
+    Panel > OptionList > .option-list--option-hover { background: transparent; }
     Panel > OptionList:blur > .option-list--option-highlighted { background: $background; color: $text; text-style: none; }
     Panel > OptionList > .option-list--option-disabled { color: $text-muted; }
     Panel.-loading { border-subtitle-color: $warning; }
@@ -42,7 +87,7 @@ class Panel(Vertical):
         self.targets: List[Any] = []
 
     def compose(self) -> ComposeResult:
-        yield OptionList()
+        yield HoverOptionList()
 
     def row_width(self) -> int:
         """Columns a row can use once laid out (0 before layout) — measured, not

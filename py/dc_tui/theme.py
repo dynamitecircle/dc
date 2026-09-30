@@ -21,6 +21,7 @@ GREY_100 = "#F1F2F3"
 MINT = "#80B088"          # dc-mint 600
 MINT_DARK = "#4D7D55"     # dc-mint 800 — hover background, white text stays readable
 GOLD = "#EDB34A"          # dc-gold 600
+HIGHLIGHT = "#FFB000"     # the one highlight colour: cursor row, focused button, focused tab
 
 DC_THEME = Theme(
     name="dc",
@@ -36,12 +37,13 @@ DC_THEME = Theme(
     panel=GREY_700,
     dark=True,
     variables={
-        "block-cursor-background": ORANGE,
-        "block-cursor-foreground": "#FFFFFF",
+        "block-cursor-background": HIGHLIGHT,
+        "block-cursor-foreground": GREY_900,
         "block-cursor-text-style": "bold",
-        "block-cursor-blurred-background": ORANGE_DARK,
-        "block-cursor-blurred-foreground": "#FFFFFF",
-        "block-hover-background": MINT_DARK,
+        # an unfocused list keeps its place in gray, never a second colour
+        "block-cursor-blurred-background": GREY_700,
+        "block-cursor-blurred-foreground": GREY_100,
+        "block-hover-background": GREY_900,
         "footer-key-foreground": ORANGE,
         "footer-description-foreground": GREY_300,
         "border": GREY_600,

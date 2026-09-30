@@ -122,9 +122,10 @@ class DCApp(App):
     CSS = """
     Screen { layout: vertical; background: $background; }
     * { scrollbar-size: 0 0; }
-    DataTable > .datatable--hover { background: #4D7D55; color: #FFFFFF; }
-    OptionList > .option-list--option-hover { background: #4D7D55; color: #FFFFFF; }
-    Button.action:hover { background: #FF8C5C; color: #FFFFFF; }
+    /* ONE highlight colour, gold, and one highlighted row: hover moves the cursor */
+    DataTable > .datatable--hover { background: transparent; }
+    OptionList > .option-list--option-hover { background: transparent; }
+    Button.action:hover { background: $block-cursor-background; color: $block-cursor-foreground; }
     /* Tabs: never a background. Inactive tabs light gray; the active tab is orange with the
        orange underline; gold (#FFB000) only on the tab under the keyboard cursor */
     Tabs { background: $background; }
