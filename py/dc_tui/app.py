@@ -122,29 +122,30 @@ class DCApp(App):
     CSS = """
     Screen { layout: vertical; background: $background; }
     * { scrollbar-size: 0 0; }
-    Header { background: $surface; color: $text; }
+    Header { background: $background; color: $text; }
     DataTable > .datatable--hover { background: #4D7D55; color: #FFFFFF; }
     OptionList > .option-list--option-hover { background: #4D7D55; color: #FFFFFF; }
     Button.action:hover { background: #FF8C5C; color: #FFFFFF; }
-    /* Tabs: text colour only — never a background — in orange shades */
+    /* Tabs: DC orange text and underline, never a background; the active or
+       focused tab is gold (the Hive prompt's #FFB000 family) */
     Tabs { background: $background; }
-    #nav-tabs { height: 2; background: $surface; }
-    Tab { color: $text-muted; background: transparent; }
+    #nav-tabs { height: 2; background: $background; }
+    Tab { color: $primary; background: transparent; }
     Tab:hover { color: #FF8C5C; background: transparent; text-style: none; }
-    Tab.-active { color: $primary; background: transparent; text-style: bold; }
-    Tab.-active:hover { color: #FFC499; background: transparent; }
-    Tabs:focus Tab.-active { color: #FFC499; background: transparent; text-style: bold; }
-    Tabs .underline--bar { color: $primary; background: $panel; }
-    Tabs:focus .underline--bar { color: #FFC499; }
+    Tab.-active { color: #FFB000; background: transparent; text-style: bold; }
+    Tab.-active:hover { color: #FFC940; background: transparent; }
+    Tabs:focus Tab.-active { color: #FFC940; background: transparent; text-style: bold underline; }
+    Tabs .underline--bar { color: $primary; background: $background; }
+    Tabs:focus .underline--bar { color: $primary; }
     HeaderIcon { display: none; }
-    Header HeaderTitle { color: $primary; text-style: bold; }
-    Footer { background: $surface; }
+    Header HeaderTitle { color: $primary; text-style: bold; content-align: left middle; text-align: left; padding: 0 1; }
+    Footer { background: $background; }
     #body { height: 1fr; }
     #main { width: 1fr; height: 1fr; padding: 1 1 0 1; }
     Screen.compact #main { padding: 0; }
     #detail { width: 45%; height: 1fr; border-left: solid $panel-lighten-2; padding: 0 1; }
     Screen.wide #detail { width: 55%; }
-    StatusBar { height: 1; background: $surface; color: $text-muted; padding: 0 1; }
+    StatusBar { height: 1; background: $background; color: $text-muted; padding: 0 1; }
     .section-title { text-style: bold; color: $primary; }
     .muted { color: $text-muted; }
     .warn { color: $warning; }

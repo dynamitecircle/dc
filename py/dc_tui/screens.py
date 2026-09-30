@@ -705,7 +705,8 @@ class HomeScreen(DCScreen):
             trips = [t for t in (c.get("comingTrips") or []) + (c.get("newTrips") or []) if isinstance(t, dict)]
             ev = len(c.get("comingEvents") or []) + len(c.get("newEvents") or [])
             bits = [b for b in ((plural(len(trips), "visitor") if trips else ""), (plural(ev, "event") if ev else "")) if b]
-            lines.append((guard_flags("%s [dim]%s · %s[/dim]" % (flag(c.get("countryCode")) or "★", _escape(c.get("cityName") or ""), " · ".join(bits) or "quiet")), ("locator", None)))
+            # heading icons are all 2-cell emoji so the text lines up; the flag rides after the name
+            lines.append((guard_flags("📍 [dim]%s[/dim] %s [dim]· %s[/dim]" % (_escape(c.get("cityName") or ""), flag(c.get("countryCode")), " · ".join(bits) or "quiet")), ("locator", None)))
             for t in trips[:3]:
                 m = member(t)
                 lines.append((align_row(width, m.get("displayName") or "DCer", date_range(t.get("startDate"), t.get("endDate")), prefix="👤 "), ("person", m)))
@@ -719,13 +720,13 @@ class HomeScreen(DCScreen):
                     seen.add(m["userID"])
                     moving.append((m, row))
         if moving:
-            lines.append(("★ [dim]DCers you follow[/dim]", None))
+            lines.append(("⭐ [dim]DCers you follow[/dim]", None))
             for m, row in moving[:4]:
                 where = row.get("eventName") or (row.get("location") or {}).get("city") if isinstance(row.get("location"), dict) else row.get("eventName")
                 lines.append((align_row(width, m.get("displayName") or "DCer", date_range(row.get("startDate"), row.get("endDate")), where or "", prefix="👤 "), ("person", m)))
-            if len(moving) > 4:
-                lines.append(("   [dim]+%d more in the Locator[/dim]" % (len(moving) - 4), ("locator", None)))
-        lines.append(("[dim]open the full Locator →[/dim]", ("locator", None)))
+        more = max(0, len(moving) - 4)
+        tail = ("+%d more · open the full Locator →" % more) if more else "open the full Locator →"
+        lines.append(("[dim]%s[/dim]" % tail, ("locator", None)))
         return lines, _subtitle("Friday digest", f)
 
     def _render_me(self, results: List[Fetched]) -> Tuple[List[str], str]:
