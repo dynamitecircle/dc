@@ -126,15 +126,15 @@ class DCApp(App):
     DataTable > .datatable--hover { background: #4D7D55; color: #FFFFFF; }
     OptionList > .option-list--option-hover { background: #4D7D55; color: #FFFFFF; }
     Button.action:hover { background: #FF8C5C; color: #FFFFFF; }
-    /* Tabs: DC orange text and underline, never a background; the active or
-       focused tab is gold (the Hive prompt's #FFB000 family) */
+    /* Tabs: DC orange text, never a background. The active tab is orange with the
+       orange underline; gold (#FFB000) only on the tab under the keyboard cursor */
     Tabs { background: $background; }
     #nav-tabs { height: 2; background: $background; }
     Tab { color: $primary; background: transparent; }
     Tab:hover { color: #FF8C5C; background: transparent; text-style: none; }
-    Tab.-active { color: #FFB000; background: transparent; text-style: bold; }
-    Tab.-active:hover { color: #FFC940; background: transparent; }
-    Tabs:focus Tab.-active { color: #FFC940; background: transparent; text-style: bold underline; }
+    Tab.-active { color: $primary; background: transparent; text-style: bold; }
+    Tab.-active:hover { color: #FF8C5C; background: transparent; }
+    Tabs:focus Tab.-active { color: #FFB000; background: transparent; text-style: bold; }
     Tabs .underline--bar { color: $primary; background: $panel; }
     Tabs:focus .underline--bar { color: $primary; }
     HeaderIcon { display: none; }
