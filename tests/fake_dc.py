@@ -121,6 +121,8 @@ class FakeDC:
             return _env([{"messageID": "m0", "sentAt": "2026-09-20T10:00:00Z", "author": _M("1", "Alex Harling"), "text": "First post", "isHTML": False}])
         out = _env([{"messageID": "m2", "sentAt": "2026-09-28T10:00:00Z", "author": _M("9", "Beatriz Alves"), "text": "▌ Replying to Simon Payne in SaaS Sure!", "isHTML": False},
                      {"messageID": "m1", "sentAt": "2026-09-27T10:00:00Z", "author": _M("940", "Simon Payne"), "text": "<p>Hi <b>all</b></p>", "isHTML": True}])
+        out["items"].insert(0, {"messageID": "img-" + room_id, "sentAt": "2026-09-29T10:00:00Z", "author": _M("2", "Till Carlos"), "type": "image",
+                                "text": "sunset", "attachment": {"kind": "image", "url": "https://cdn.example/sunset.jpg"}})
         out["items"].append({"messageID": "mx-" + room_id, "sentAt": "2026-09-26T10:00:00Z", "author": _M("2", "Till Carlos"),
                              "text": "only in " + room_id, "isHTML": False})
         out["cursor"] = "older-1"

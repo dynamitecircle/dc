@@ -326,3 +326,20 @@ def test_switching_rooms_never_shows_the_previous_rooms_messages(tmp_path):
             body = str(scr.query_one("#detail-body-inline").render())
             assert "only in r2" in body and "only in r1" not in body
     run(go())
+
+
+def test_image_messages_are_a_clickable_link(tmp_path):
+    async def go():
+        app, _ = make_app(tmp_path)
+        opened = []
+        app.open_url = lambda url, **kw: opened.append(url)
+        async with app.run_test(size=(90, 40)) as pilot:
+            await settle(pilot, 1.0); await press(pilot, "2"); await settle(pilot, 1.5)
+            scr = app.screen
+            table = scr.query_one("#list", DataTable); table.focus(); table.move_cursor(row=1); await settle(pilot, 0.3)
+            await press(pilot, "enter"); await settle(pilot, 1.5)
+            body = str(scr.query_one("#detail-body-inline").render())
+            assert "Image ↗" in body and "sunset" in body
+            await scr.run_action("open_attachment(0)"); await settle(pilot, 0.3)
+            assert opened == ["https://cdn.example/sunset.jpg"]
+    run(go())

@@ -221,6 +221,7 @@ class RoomsScreen(ListDetailScreen):
     def _render_messages(self, item: dict, data: dict) -> List[str]:
         if "messages" not in data:
             return ["[dim]Enter, → or the Read messages button loads the latest messages (read-only).[/dim]"]
+        self._links: List[str] = []
         first = items_of(data["messages"])
         older = self._older.get(str(item.get("roomID")), {})
         messages = first + list(older.get("items") or [])          # newest first, then older pages
@@ -244,10 +245,24 @@ class RoomsScreen(ListDetailScreen):
             if m.get("isDeleted"):
                 lines.append("[dim](deleted)[/dim]")
             else:
-                text, reply_to = _split_reply(plain(m.get("text"), bool(m.get("isHTML"))))
+                raw = str(m.get("text") or "")
+                text, reply_to = _split_reply(plain(raw, bool(m.get("isHTML"))))
                 if reply_to:
                     lines.append("[dim]↳ replying to %s[/dim]" % esc(reply_to))
-                lines.append(esc(trunc(text, 1200)) if text else "[dim](attachment)[/dim]")
+                kind = attachment_label(m.get("type"), raw)
+                if kind:
+                    url = attachment_url(m, raw)
+                    if url:                                     # click to open it in the browser
+                        self._links.append(url)
+                        lines.append("[b][@click=screen.open_attachment(%d)]%s ↗[/][/b]" % (len(self._links) - 1, kind))
+                    else:
+                        att = m.get("attachment") if isinstance(m.get("attachment"), dict) else {}
+                        pending = " [dim](still processing)[/dim]" if att.get("videoStatus") == "processing" else ""
+                        lines.append("[b]%s[/b]%s" % (kind, pending))
+                if text:
+                    lines.append(esc(trunc(text, 1200)))
+                elif not kind:
+                    lines.append("[dim](empty message)[/dim]")
             lines.append("")
         if not messages and not data["messages"].error:
             lines.append("[dim]no messages yet[/dim]")
@@ -261,6 +276,12 @@ class RoomsScreen(ListDetailScreen):
             return
         self._pending_toggle = (str(item.get("roomID")), command)
         self.mutate(command, item.get("roomID"), ok_text="%s %s" % (self.title_of(item), done))
+
+    def action_open_attachment(self, index: int) -> None:
+        links = getattr(self, "_links", [])
+        if 0 <= int(index) < len(links):
+            self.app.open_url(links[int(index)])
+            self.notify("Opened in your browser", timeout=2)
 
     def action_view_participant(self) -> None:
         """A DM's other person, in the terminal's People view."""
@@ -398,6 +419,32 @@ _TOGGLES = (
     ("isArchived", ("Archive", "room-archive", "archived"), ("Unarchive", "room-unarchive", "unarchived")),
 )
 _FLAG_KEYS = {t[0] for t in _TOGGLES}
+
+
+_ATTACHMENT_TYPES = {"image": "🖼  Image", "video": "🎬 Video", "file": "📎 File", "custom": "🧩 Card"}
+_EMBEDDED = ((re.compile(r"<img\b", re.IGNORECASE), "🖼  Image"), (re.compile(r"<video\b|youtube\.com/embed|player\.vimeo", re.IGNORECASE), "🎬 Video"),
+             (re.compile(r"<audio\b", re.IGNORECASE), "🔊 Audio"))
+
+
+_SRC = re.compile(r"""<(?:img|video|source)\b[^>]*\bsrc=["']([^"']+)["']""", re.IGNORECASE)
+
+
+def attachment_url(message: dict, raw: str) -> str:
+    """The link to open: the API's attachment URL, else the first embedded image/video src."""
+    att = message.get("attachment") if isinstance(message.get("attachment"), dict) else {}
+    if att.get("url"):
+        return str(att["url"])
+    m = _SRC.search(raw or "")
+    return m.group(1) if m and m.group(1).startswith("http") else ""
+
+
+def attachment_label(msg_type: Any, raw: str) -> str:
+    """The message's attachment kind (the API's `type`), or media embedded in its HTML."""
+    label = _ATTACHMENT_TYPES.get(str(msg_type or ""))
+    if label:
+        return label
+    found = [name for rx, name in _EMBEDDED if rx.search(raw or "")]
+    return " · ".join(found)
 
 
 def _dm_label(room: dict) -> str:

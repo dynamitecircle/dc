@@ -437,3 +437,21 @@ def test_search_message_titles_drop_the_reply_quote():
     assert _title(hit) == "Thanks, that helps"
     assert _title({"_kind": "messages", "roomName": "SEO", "body": "▌ Replying to Simon Payne in SEO What works very well"}) == "What works very well"
     assert _title({"_kind": "messages", "roomName": "SEO", "body": "plain text"}) == "plain text"
+
+
+def test_attachments_say_what_they_are():
+    pytest.importorskip("textual")
+    from dc_tui.rooms import attachment_label
+    assert attachment_label("image", "") == "🖼  Image"
+    assert attachment_label("video", "clip") == "🎬 Video"
+    assert attachment_label("file", "") == "📎 File"
+    assert attachment_label("text", '<p>look <img src="x.png"></p>') == "🖼  Image"
+    assert attachment_label("text", "plain words") == ""
+
+
+def test_attachment_links_come_from_the_api_or_the_html():
+    pytest.importorskip("textual")
+    from dc_tui.rooms import attachment_url
+    assert attachment_url({"attachment": {"url": "https://cdn/x.jpg"}}, "") == "https://cdn/x.jpg"
+    assert attachment_url({}, '<p><img src="https://cdn/y.png"></p>') == "https://cdn/y.png"
+    assert attachment_url({"attachment": {"url": None, "videoStatus": "processing"}}, "") == ""
