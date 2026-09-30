@@ -8,6 +8,7 @@ from textual.widgets import Input
 
 from .format import event_dates, flag, fmt_date, plural, strip_markdown, trunc
 from .labels import event_type_label, room_type_label
+from .profile import profile_lines
 from .listing import ListDetailScreen, dict_of, esc, items_of, plain
 from .screens import WEB_APP
 
@@ -22,6 +23,7 @@ class SearchScreen(ListDetailScreen):
     LIST_TABS = (("all", "All"), ("profiles", "People"), ("rooms", "Rooms"), ("messages", "Messages"),
                  ("events", "Events"), ("chapters", "Chapters"))
     COLUMNS = ("Result", "Type", "Where")
+    COLUMN_DROP = ("Type",)
     COLUMNS_COMPACT = ("Result", "Type", "Where")
     COLUMN_WIDTHS = {"Type": 8, "Where": 26}
     EMPTY_TEXT = "type something above and press Enter"
@@ -105,13 +107,32 @@ class SearchScreen(ListDetailScreen):
         return "%s  [dim]%s[/dim]" % (esc(_title(item)), _kind_label(item.get("_kind")))
 
     def render_detail(self, item: dict, data: Any) -> List[str]:
-        lines = []
-        for key, val in item.items():
-            if key.startswith("_") or key in ("userID", "roomID", "eventID", "messageID", "cityID", "placeID", "objectID", "photo") \
-                    or val in (None, "", [], {}) or isinstance(val, (list, dict)) or str(key).lower().endswith("url"):
-                continue
-            lines.append("[dim]%s:[/dim] %s" % (esc(key), esc(trunc(plain(val), 300))))
-        return lines or ["[dim]no more detail[/dim]"]
+        """A readable preview per content type — Open (or Enter) goes to the full thing."""
+        kind = item.get("_kind")
+        width = self.detail_width()
+        if kind == "profiles":
+            lines = ([esc(item["headline"]), ""] if item.get("headline") else []) + profile_lines(item, width=width, header=False)
+            return lines + ["", "[dim]Open shows the full profile[/dim]"]
+        if kind == "messages":
+            author = item.get("author") if isinstance(item.get("author"), dict) else {}
+            who = author.get("displayName") or item.get("authorName") or ""
+            head = " · ".join(esc(x) for x in (who, item.get("roomName") or "", fmt_date(item.get("sentAt") or item.get("createdAt"))) if x)
+            body = plain(item.get("body") or item.get("text") or item.get("message") or "", True)
+            return ["[dim]%s[/dim]" % head, "", esc(trunc(body, 1200))]
+        if kind == "rooms":
+            stats = item.get("stats") if isinstance(item.get("stats"), dict) else {}
+            meta = [room_type_label(item.get("type")), plural(int(stats.get("subscribers") or 0), "member") if stats.get("subscribers") else ""]
+            desc = plain(item.get("description") or item.get("topic") or "", True)
+            return ["[dim]%s[/dim]" % " · ".join(m for m in meta if m)] + (["", esc(trunc(desc, 800))] if desc else [])
+        if kind == "events":
+            meta = [event_dates(item), item.get("cityName") or dict_of(item.get("city")).get("name") or "", event_type_label(item.get("eventType"))]
+            desc = strip_markdown(item.get("description") or "")
+            return ["[dim]%s[/dim]" % esc(" · ".join(m for m in meta if m))] + (["", esc(trunc(desc, 800))] if desc else [])
+        if kind == "chapters":
+            meta = [item.get("country") or "", plural(int(item.get("memberCount") or 0), "member") if item.get("memberCount") else ""]
+            return ["%s [b]DC %s Chapter[/b]" % (flag(item.get("countryCode")) or "📍", esc(item.get("name") or "")),
+                    "[dim]%s[/dim]" % esc(" · ".join(m for m in meta if m))]
+        return ["[dim]no more detail[/dim]"]
 
     def action_open_hit(self) -> None:
         self.action_open_detail()
@@ -195,5 +216,5 @@ def _detail(item: dict) -> str:
         return "%s · %s" % (event_dates({"startDate": item.get("startDate") or item.get("startAt"), "endDate": item.get("endDate") or item.get("endAt"),
                                           "isDateConfirmed": item.get("isDateConfirmed")}), event_type_label(item.get("eventType")))
     if kind == "chapters":
-        return "%s · %s members" % (item.get("country") or "", item.get("memberCount") or "?")
+        return " · ".join(p for p in (item.get("country") or "", "%s members" % (item.get("memberCount") or "?")) if p)
     return ""

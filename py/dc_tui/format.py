@@ -7,14 +7,24 @@ from datetime import datetime
 from typing import Any, Optional
 
 
+try:  # Textual lays out with Rich's cell widths — measure the same way or columns drift
+    from rich.cells import cell_len as _rich_cell_len
+except ImportError:  # pragma: no cover — rich ships with textual
+    _rich_cell_len = None
+
+
 def cell_width(ch: str) -> int:
-    """Terminal columns one character takes (wide/fullwidth and most emoji = 2)."""
+    """Terminal columns one character takes, as Rich (and so Textual) counts it:
+    wide/fullwidth and emoji-presentation characters are 2, text-presentation
+    symbols such as ★ ✈ 🎟 are 1."""
+    if _rich_cell_len is not None:
+        return _rich_cell_len(ch)
     if ch in ("\u200d", "\ufe0f") or unicodedata.combining(ch):
         return 0
     if unicodedata.east_asian_width(ch) in ("W", "F"):
         return 2
     o = ord(ch)
-    if 0x1F300 <= o <= 0x1FAFF or 0x2600 <= o <= 0x27BF or 0x1F900 <= o <= 0x1F9FF:
+    if 0x1F300 <= o <= 0x1FAFF:
         return 2
     return 1
 

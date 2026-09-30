@@ -25,6 +25,7 @@ from textual.containers import Vertical
 
 from .data import Fetched
 from .format import align_row, date_range, event_dates, flag, fmt_date, guard_flags, pad, plural, rpad, strip_markdown, trunc
+from .labels import room_type_label
 from .layout import MODES, layout_mode
 from .widgets import Panel
 
@@ -542,10 +543,9 @@ class HomeScreen(DCScreen):
         if total is None:
             total = sum(int(r.get("badgeCount") or 0) for r in rooms)
         width = self._card_width()
-        rows = [("[b]%s[/b]  [b]%d[/b]  [dim]%s[/dim]" % (
-                    _escape(trunc(r.get("roomName") or r.get("roomID", ""), max(12, width - 16))),
-                    int(r.get("badgeCount") or 0),
-                    r.get("roomType") or ""), ("rooms", r.get("roomID")))
+        rows = [(align_row(width, r.get("roomName") or ("Direct message" if str(r.get("roomID", "")).startswith("dm_") else r.get("roomID", "")),
+                           "%d new" % int(r.get("badgeCount") or 0), room_type_label(r.get("roomType"))),
+                 ("rooms", r.get("roomID")))
                 for r in rooms[:8]]
         return rows or [("all caught up [dim]— Enter opens your inbox[/dim]", ("rooms", None))], _subtitle(plural(int(total), "unread"), f)
 
@@ -569,9 +569,8 @@ class HomeScreen(DCScreen):
             target = ("url", a.get("shortURL") or a.get("announcementURL")) if (a.get("shortURL") or a.get("announcementURL")) else None
             if compact:
                 lines.append((align_row(width, who, when) + "\n  " + _escape(trunc(text, max(20, width - 4))), target))
-            else:
-                head = "[dim]%s[/dim] [b]%s[/b]  " % (pad(when, 11), _escape(pad(who, 22)))
-                lines.append((head + _escape(trunc(text, max(20, width - 11 - 22 - 3))), target))
+            else:                                       # channel · snippet … date last, flush right
+                lines.append((align_row(width, who, when, text), target))
         return lines or [("[dim]no announcements[/dim]", None)], _subtitle(plural(len(items), "channel"), f, *( [rooms_f] if rooms_f else [] ))
 
     def _render_tickets(self, results: List[Fetched]) -> Tuple[List[str], str]:
@@ -598,7 +597,7 @@ class HomeScreen(DCScreen):
 
         lines = []
         for t in tickets[:5]:
-            lines.append((row("🎟 ", t.get("eventName") or "", t.get("startDate"), t.get("endDate")), ("events", t.get("eventID"))))
+            lines.append((row("🎫 ", t.get("eventName") or "", t.get("startDate"), t.get("endDate")), ("events", t.get("eventID"))))
         near = [e for e in events if e.get("eventID") not in held
                 and (e.get("city") or {}).get("placeID") in my_places] if my_places else []
         if near:

@@ -129,12 +129,12 @@ class MeScreen(DCScreen):
         cal = cal if isinstance(cal, dict) else {}
         feed = cal.get("feed") if isinstance(cal.get("feed"), dict) else {}
         toggles = cal.get("toggles") if isinstance(cal.get("toggles"), dict) else {}
-        on = [k.replace("include", "") for k, v in toggles.items() if v]
+        on = [_toggle_label(k) for k, v in toggles.items() if v]
         lines = []
         if feed.get("webcalURL") or feed.get("httpsURL"):
             lines.append("[dim]feed:[/dim] %s" % esc(feed.get("webcalURL") or feed.get("httpsURL")))
         lines.append("[dim]includes:[/dim] %s" % (esc(", ".join(on)) if on else "[dim]nothing[/dim]"))
-        return lines, self._flag(f, "%d toggles on" % len(on))
+        return lines, self._flag(f, "%d of %d included" % (len(on), len(toggles)))
 
     def _locator(self, f: Fetched):
         s = dict_of(f).get("locatorSettings")
@@ -143,3 +143,10 @@ class MeScreen(DCScreen):
         lines = ["%s  [dim]sections: %s[/dim]" % ("[$success]enabled[/]" if s.get("enabled") else "[dim]disabled[/dim]",
                                                  ", ".join(on) if on else "none")]
         return lines, self._flag(f, "")
+
+
+def _toggle_label(key: str) -> str:
+    """`includeMyTickets` → "my tickets"."""
+    import re as _re
+    words = _re.sub(r"([a-z])([A-Z])", r"\1 \2", str(key).replace("include", "", 1)).strip()
+    return words.lower() or str(key)

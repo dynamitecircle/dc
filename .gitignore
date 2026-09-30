@@ -42,3 +42,6 @@ metadata/
 
 # Hive Drive symlink (per-machine, points at the Hive checkout)
 drive
+
+# local scratch (screenshots, debug scripts)
+temp/

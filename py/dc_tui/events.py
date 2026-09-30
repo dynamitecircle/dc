@@ -57,9 +57,10 @@ class EventsScreen(ListDetailScreen):
     HINT = "↑↓ pick an event · → open it · tabs and buttons in the detail"
     URL = WEB_APP + "/events"
     LIST_TABS = (("global", "Global"), ("local", "Local"), ("calls", "Live Calls"))
-    COLUMNS = ("Event", "City", "Type", "🎟", "Dates")
-    COLUMNS_COMPACT = ("Event", "🎟", "Dates")
-    COLUMN_WIDTHS = {"Dates": 22, "City": 14, "Type": 16, "🎟": 2, "When": 17, "Kind": 8, "Going": 5, "RSVP": 7}
+    COLUMNS = ("Event", "City", "Type", "🎫", "Dates")
+    COLUMN_DROP = ("Type", "City", "Kind", "Going")
+    COLUMNS_COMPACT = ("Event", "🎫", "Dates")
+    COLUMN_WIDTHS = {"Dates": 20, "City": 14, "Type": 16, "🎫": 2, "When": 17, "Kind": 8, "Going": 5, "RSVP": 7}
     EMPTY_TEXT = "no upcoming events"
 
     BINDINGS = [
@@ -89,16 +90,17 @@ class EventsScreen(ListDetailScreen):
         self.refresh_bindings()
 
     # ── columns per tab ───────────────────────────────────────────────
-    def _columns(self) -> Sequence[str]:
+    def base_columns(self) -> Sequence[str]:
         compact = self.app.layout_mode_name in ("compact", "single")  # type: ignore[attr-defined]
         if self.list_tab == "calls":
             return ("Call", "RSVP", "When") if compact else ("Call", "Kind", "Going", "RSVP", "When")
-        return super()._columns()
+        return super().base_columns()
 
     def detail_actions(self):
         item = self._detail_item or {}
         if self.list_tab == "calls":
-            return [("Going", "rsvp('yes')"), ("Not going", "rsvp('no')"), ("Open call link", "app.open_in_browser")]
+            going = str(item.get("myRsvp") or "") == "yes"
+            return [("Not going", "rsvp('no')") if going else ("Going", "rsvp('yes')"), ("Open call link", "app.open_in_browser")]
         acts = []
         if self.detail_tab in ("schedule", "agenda"):
             acts.append(("Bookmark session", "bookmark"))
@@ -176,7 +178,7 @@ class EventsScreen(ListDetailScreen):
                 "Dates": event_dates(item),
                 "City":  _city(item),
                 "Type":  event_type_label(item.get("eventType")),
-                "🎟":    "🎟" if item.get("eventID") in self._tickets else "",
+                "🎫":    "🎫" if item.get("eventID") in self._tickets else "",
             }
         return tuple(cells[c] for c in self._columns())
 
@@ -192,7 +194,7 @@ class EventsScreen(ListDetailScreen):
         venue = item.get("venue") if isinstance(item.get("venue"), dict) else {}
         where = " · ".join(x for x in (venue.get("name"), _city(item)) if x)
         return "%s  [dim]%s · %s%s[/dim]" % (esc(item.get("name")), event_dates(item) + ("" if item.get("isDateConfirmed") is not False else " (dates TBC)"),
-                                             esc(where), "  · 🎟 You have a ticket (%s)" % esc(ticket) if ticket else "")
+                                             esc(where), "  · 🎫 You have a ticket (%s)" % esc(ticket) if ticket else "")
 
     def fetch_detail(self, item: dict, force: bool) -> Any:
         data = self.app.data  # type: ignore[attr-defined]

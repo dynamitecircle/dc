@@ -12,6 +12,7 @@ import pytest
 
 # Make ``import dc`` work whether or not pytest's pythonpath is configured.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "py"))
+sys.path.insert(0, os.path.dirname(__file__))
 import dc  # noqa: E402
 
 

@@ -2,14 +2,14 @@
 idempotent room mutations. Conversations stay in the app (`o`)."""
 from __future__ import annotations
 
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from textual.binding import Binding
 
 from .data import Fetched
 import re
 
-from .format import fmt_date, pad, plural, trunc
+from .format import fmt_date, pad, plural, trunc, display_width
 from .labels import room_type_label
 from .listing import ListDetailScreen, dict_of, esc, items_of, plain
 from .screens import SECTIONS, WEB_APP
@@ -24,6 +24,7 @@ class RoomsScreen(ListDetailScreen):
                  ("discussion", "Discussions"), ("quick-question", "Quick Questions"))
     LIST_FILTERS = (("show-all", "All"), ("unread", "Unread"))       # the web's visibility filter
     COLUMNS = ("Room", "Type", "Unread", "Activity")
+    COLUMN_DROP = ("Type",)
     COLUMNS_COMPACT = ("Room", "Unread", "Activity")
     COLUMN_WIDTHS = {"Type": 14, "Unread": 6, "Activity": 11}
     EMPTY_TEXT = "No chats match your filters. Browse finds channels, discussions and quick questions to join."
@@ -45,6 +46,7 @@ class RoomsScreen(ListDetailScreen):
         super().__init__(*args, **kwargs)
         self._unread = {}
         self._opened = set()       # rooms whose messages the user explicitly asked to read
+        self._toggled: Dict[str, Dict[str, bool]] = {}   # roomID → seen flags changed this session
 
     @property
     def room_type(self) -> str:
@@ -86,12 +88,21 @@ class RoomsScreen(ListDetailScreen):
         return "%s · %s  [dim]%s[/dim]" % (plural(len(self.items), "room"), plural(total, "unread"), self.HINT)
 
     # ── detail ────────────────────────────────────────────────────────
+    def _flags(self, item: dict) -> dict:
+        """Seen flags for a room: what the API says (`seen` on the room, when it
+        ships) overlaid with what this session already toggled."""
+        seen = item.get("seen") if isinstance(item.get("seen"), dict) else {}
+        out = dict(seen)
+        out.update(self._toggled.get(str(item.get("roomID")), {}))
+        return out
+
     def detail_actions(self):
         item = self._detail_item or {}
-        acts = [("Mark read", "mark_read"),
-                ("Mute", "room('room-mute', 'muted')"), ("Unmute", "room('room-unmute', 'unmuted')"),
-                ("Pin", "room('room-pin', 'pinned')"), ("Unpin", "room('room-unpin', 'unpinned')"),
-                ("Archive", "room('room-archive', 'archived')"), ("Unarchive", "room('room-unarchive', 'unarchived')")]
+        flags = self._flags(item)
+        acts = [("Mark read", "mark_read")]
+        for flag, on, off in _TOGGLES:
+            label, command, done = (off if flags.get(flag) else on)
+            acts.append((label, "room('%s', '%s')" % (command, done)))
         if item.get("type") not in ("dm", "group"):
             acts.append(("Unsubscribe", "room('room-unsubscribe', 'unsubscribed')"))
         acts.append(("Open in app", "app.open_in_browser"))
@@ -180,7 +191,7 @@ class RoomsScreen(ListDetailScreen):
             author = m.get("author") if isinstance(m.get("author"), dict) else {}
             who = author.get("displayName") or author.get("userName") or "system"
             when = fmt_date(m.get("sentAt"))
-            lines.append("[b]%s[/b]%s[dim]%s[/dim]" % (esc(pad(who, width - 8)), " ", when))
+            lines.append("[b]%s[/b] [dim]%s[/dim]" % (esc(pad(who, max(4, width - display_width(when) - 1))), when))
             if m.get("isDeleted"):
                 lines.append("[dim](deleted)[/dim]")
             else:
@@ -196,10 +207,11 @@ class RoomsScreen(ListDetailScreen):
 
     # ── actions ───────────────────────────────────────────────────────
     def action_room(self, command: str, done: str) -> None:
-        item = self.selected()
+        item = self._detail_item or self.selected()
         if item is None:
             return
-        self.mutate(command, item.get("roomID"), ok_text="%s %s" % (item.get("name") or "room", done))
+        self._pending_toggle = (str(item.get("roomID")), command)
+        self.mutate(command, item.get("roomID"), ok_text="%s %s" % (item.get("name") or _dm_label(item), done))
 
     def action_read_messages(self) -> None:
         item = self._detail_item if (self._detail_open or self.two_pane) and self._detail_item else self.selected()
@@ -240,8 +252,28 @@ class RoomsScreen(ListDetailScreen):
 
     def after_mutation(self, fetched: Fetched, ok_text: str) -> None:
         super().after_mutation(fetched, ok_text)
+        pending, self._pending_toggle = getattr(self, "_pending_toggle", None), None
+        if fetched.ok and pending:
+            room_id, command = pending
+            for flag, on, off in _TOGGLES:
+                if command == on[1]:
+                    self._toggled.setdefault(room_id, {})[flag] = True
+                elif command == off[1]:
+                    self._toggled.setdefault(room_id, {})[flag] = False
+            seen = dict_of(fetched.data).get("seen")
+            if isinstance(seen, dict):
+                self._toggled.setdefault(room_id, {}).update({k: bool(v) for k, v in seen.items() if k in _FLAG_KEYS})
         if fetched.ok:
             self.refresh_data(force=True)
+
+
+#: (seen flag, (label, command, past tense) when off, same when on)
+_TOGGLES = (
+    ("isMuted",    ("Mute", "room-mute", "muted"),          ("Unmute", "room-unmute", "unmuted")),
+    ("isPinned",   ("Pin", "room-pin", "pinned"),           ("Unpin", "room-unpin", "unpinned")),
+    ("isArchived", ("Archive", "room-archive", "archived"), ("Unarchive", "room-unarchive", "unarchived")),
+)
+_FLAG_KEYS = {t[0] for t in _TOGGLES}
 
 
 def _dm_label(room: dict) -> str:

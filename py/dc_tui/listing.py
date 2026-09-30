@@ -33,7 +33,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, DataTable, Input, Static, Tab, Tabs
 
 from .data import Fetched
-from .format import trunc
+from .format import display_width, trunc
 from .screens import DCScreen
 
 _TAGS = re.compile(r"<[^>]+>")
@@ -96,6 +96,7 @@ class ListDetailScreen(DCScreen):
     ListDetailScreen Tabs:focus .underline--bar { color: #FFC499; }
     ListDetailScreen .detail-title { color: $primary; text-style: bold; height: auto; }
     ListDetailScreen .detail-actions { height: auto; margin: 0 0 1 0; }
+    ListDetailScreen .detail-actions .action-row { height: 1; }
     ListDetailScreen .detail-actions Button.action {
         height: 1; min-width: 0; border: none; padding: 0 1; margin: 0 1 0 0;
         background: $panel; color: $text; text-style: none;
@@ -150,7 +151,7 @@ class ListDetailScreen(DCScreen):
     def _detail_widgets_for(self, suffix: str) -> List[Any]:
         return [Tabs(id="detail-tabs-" + suffix, classes="-hidden"),
                 Static("", id="detail-title-" + suffix, classes="detail-title"),
-                Horizontal(id="detail-actions-" + suffix, classes="detail-actions"),
+                Vertical(id="detail-actions-" + suffix, classes="detail-actions"),
                 Static("", id="detail-body-" + suffix, classes="detail-body"),
                 DataTable(id="detail-table-" + suffix, cursor_type="row", zebra_stripes=True, classes="detail-table")]
 
@@ -165,20 +166,27 @@ class ListDetailScreen(DCScreen):
             actions.insert(0, ("← Back", "close_detail"))      # nested view: always a visible way up
         self._action_map = {i: action for i, (_, action) in enumerate(actions)}
         labels = [label for label, _ in actions]
+        rows = _wrap_buttons(labels, self.detail_width())
+        keys = getattr(self, "_actions_key", {})
+        self._actions_key = keys
         for suffix in ("pane", "inline"):
             try:
-                row = self.query_one("#detail-actions-" + suffix, Horizontal)
+                box = self.query_one("#detail-actions-" + suffix, Vertical)
             except Exception:  # noqa: BLE001
                 continue
-            row.set_class(not actions, "-hidden")
-            if [str(b.label) for b in row.query(Button)] != labels:
-                # removal is asynchronous in Textual — rebuild in one exclusive worker per row
-                self.run_worker(self._rebuild_actions(row, suffix, labels), group="actions-" + suffix, exclusive=True)
+            box.set_class(not actions, "-hidden")
+            key = (tuple(labels), tuple(tuple(r) for r in rows))
+            if keys.get(suffix) != key:
+                keys[suffix] = key
+                # removal is asynchronous in Textual — rebuild in one exclusive worker per box
+                self.run_worker(self._rebuild_actions(box, suffix, labels, rows), group="actions-" + suffix, exclusive=True)
 
-    async def _rebuild_actions(self, row: Horizontal, suffix: str, labels: List[str]) -> None:
-        await row.remove_children()
-        await row.mount(*[Button(label, id="act-%s-%d" % (suffix, i), classes="action back" if label.startswith("←") else "action")
-                          for i, label in enumerate(labels)])
+    async def _rebuild_actions(self, box: Vertical, suffix: str, labels: List[str], rows: List[List[int]]) -> None:
+        """Buttons wrap onto extra rows instead of running off the pane."""
+        await box.remove_children()
+        await box.mount(*[Horizontal(*[Button(labels[i], id="act-%s-%d" % (suffix, i),
+                                              classes="action back" if labels[i].startswith("←") else "action")
+                                       for i in row], classes="action-row") for row in rows])
 
     def set_filter(self, fid: str) -> None:
         if fid == self.list_filter:
@@ -212,9 +220,28 @@ class ListDetailScreen(DCScreen):
             width = self.flex_width if i == 0 else self.COLUMN_WIDTHS.get(col, 10)
             table.add_column(col, key=col, width=width)
 
-    def _columns(self) -> Sequence[str]:
+    #: Middle columns to give up first when the pane is too narrow (default: right to left).
+    COLUMN_DROP: Sequence[str] = ()
+    FIRST_COLUMN_MIN = 16
+
+    def base_columns(self) -> Sequence[str]:
+        """Override for columns that depend on a tab or mode."""
         compact = self.app.layout_mode_name in ("compact", "single")  # type: ignore[attr-defined]
         return self.COLUMNS_COMPACT if (compact and self.COLUMNS_COMPACT) else self.COLUMNS
+
+    def _columns(self) -> Sequence[str]:
+        """The layout's columns, minus middle ones that would not fit: the first
+        (name) and last (date) columns always stay, so the date is never clipped."""
+        cols = list(self.base_columns())
+        try:
+            avail = max(30, (self.main_pane().size.width or self.app.size.width) - 2)
+        except Exception:  # noqa: BLE001 — not composed yet
+            return cols
+        drop = [c for c in (self.COLUMN_DROP or reversed(cols[1:-1])) if c in cols[1:-1]]
+        need = lambda cs: sum(self.COLUMN_WIDTHS.get(c, 10) for c in cs[1:]) + self.FIRST_COLUMN_MIN + 2 * len(cs)
+        while drop and need(cols) > avail:
+            cols.remove(drop.pop(0))
+        return cols
 
     def set_layout_mode(self, mode: str) -> None:
         super().set_layout_mode(mode)
@@ -233,6 +260,8 @@ class ListDetailScreen(DCScreen):
         if self.is_mounted and self.items:
             self._setup_columns()
             self._fill_table()
+        if self.is_mounted and self._detail_item is not None:
+            self.call_after_refresh(self._sync_actions)     # re-wrap buttons to the new width
 
     @property
     def two_pane(self) -> bool:
@@ -275,22 +304,30 @@ class ListDetailScreen(DCScreen):
         ids = [tid for tid, _ in tabs]
         if tabs and self.detail_tab not in ids:
             self.detail_tab = ids[0]
+        self._rebuild_detail_tabs(tabs, ids)
+
+    @work(exclusive=True, group="detail-tabs", exit_on_error=False)
+    async def _rebuild_detail_tabs(self, tabs: List[Tuple[str, str]], ids: List[str]) -> None:
+        """Replace the tab set only when it changed, awaiting the removal before
+        adding: an un-awaited clear() racing add_tab() leaves orphaned Tab widgets
+        that never start (and never answer a message)."""
         self._syncing_tabs = True
         try:
             for suffix in ("pane", "inline"):
-                widget = self.query_one("#detail-tabs-" + suffix, Tabs)
+                try:
+                    widget = self.query_one("#detail-tabs-" + suffix, Tabs)
+                except Exception:  # noqa: BLE001 — not composed yet
+                    continue
                 current = [str(t.id) for t in widget.query(Tab)]
                 if current != ids:
-                    widget.clear()
+                    await widget.clear()
                     for tid, label in tabs:
-                        widget.add_tab(Tab(label, id=tid))
+                        await widget.add_tab(Tab(label, id=tid))
                 widget.set_class(not tabs, "-hidden")
                 if tabs and widget.active != self.detail_tab:
                     widget.active = self.detail_tab
-        except Exception:  # noqa: BLE001 — not composed yet
-            pass
         finally:
-            self._syncing_tabs = False
+            self.call_after_refresh(setattr, self, "_syncing_tabs", False)
 
     def action_next_list_tab(self) -> None:
         if not self.LIST_TABS:
@@ -536,7 +573,7 @@ class ListDetailScreen(DCScreen):
         """Put the keyboard on the detail: its first action button, else its table."""
         suffix = "pane" if self.two_pane else "inline"
         try:
-            buttons = list(self.query_one("#detail-actions-" + suffix, Horizontal).query(Button))
+            buttons = list(self.query_one("#detail-actions-" + suffix, Vertical).query(Button))
         except Exception:  # noqa: BLE001
             buttons = []
         if buttons:
@@ -571,7 +608,7 @@ class ListDetailScreen(DCScreen):
         if tabs.id == "list-tabs":
             return self.query_one("#list", DataTable)
         suffix = str(tabs.id or "").rsplit("-", 1)[-1]
-        actions = self.query_one("#detail-actions-" + suffix, Horizontal)
+        actions = self.query_one("#detail-actions-" + suffix, Vertical)
         buttons = list(actions.query(Button))
         if buttons and not actions.has_class("-hidden"):
             return buttons[0]
@@ -652,6 +689,8 @@ class ListDetailScreen(DCScreen):
                 pass
             (tabs if tabs is not None and not tabs.has_class("-hidden") else (self.top_input() or self.query_one("#nav-tabs", Tabs))).focus()
             return
+        if isinstance(focused, Button) and self._button_row_step(focused, -1):
+            return
         if isinstance(focused, Button):
             pane = self.detail_pane() if self.two_pane else self.main_pane()
             if pane.scroll_y > 0:
@@ -697,6 +736,8 @@ class ListDetailScreen(DCScreen):
         if isinstance(focused, Button) and focused.has_class("chip"):
             self.query_one("#list", DataTable).focus()
             return
+        if isinstance(focused, Button) and self._button_row_step(focused, 1):
+            return
         if isinstance(focused, Button):
             table = self.detail_table()
             if not table.has_class("-hidden") and table.row_count:
@@ -706,11 +747,30 @@ class ListDetailScreen(DCScreen):
             return
         self.query_one("#list", DataTable).focus()
 
+    def _button_row_step(self, button: Button, step: int) -> bool:
+        """↑/↓ between wrapped action-button rows; False at the first/last row."""
+        row = button.parent
+        if row is None or not row.has_class("action-row") or row.parent is None:
+            return False
+        rows = [r for r in row.parent.children if r.has_class("action-row")]
+        i = rows.index(row) + step
+        if not 0 <= i < len(rows):
+            return False
+        col = list(row.query(Button)).index(button)
+        target = list(rows[i].query(Button))
+        if not target:
+            return False
+        target[min(col, len(target) - 1)].focus()
+        return True
+
     def _step_button(self, step: int) -> bool:
         focused = self.focused
         if not isinstance(focused, Button):
             return False
-        buttons = list(focused.parent.query(Button)) if focused.parent is not None else []
+        box = focused.parent
+        if box is not None and box.has_class("action-row"):
+            box = box.parent                 # ←/→ run across wrapped rows
+        buttons = list(box.query(Button)) if box is not None else []
         i = buttons.index(focused) if focused in buttons else -1
         if focused.has_class("chip"):
             if 0 <= i + step < len(buttons):
@@ -773,11 +833,12 @@ class ListDetailScreen(DCScreen):
             lst.focus()
 
     def detail_focused(self) -> bool:
-        """True when keyboard focus is inside the detail (its table or tab row),
-        or the inline detail is open in one-pane mode."""
+        """True when focus is inside the detail (its table, tab row or action
+        buttons — a mouse click focuses the button), or the inline detail is
+        open in one-pane mode."""
         focused = self.focused
         fid = str(getattr(focused, "id", "") or "")
-        return self._detail_open or fid.startswith("detail-")
+        return self._detail_open or fid.startswith("detail-") or fid.startswith("act-")
 
     # ── after a mutation ──────────────────────────────────────────────
     def after_mutation(self, fetched: Fetched, ok_text: str) -> None:
@@ -819,7 +880,23 @@ class ListDetailScreen(DCScreen):
         return self.URL
 
 
-_DATE_CELL = re.compile(r"^\d{2}(–\d{2})? [A-Z][a-z]{2}( \d{4})?( – \d{2} [A-Z][a-z]{2})?( \d{4})?$")
+def _wrap_buttons(labels: List[str], width: int) -> List[List[int]]:
+    """Split button indexes into rows that fit `width` columns (label + padding 2 + margin 1)."""
+    rows: List[List[int]] = [[]]
+    used = 0
+    for i, label in enumerate(labels):
+        w = display_width(label) + 4       # padding 2 + margin 1 + Textual's own cell
+        if rows[-1] and used + w > width:
+            rows.append([])
+            used = 0
+        rows[-1].append(i)
+        used += w
+    return [r for r in rows if r]
+
+
+_DATE_CELL = re.compile(                         # "05 Oct 2026", "22–25 Oct 2026", "30 Sep – 02 Oct 2026",
+    r"^(?:\d{2}(?:–\d{2})? [A-Z][a-z]{2}(?: \d{4})?(?: – \d{2} [A-Z][a-z]{2})?(?: \d{4})?"   # "Jul 2027" (month only),
+    r"|[A-Z][a-z]{2} \d{4})(?: \d{2}:\d{2})?$")                                         # optional " 15:00"
 
 
 def _fit(cell: Any, width: int) -> Any:

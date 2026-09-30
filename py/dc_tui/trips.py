@@ -24,8 +24,9 @@ class TripsScreen(ListDetailScreen):
     HINT = "↑↓ pick a trip · → open it · New trip / Edit / Delete are buttons in the detail"
     URL = WEB_APP + "/trips"
     LIST_COMMAND = "trips"
-    COLUMNS = ("Where", "Dates", "Note")
+    COLUMNS = ("Where", "Note", "Dates")             # dates always last, flush right
     COLUMNS_COMPACT = ("Where", "Dates")
+    COLUMN_WIDTHS = {"Note": 24, "Dates": 20}
     EMPTY_TEXT = "no upcoming trips yet — press Enter (or click New trip) to plan one"
 
     BINDINGS = [

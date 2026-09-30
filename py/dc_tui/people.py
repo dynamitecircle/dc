@@ -96,10 +96,10 @@ class PeopleScreen(ListDetailScreen):
     def row_key(self, item: dict, index: int) -> str:
         return str(item.get("userID") or index)
 
-    def _columns(self):
+    def base_columns(self):
         if self.mode == "follows":
             return ("Name", "Handle")
-        return super()._columns()
+        return super().base_columns()
 
     def _rows_loaded(self, rows, error):
         self._setup_columns()          # the column set depends on the mode

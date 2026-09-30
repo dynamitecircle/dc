@@ -276,8 +276,9 @@ def test_events_global_vs_local_split():
 
 def test_trunc_and_pad_are_cell_aware():
     from dc_tui.format import display_width, pad, rpad, trunc
-    assert display_width("🗺 Trip") == 7                      # emoji = 2 columns + space + 4
-    assert display_width(trunc("🗺 Traveling soon", 8)) <= 8
+    assert display_width("👤 Trip") == 7                      # emoji = 2 columns + space + 4
+    assert display_width("★ ✈ 🎟") == 5                       # text-presentation symbols are 1, as Rich lays them out
+    assert display_width(trunc("👤 Traveling soon", 8)) <= 8
     assert display_width(pad("日本", 6)) == 6 and rpad("Sep 29", 8) == "  Sep 29"
 
 
@@ -366,3 +367,22 @@ def test_flags_are_wrapped_in_a_default_foreground_span():
     assert guard_flags("x " + flag("JP") + " y") == "x [default]" + flag("JP") + "[/default] y"
     row = align_row(60, flag("IT") + " Bologna", "01–06 Oct 2026", prefix="    ", name_markup="%s")
     assert "[default]" + flag("IT") + "[/default]" in row
+
+
+def test_date_cells_right_align_in_every_format_but_names_do_not():
+    pytest.importorskip("textual")
+    from dc_tui.listing import _DATE_CELL
+    for text in ("05 Oct 2026", "22–25 Oct 2026", "30 Sep – 02 Oct 2026", "Jul 2027", "08 Oct 2026 15:00"):
+        assert _DATE_CELL.match(text), text
+    for text in ("Bar", "Rio", "SaaS", "DCBKK 2026"):
+        assert not _DATE_CELL.match(text), text
+
+
+def test_button_rows_wrap_to_width():
+    pytest.importorskip("textual")
+    from dc_tui.listing import _wrap_buttons
+    labels = ["Mark read", "Mute", "Pin", "Archive", "Unsubscribe", "Open in app"]
+    rows = _wrap_buttons(labels, 50)
+    assert sum(len(r) for r in rows) == len(labels) and len(rows) == 2
+    assert _wrap_buttons(labels, 200) == [list(range(6))]
+    assert _wrap_buttons(["A very long button label"], 5) == [[0]]     # never an empty row
