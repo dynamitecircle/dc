@@ -44,6 +44,7 @@ INVALIDATES: Dict[str, tuple] = {
     "room-pin":             ("rooms", "room"),
     "room-unpin":           ("rooms", "room"),
     "room-read":            ("rooms", "inbox", "room"),
+    "room-unread":          ("rooms", "inbox", "room"),
     "follow-profile":       ("follows-profiles", "locator"),
     "unfollow-profile":     ("follows-profiles", "locator"),
     "follow-chapter":       ("follows-chapters", "locator"),

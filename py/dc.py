@@ -394,7 +394,7 @@ _WRITE_COMMANDS = frozenset({
     "trip-create", "trip-update", "trip-delete", "trip-refresh",
     "event-rsvp", "virtual-event-rsvp", "session-bookmark", "meetup-rsvp",
     "event-free-slots",
-    "room-subscribe", "room-unsubscribe", "room-mute", "room-unmute",
+    "room-subscribe", "room-unsubscribe", "room-mute", "room-unmute", "room-read", "room-unread",
     "room-archive", "room-unarchive", "room-pin", "room-unpin",
     "follow-profile", "unfollow-profile", "follow-chapter", "unfollow-chapter",
     "invite-create", "calendar-update", "notifications-update",
@@ -2405,6 +2405,12 @@ class _DCCore:
     def room_mute(self, room_id):
         return self._room_mutation(room_id, "mute")
 
+    def room_read(self, room_id):
+        return self._room_mutation(room_id, "read")
+
+    def room_unread(self, room_id):
+        return self._room_mutation(room_id, "unread")
+
     def room_unmute(self, room_id):
         return self._room_mutation(room_id, "unmute")
 
@@ -3244,6 +3250,18 @@ class DC(Runtime):
                    args={})
     def room_unsubscribe(self, room_id):
         return self._core.room_unsubscribe(room_id)
+
+    @skill_command(name="room-read",
+                   help="Mark a room as read (clears its unread badge, as opening it in the app does).",
+                   args={})
+    def room_read(self, room_id):
+        return self._core.room_read(room_id)
+
+    @skill_command(name="room-unread",
+                   help="Mark a room as unread (brings its unread badge back, like the app's Mark as unread).",
+                   args={})
+    def room_unread(self, room_id):
+        return self._core.room_unread(room_id)
 
     @skill_command(name="room-mute",
                    help="Mute notifications for a room (room stays in inbox).",

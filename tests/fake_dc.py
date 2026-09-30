@@ -22,6 +22,7 @@ class FakeDC:
     def __init__(self) -> None:
         self.calls: List[tuple] = []
         self.rsvps: Dict[str, str] = {}
+        self.badges: Dict[str, int] = {"r1": 2}
 
     def _log(self, *a: Any) -> None:
         self.calls.append(a)
@@ -50,7 +51,9 @@ class FakeDC:
     # home
     def inbox(self, limit=50, cursor=None):
         self._log("inbox")
-        return _env([{"roomID": "r1", "roomName": "DC Announcements", "roomType": "channel", "badgeCount": 2}], totalUnread=2)
+        names = {"r1": "DC Announcements", "r2": "SaaS", "dm_940_1": "Alex Harling"}
+        rows = [{"roomID": rid, "roomName": names.get(rid, rid), "roomType": "channel", "badgeCount": n} for rid, n in self.badges.items() if n]
+        return _env(rows, totalUnread=sum(self.badges.values()))
 
     def announcements_latest(self):
         return {"announcements": [{"announcementURL": "https://dc.dynamitecircle.com/channel/r1/message/m1", "shortURL": "https://dc.mba/x",
@@ -127,6 +130,12 @@ class FakeDC:
                              "text": "only in " + room_id, "isHTML": False})
         out["cursor"] = "older-1"
         return out
+
+    def room_read(self, room_id):
+        self._log("room-read", room_id); self.badges[room_id] = 0; return {"seen": {}}
+
+    def room_unread(self, room_id):
+        self._log("room-unread", room_id); self.badges[room_id] = max(1, self.badges.get(room_id, 0)); return {"seen": {}}
 
     def room_mute(self, room_id):
         self._log("room-mute", room_id); return {"seen": {"isMuted": True}}

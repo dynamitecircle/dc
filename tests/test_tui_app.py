@@ -125,7 +125,10 @@ def test_inbox_tabs_filter_chips_and_messages(tmp_path):
             table = scr.query_one("#list", DataTable); table.focus(); await settle(pilot, 0.2)
             await press(pilot, "enter"); await settle(pilot, 1.5)
             # the pinned + muted room shows its real state (from the API's seen flags)
-            assert [b.label.plain for b in scr.query("Button.action")][:4] == ["Mark read", "Unmute", "Unpin", "Archive"]
+            assert [b.label.plain for b in scr.query("Button.action")][:4] == ["Mark unread", "Unmute", "Unpin", "Archive"]
+            await pilot.click("#act-pane-0"); await settle(pilot, 1.5)                    # Mark unread
+            assert ("room-unread", "r2") in fake.calls
+            assert [b.label.plain for b in scr.query("Button.action")][0] == "Mark read"
             table.focus(); table.move_cursor(row=1); await settle(pilot, 0.3)       # DC Announcements (r1)
             await press(pilot, "enter"); await settle(pilot, 1.5)
             await shot(app, "inbox-messages")

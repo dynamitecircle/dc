@@ -442,10 +442,11 @@ def test_search_message_titles_drop_the_reply_quote():
 def test_attachments_say_what_they_are():
     pytest.importorskip("textual")
     from dc_tui.rooms import attachment_label
-    assert attachment_label("image", "") == "🖼  Image"
+    assert attachment_label("image", "") == "📷 Image"
     assert attachment_label("video", "clip") == "🎬 Video"
     assert attachment_label("file", "") == "📎 File"
-    assert attachment_label("text", '<p>look <img src="x.png"></p>') == "🖼  Image"
+    assert attachment_label("text", '<p>look <img src="x.png"></p>') == "📷 Image"
+    assert attachment_label("text", "clip: https://www.youtube.com/watch?v=aqz") == "🎬 Video"
     assert attachment_label("text", "plain words") == ""
 
 
@@ -455,3 +456,5 @@ def test_attachment_links_come_from_the_api_or_the_html():
     assert attachment_url({"attachment": {"url": "https://cdn/x.jpg"}}, "") == "https://cdn/x.jpg"
     assert attachment_url({}, '<p><img src="https://cdn/y.png"></p>') == "https://cdn/y.png"
     assert attachment_url({"attachment": {"url": None, "videoStatus": "processing"}}, "") == ""
+    raw = "see https://cdn.dynamitecircle.com/videos/9b1/video.mp4 and https://www.youtube.com/watch?v=aqz"
+    assert attachment_url({}, raw) == "https://cdn.dynamitecircle.com/videos/9b1/video.mp4"

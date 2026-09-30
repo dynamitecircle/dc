@@ -135,7 +135,9 @@ class RoomsScreen(ListDetailScreen):
     def detail_actions(self):
         item = self._detail_item or {}
         flags = self._flags(item)
-        acts = [("Mark read", "mark_read")]
+        # one toggle, as the app's room menu: a read room offers Mark unread
+        unread = self._unread.get(item.get("roomID"), 0) > 0
+        acts = [("Mark read", "mark_read") if unread else ("Mark unread", "mark_unread")]
         if isinstance(item.get("participant"), dict) and item["participant"].get("userID"):
             acts.append(("View profile", "view_participant"))
         for flag, on, off in _TOGGLES:
@@ -386,14 +388,18 @@ class RoomsScreen(ListDetailScreen):
         super()._queue_detail(item)
 
     def action_mark_read(self) -> None:
-        item = self.selected()
-        if item is None:
-            return
-        if not hasattr(self.app.data.dc, "room_read"):  # type: ignore[attr-defined]
-            self.notify("Mark-as-read arrives with Member API 2.5 — press o to open the room instead.",
-                        title="Not yet", severity="warning", timeout=6)
-            return
-        self.mutate("room-read", item.get("roomID"), ok_text="%s marked read" % (item.get("name") or "room"))
+        item = self._detail_item or self.selected()
+        if item is not None:
+            self._unread[item.get("roomID")] = 0          # the button flips to Mark unread at once
+            self._sync_actions()
+            self.mutate("room-read", item.get("roomID"), ok_text="%s marked read" % self.title_of(item))
+
+    def action_mark_unread(self) -> None:
+        item = self._detail_item or self.selected()
+        if item is not None:
+            self._unread[item.get("roomID")] = max(1, self._unread.get(item.get("roomID"), 0))
+            self._sync_actions()
+            self.mutate("room-unread", item.get("roomID"), ok_text="%s marked unread" % self.title_of(item))
 
     def after_mutation(self, fetched: Fetched, ok_text: str) -> None:
         super().after_mutation(fetched, ok_text)
@@ -421,8 +427,12 @@ _TOGGLES = (
 _FLAG_KEYS = {t[0] for t in _TOGGLES}
 
 
-_ATTACHMENT_TYPES = {"image": "🖼  Image", "video": "🎬 Video", "file": "📎 File", "custom": "🧩 Card"}
-_EMBEDDED = ((re.compile(r"<img\b", re.IGNORECASE), "🖼  Image"), (re.compile(r"<video\b|youtube\.com/embed|player\.vimeo", re.IGNORECASE), "🎬 Video"),
+# colour emoji only (📷 not 🖼: that one is a text-style symbol most terminals draw as a gray outline)
+_ATTACHMENT_TYPES = {"image": "📷 Image", "video": "🎬 Video", "file": "📎 File", "custom": "🧩 Card"}
+_VIDEO_LINK = re.compile(r"""https?://[^\s"'<>]+(?:\.(?:mp4|mov|webm|m3u8)\b[^\s"'<>]*|youtube\.com/(?:watch|embed|shorts)[^\s"'<>]*|youtu\.be/[^\s"'<>]+|vimeo\.com/[^\s"'<>]+)""",
+                         re.IGNORECASE)
+_EMBEDDED = ((re.compile(r"<img\b", re.IGNORECASE), "📷 Image"),
+             (re.compile(r"<video\b|youtube\.com/(?:embed|watch|shorts)|youtu\.be/|vimeo\.com/|\.(?:mp4|mov|webm)\b", re.IGNORECASE), "🎬 Video"),
              (re.compile(r"<audio\b", re.IGNORECASE), "🔊 Audio"))
 
 
@@ -435,7 +445,10 @@ def attachment_url(message: dict, raw: str) -> str:
     if att.get("url"):
         return str(att["url"])
     m = _SRC.search(raw or "")
-    return m.group(1) if m and m.group(1).startswith("http") else ""
+    if m and m.group(1).startswith("http"):
+        return m.group(1)
+    v = _VIDEO_LINK.search(raw or "")            # a pasted video / YouTube / Vimeo link
+    return v.group(0) if v else ""
 
 
 def attachment_label(msg_type: Any, raw: str) -> str:
