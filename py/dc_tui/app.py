@@ -135,7 +135,7 @@ class DCApp(App):
     Tab.-active { color: #FFB000; background: transparent; text-style: bold; }
     Tab.-active:hover { color: #FFC940; background: transparent; }
     Tabs:focus Tab.-active { color: #FFC940; background: transparent; text-style: bold underline; }
-    Tabs .underline--bar { color: $primary; background: $background; }
+    Tabs .underline--bar { color: $primary; background: $panel; }
     Tabs:focus .underline--bar { color: $primary; }
     HeaderIcon { display: none; }
     Header HeaderTitle { color: $primary; text-style: bold; content-align: left middle; text-align: left; padding: 0 1; }

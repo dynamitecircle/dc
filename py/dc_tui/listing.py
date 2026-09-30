@@ -92,7 +92,7 @@ class ListDetailScreen(DCScreen):
     ListDetailScreen Tabs { height: 2; margin: 0 0 0 0; }
     ListDetailScreen Tab.-active { color: #FFB000; text-style: bold; background: transparent; }
     ListDetailScreen Tabs:focus Tab.-active { color: #FFC940; background: transparent; text-style: bold underline; }
-    ListDetailScreen Tabs .underline--bar { color: $primary; background: $background; }
+    ListDetailScreen Tabs .underline--bar { color: $primary; background: $panel; }
     ListDetailScreen Tabs:focus .underline--bar { color: $primary; }
     ListDetailScreen .detail-title { color: $primary; text-style: bold; height: auto; }
     ListDetailScreen .detail-actions { height: auto; margin: 0 0 1 0; }
