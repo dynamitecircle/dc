@@ -99,7 +99,7 @@ class ListDetailScreen(DCScreen):
     ListDetailScreen Tabs .underline--bar { color: $primary; background: $panel; }
     ListDetailScreen Tabs:focus .underline--bar { color: $primary; }
     ListDetailScreen .detail-title { color: $primary; text-style: bold; height: auto; padding: 0 1; }  /* text in column 2, like the tabs */
-    ListDetailScreen .detail-actions { height: auto; margin: 0 0 1 0; }
+    ListDetailScreen .detail-actions { height: auto; margin: 1 0 1 0; }   /* one empty line above and one below the buttons */
     ListDetailScreen .detail-actions .action-row { height: 1; }
     ListDetailScreen .detail-actions Button.action {
         height: 1; min-width: 0; border: none; padding: 0 1; margin: 0 1 0 0;
