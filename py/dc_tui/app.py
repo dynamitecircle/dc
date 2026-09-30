@@ -124,6 +124,9 @@ class DCApp(App):
     * { scrollbar-size: 0 0; }
     /* ONE highlight colour, gold, and one highlighted row: hover moves the cursor */
     DataTable > .datatable--hover { background: transparent; }
+    /* column headers are labels, not buttons (no sorting): no hover tint */
+    DataTable > .datatable--header-hover { background: transparent; }
+    DataTable > .datatable--header-cursor { background: $panel; color: $foreground; }
     OptionList > .option-list--option-hover { background: transparent; }
     Button.action:hover { background: $block-cursor-background; color: $block-cursor-foreground; }
     /* Tabs: never a background. Inactive tabs light gray; the active tab is orange with the
