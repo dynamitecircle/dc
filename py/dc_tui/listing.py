@@ -101,15 +101,17 @@ class ListDetailScreen(DCScreen):
         height: 1; min-width: 0; border: none; padding: 0 1; margin: 0 1 0 0;
         background: $panel; color: $text; text-style: none;
     }
-    ListDetailScreen .detail-actions Button.action:hover { background: $primary; color: #FFFFFF; }
-    ListDetailScreen .detail-actions Button.action:focus { background: $primary; color: #FFFFFF; text-style: bold; }
+    ListDetailScreen .detail-actions Button.action:hover { background: $primary; color: #FFFFFF; border: none; }
+    ListDetailScreen .detail-actions Button.action.-active { border: none; tint: transparent; }
+    ListDetailScreen .detail-actions Button.action:focus { background: $primary; color: #FFFFFF; text-style: bold; border: none; }
     ListDetailScreen .detail-actions Button.action.back { background: $surface; color: $primary; }
-    ListDetailScreen #list-filters { height: 1; margin: 0 0 0 1; }
-    ListDetailScreen Button.chip { height: 1; min-width: 0; border: none; padding: 0 1; margin: 0 1 0 0;
+    ListDetailScreen #list-filters { height: 1; margin: 0; }
+    ListDetailScreen Button.chip { height: 1; min-width: 0; border: none; padding: 0; margin: 0 1 0 0;  /* Button line-pad (1) is the only inset: label starts in column 2 */
                                    background: transparent; color: $text-muted; text-style: none; }
-    ListDetailScreen Button.chip:hover { background: transparent; color: #FF8C5C; }
+    ListDetailScreen Button.chip:hover { background: transparent; color: #FF8C5C; border: none; }
+    ListDetailScreen Button.chip.-active { background: transparent; border: none; tint: transparent; }
     ListDetailScreen Button.chip.-on { color: $primary; text-style: bold; }
-    ListDetailScreen Button.chip:focus { background: transparent; color: #FFC499; text-style: bold; }
+    ListDetailScreen Button.chip:focus { background: transparent; color: #FFB000; text-style: bold; border: none; }
     ListDetailScreen .detail-body { height: auto; }
     ListDetailScreen .detail-table { height: auto; max-height: 100%; }
     ListDetailScreen .-hidden { display: none; }

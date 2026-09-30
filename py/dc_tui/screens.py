@@ -53,8 +53,8 @@ SECTIONS: List[Section] = [
     Section("trips",  "My Trips",   "your trips · create/edit · who to meet",              WEB_APP + "/locator/my-trips"),
     Section("following", "Following", "DCers and chapters you follow",                     WEB_APP + "/locator/following"),
     Section("newtrips", "New Trips", "recently added trips",                               WEB_APP + "/locator/new-trips"),
-    Section("people", "People",     "profile match · follows",                             WEB_APP + "/members"),
-    Section("search", "Search",     "people · rooms · messages · events · chapters",       WEB_APP + "/search"),
+    Section("people", "Profiles",   "profile match · follows",                             WEB_APP + "/members"),
+    Section("search", "Search",     "profiles · rooms · messages · events · chapters",       WEB_APP + "/search"),
     Section("me",     "Me",         "profile · membership · notifications · calendar",     WEB_APP + "/profile"),
 ]
 
@@ -77,9 +77,9 @@ class TitleBar(Static):
     def render(self) -> Text:
         title = "DC - %s" % (getattr(self.screen, "sub_title", "") or getattr(self.screen, "TITLE_TEXT", ""))
         width = max(10, self.size.width or 80)
-        line = Text("── ", style=_LINE_STYLE)
+        line = Text("─ ", style=_LINE_STYLE)          # the title text starts in column 2, like every tab row
         line.append(title, style="bold #FFFFFF")
-        line.append(" " + "─" * max(0, width - len(title) - 4), style=_LINE_STYLE)
+        line.append(" " + "─" * max(0, width - len(title) - 3), style=_LINE_STYLE)
         line.append("\n")
         return line
 

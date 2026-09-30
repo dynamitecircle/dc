@@ -1,4 +1,4 @@
-"""Search — one box, content-type tabs like the web app: All · People · Rooms ·
+"""Search — one box, content-type tabs like the web app: All · Profiles · Rooms ·
 Messages · Events · Chapters. Enter on a hit jumps to it."""
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ class SearchScreen(ListDetailScreen):
     TITLE_TEXT = "Search"
     HINT = "type and press Enter · tabs pick the content type · Enter on a hit opens it"
     URL = WEB_APP + "/search"
-    LIST_TABS = (("all", "All"), ("profiles", "People"), ("rooms", "Rooms"), ("messages", "Messages"),
+    LIST_TABS = (("all", "All"), ("profiles", "Profiles"), ("rooms", "Rooms"), ("messages", "Messages"),
                  ("events", "Events"), ("chapters", "Chapters"))
     COLUMNS = ("Result", "Type", "Where")
     COLUMN_DROP = ("Type",)

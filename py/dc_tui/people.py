@@ -20,7 +20,7 @@ MODES = ("follows", "search", "match")
 
 class PeopleScreen(ListDetailScreen):
     SECTION = "people"
-    TITLE_TEXT = "People"
+    TITLE_TEXT = "Profiles"
     HINT = "↑↓ pick a DCer · → open · Search / Match / Follow are buttons in the detail"
     URL = WEB_APP + "/members"
     COLUMNS = ("Name", "Headline", "Chapter")

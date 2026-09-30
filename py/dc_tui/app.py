@@ -129,6 +129,8 @@ class DCApp(App):
        orange underline; gold (#FFB000) only on the tab under the keyboard cursor */
     Tabs { background: $background; }
     #nav-tabs { height: 2; background: $background; }
+    /* every row's text starts in column 2: title, bars, list tabs, chips, hint, table */
+    #nav-tabs #tabs-list-bar, #sub-tabs #tabs-list-bar { margin-left: 1; }
     Tab { color: $primary; background: transparent; }
     Tab:hover { color: #FF8C5C; background: transparent; text-style: none; }
     Tab.-active { color: $primary; background: transparent; text-style: bold; }

@@ -39,7 +39,7 @@ class FollowingScreen(ListDetailScreen):
     LIST_TABS = (("people", "DCers"), ("chapters", "Chapters"))
     COLUMNS = ("Name", "Handle")
     COLUMN_WIDTHS = {"Handle": 24, "Country": 16}
-    EMPTY_TEXT = "you don't follow anyone here yet — follow DCers from their profile (People) and chapters in the app"
+    EMPTY_TEXT = "you don't follow anyone here yet — follow DCers from their profile (Profiles) and chapters in the app"
 
     def base_columns(self):
         return ("Chapter", "Country") if self.list_tab == "chapters" else ("Name", "Handle")
