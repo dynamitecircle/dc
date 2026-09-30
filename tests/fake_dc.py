@@ -81,6 +81,14 @@ class FakeDC:
     def trips(self, past=False, limit=50, cursor=None):
         return _env([{"tripID": "trip1", "location": _LOC("Lisbon", "PT"), "startDate": "2026-11-03", "endDate": "2026-11-10", "note": "SaaS"}])
 
+    def trips_recent(self, limit=50):
+        return _env([{"tripID": "rt1", "location": _LOC("Porto", "PT"), "startDate": "2026-11-20", "endDate": "2026-11-24",
+                      "member": _M("7", "Nathan Rose")}])
+
+    def dcer(self, user_id):
+        return {"profile": {"userID": user_id, "displayName": "Alex Harling", "userName": "AlexHarling", "headline": "Community",
+                            "businessName": "Dynamite Circle"}}
+
     def trip(self, trip_id):
         return {"trip": {"tripID": trip_id, "discovery": {"people": [{"profile": _M("3", "Ana Silva"), "whyToMeet": "Runs a SaaS in Lisbon"}],
                                                           "fullPool": [_M("3", "Ana Silva"), _M("4", "Bo Li")], "events": []}}}

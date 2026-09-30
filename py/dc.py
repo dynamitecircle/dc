@@ -2185,6 +2185,15 @@ class _DCCore:
         })
         return self._wrap_list(data, "trips")
 
+    def trips_recent(self, limit=50):
+        data = self._get("/trips/recent", {"limit": limit})
+        return self._wrap_list(data, "trips")
+
+    def dcer(self, user_id):
+        if not user_id:
+            raise UsageError("dcer requires a userID")
+        return self._get(f"/profiles/{user_id}")
+
     def trip(self, trip_id):
         """Get a single trip — points + enriched discovery block (top-10
         picks with mini profile + score, fullPool, whyToMeet AI paragraphs,
@@ -2908,6 +2917,17 @@ class DC(Runtime):
         return self._core.announcements_latest()
 
     # ── Trips ───────────────────────────────────────────────────────
+
+    @skill_command(name="trips-recent",
+                   help="Recently added trips across the community (Locator > New Trips) [--limit N]",
+                   parser=_DCCore._parse_id_with_limit,
+                   args=_PAGINATION_ARGS)
+    def trips_recent(self, limit=50, cursor=None):
+        return self._core.trips_recent(limit=limit)
+
+    @skill_command(name="dcer", help="One DCer's profile by userID (what the app shows on their profile)", args={})
+    def dcer(self, user_id):
+        return self._core.dcer(user_id)
 
     @skill_command(name="trips", help="List your trips [--past] [--limit N] [--cursor TOKEN]",
                    parser=_DCCore._parse_list_args,

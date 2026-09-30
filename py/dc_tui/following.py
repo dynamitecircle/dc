@@ -12,7 +12,7 @@ from typing import Any, List, Tuple
 
 from .data import Fetched
 from .format import date_range, flag, plural
-from .listing import ListDetailScreen, dict_of, esc
+from .listing import ListDetailScreen, dict_of, esc, items_of
 from .profile import profile_lines
 from .screens import WEB_APP
 
@@ -131,14 +131,24 @@ class FollowingScreen(ListDetailScreen):
 class NewTripsScreen(ListDetailScreen):
     SECTION = "newtrips"
     TITLE_TEXT = "New Trips"
-    HINT = "only from DCers you follow · Enter opens the DCer"
+    HINT = "Enter opens the DCer"
+    LIST_TABS = (("following", "DCers I Follow"), ("all", "All"))
     URL = WEB_APP + "/locator/new-trips"
     COLUMNS = ("Trip", "Dates")                    # who → where in one column, so the place never drops
     COLUMN_WIDTHS = {"Dates": 25}                  # "06 Dec 2026 – 16 Jan 2027"
     EMPTY_TEXT = "no upcoming trips from DCers you follow"
 
     def fetch_rows(self, force: bool) -> List[dict]:
-        fetched = self.app.data.fetch("locator", force=force)  # type: ignore[attr-defined]
+        data = self.app.data  # type: ignore[attr-defined]
+        if self.list_tab == "all":
+            if not hasattr(data.dc, "trips_recent"):
+                raise RuntimeError("community trips need a newer dc client (trips-recent)")
+            fetched = data.fetch("trips-recent", limit=100, force=force)
+            if fetched.error and fetched.data is None:
+                raise RuntimeError(fetched.error)
+            self._new = set()
+            return [t for t in items_of(fetched) if isinstance(t, dict)]      # newest first, as the web
+        fetched = data.fetch("locator", force=force)
         if fetched.error and fetched.data is None:
             raise RuntimeError(fetched.error)
         people = dict_of(fetched).get("favoritePeople")
@@ -172,7 +182,8 @@ class NewTripsScreen(ListDetailScreen):
         return tuple(cells[c] for c in self._columns())
 
     def hint_text(self) -> str:
-        return "%s  [dim]%s[/dim]" % (plural(len(self.items), "trip"), self.HINT)
+        scope = "recently added across DC" if self.list_tab == "all" else "from DCers you follow"
+        return "%s %s  [dim]%s[/dim]" % (plural(len(self.items), "trip"), scope, self.HINT)
 
     def detail_title(self, item: dict) -> str:
         m = self._member(item)

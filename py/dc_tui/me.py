@@ -7,7 +7,8 @@ from typing import Any, Dict, List
 
 from textual import work
 from textual.binding import Binding
-from textual.widgets import Static
+from textual.containers import Horizontal
+from textual.widgets import Button, Static
 
 from .data import Fetched
 from .format import flag, fmt_date, guard_flags, plural, trunc
@@ -27,16 +28,26 @@ class MeScreen(DCScreen):
     HAS_DETAIL = False
 
     DEFAULT_CSS = """
-    MeScreen #me-hint { color: $text-muted; height: auto; padding: 0 1; }
+    MeScreen #me-actions { height: 1; margin: 0 0 1 0; }
+    MeScreen #me-actions Button { height: 1; min-width: 0; border: none; padding: 0 1; margin: 0 1 0 0;
+                                  background: $panel; color: $text; text-style: none; }
+    MeScreen #me-actions Button:hover, MeScreen #me-actions Button:focus {
+        background: $block-cursor-background; color: $block-cursor-foreground; border: none; }
     """
 
     def populate(self) -> None:
-        self.set_main(Static(self.HINT, id="me-hint"),
+        self.set_main(Horizontal(Button("Refresh", id="me-refresh"), Button("Open profile in app", id="me-open"), id="me-actions"),
                       Panel("Profile", id="me-profile"), Panel("Membership", id="me-membership"),
                       Panel("Notifications", id="me-notifications"), Panel("Alerts", id="me-alerts"),
                       Panel("Interests", id="me-interests"), Panel("Calendar feed", id="me-calendar"),
                       Panel("Friday locator email", id="me-locator"))
         self.refresh_data(force=False)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "me-refresh":
+            self.refresh_data(force=True)
+        elif event.button.id == "me-open":
+            self.app.action_open_in_browser()  # type: ignore[attr-defined]
 
     def refresh_data(self, force: bool = False) -> None:
         for panel in self.query(Panel):

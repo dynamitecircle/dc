@@ -21,14 +21,15 @@ def _place(trip: dict) -> dict:
 class TripsScreen(ListDetailScreen):
     SECTION = "trips"
     TITLE_TEXT = "Trips"
-    HINT = "↑↓ pick a trip · → open it · New trip / Edit / Delete are buttons in the detail"
+    HINT = "↑↓ pick a trip · → open it · Edit / Delete are buttons in the detail"
+    LIST_ACTIONS = (("＋ New trip", "new_trip"),)
     URL = WEB_APP + "/trips"
     LIST_COMMAND = "trips"
     COLUMNS = ("Where", "Note", "Dates")             # dates always last, flush right
     COLUMNS_COMPACT = ("Where", "Dates")
     COLUMN_WIDTHS = {"Note": 24, "Dates": 25}      # cross-year ranges carry both years
     COLUMN_DROP = ("Note",)
-    EMPTY_TEXT = "no upcoming trips yet — press Enter (or click New trip) to plan one"
+    EMPTY_TEXT = "no upcoming trips yet — click New trip above to plan one"
 
     BINDINGS = [
         Binding("n", "new_trip", "New", show=False),

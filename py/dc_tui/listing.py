@@ -33,7 +33,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Button, DataTable, Input, Static, Tab, Tabs
 
 from .data import Fetched
-from .format import display_width, trunc
+from .format import display_width, term_text, trunc
 from .widgets import HoverTable
 from .screens import DCScreen
 
@@ -110,6 +110,13 @@ class ListDetailScreen(DCScreen):
     ListDetailScreen .detail-actions Button.action:focus { background: $block-cursor-background; color: $block-cursor-foreground; text-style: bold; border: none; }
     ListDetailScreen .detail-actions Button.action.back { background: $surface; color: $primary; }
     ListDetailScreen #list-filters { height: 2; }
+    ListDetailScreen #list-actions { height: 1; margin: 0 0 1 0; }
+    ListDetailScreen #list-actions Button.action {
+        height: 1; min-width: 0; border: none; padding: 0 1; margin: 0 1 0 0;
+        background: $panel; color: $text; text-style: none;
+    }
+    ListDetailScreen #list-actions Button.action:hover,
+    ListDetailScreen #list-actions Button.action:focus { background: $block-cursor-background; color: $block-cursor-foreground; border: none; }
     ListDetailScreen Button.chip { height: 1; min-width: 0; border: none; padding: 0; margin: 0 1 0 0;  /* Button line-pad (1) is the only inset: label starts in column 2 */
                                    background: transparent; color: $text-muted; text-style: none; }
     ListDetailScreen Button.chip:hover { background: transparent; color: #FF8C5C; border: none; }
@@ -155,6 +162,9 @@ class ListDetailScreen(DCScreen):
             # the filters are a tab row of their own, right under the type tabs
             widgets.append(Tabs(*[Tab(label, id="chip-" + fid) for fid, label in self.LIST_FILTERS],
                                 id="list-filters", active="chip-" + self.list_filter))
+        if self.LIST_ACTIONS:           # screen-level buttons (New trip…): always visible, even with no rows
+            widgets.append(Horizontal(*[Button(label, id="lact-%d" % i, classes="action")
+                                        for i, (label, _) in enumerate(self.LIST_ACTIONS)], id="list-actions"))
         widgets += [Static("", id="list-hint"), HoverTable(id="list", cursor_type="row", zebra_stripes=True),
                     Vertical(*self._detail_widgets_for("inline"), id="detail-inline", classes="-hidden")]
         self.set_main(*widgets)
@@ -224,6 +234,10 @@ class ListDetailScreen(DCScreen):
             event.stop()
             self.set_filter(bid[5:])
             return
+        if bid.startswith("lact-"):
+            event.stop()
+            await self.run_action(self.LIST_ACTIONS[int(bid[5:])][1])
+            return
         if bid.startswith("act-"):
             event.stop()
             action = getattr(self, "_action_map", {}).get(int(bid.rsplit("-", 1)[-1]))
@@ -239,7 +253,10 @@ class ListDetailScreen(DCScreen):
         self.flex_width = max(12, avail - fixed - 2 * len(cols))
         for i, col in enumerate(cols):
             width = self.flex_width if i == 0 else self.COLUMN_WIDTHS.get(col, 10)
-            table.add_column(col, key=col, width=width)
+            table.add_column(_header(col), key=col, width=width)
+
+    #: Buttons above the list for actions that need no selected row, e.g. (("New trip", "new_trip"),).
+    LIST_ACTIONS: Sequence[Tuple[str, str]] = ()
 
     #: True for screens that mount a text field above the list tabs (Search, Profiles).
     TOP_INPUT = False
@@ -420,6 +437,8 @@ class ListDetailScreen(DCScreen):
         self.items = rows
         self._setup_columns()
         self._fill_table()
+        # no rows → no bare header row; the hint line says why it is empty
+        self.query_one("#list", DataTable).display = bool(rows)
         pending = getattr(self, "_pending_key", None)
         if pending and rows:
             self._pending_key = None
@@ -539,7 +558,7 @@ class ListDetailScreen(DCScreen):
             fixed = sum(rendered.widths.get(c, 10) for c in rendered.columns[1:])
             flex = max(12, avail - fixed - 2 * len(rendered.columns))
             for i, col in enumerate(rendered.columns):
-                table.add_column(col, key=col, width=flex if i == 0 else rendered.widths.get(col, 10))
+                table.add_column(_header(col), key=col, width=flex if i == 0 else rendered.widths.get(col, 10))
             for key, cells in rendered.rows:
                 fitted = [_fit(c, flex if i == 0 else rendered.widths.get(rendered.columns[i], 10))
                           if i < len(rendered.columns) else _fit(c, 10) for i, c in enumerate(cells)]
@@ -973,10 +992,18 @@ def _fit(cell: Any, width: int) -> Any:
     if isinstance(cell, Text):
         cell.truncate(max(1, width), overflow="ellipsis")
         return cell
-    text = str(cell or "")
+    text = term_text(cell)                 # no emoji variation selector: widths match the terminal
     if _DATE_CELL.match(text):
         return Text(text, justify="right")
-    return esc(trunc(cell, width))
+    return esc(trunc(text, width))
+
+
+_DATE_HEADERS = {"Dates", "Date", "Activity", "When", "Joined", "Time"}
+
+
+def _header(col: str) -> Any:
+    """Date columns are right-aligned, so their header is too."""
+    return Text(col, justify="right") if col in _DATE_HEADERS else col
 
 
 def items_of(fetched: Fetched) -> List[dict]:

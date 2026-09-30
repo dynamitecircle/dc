@@ -458,3 +458,14 @@ def test_attachment_links_come_from_the_api_or_the_html():
     assert attachment_url({"attachment": {"url": None, "videoStatus": "processing"}}, "") == ""
     raw = "see https://cdn.dynamitecircle.com/videos/9b1/video.mp4 and https://www.youtube.com/watch?v=aqz"
     assert attachment_url({}, raw) == "https://cdn.dynamitecircle.com/videos/9b1/video.mp4"
+
+
+def test_flags_become_country_codes_under_tmux(monkeypatch):
+    from dc_tui.format import flag
+    monkeypatch.delenv("DC_TUI_FLAGS", raising=False)
+    monkeypatch.setenv("TMUX", "/tmp/tmux-1000/default,1,0")
+    assert flag("jp") == "JP"
+    monkeypatch.delenv("TMUX")
+    assert flag("jp") == "🇯🇵"
+    monkeypatch.setenv("TMUX", "x"); monkeypatch.setenv("DC_TUI_FLAGS", "1")
+    assert flag("jp") == "🇯🇵"

@@ -154,9 +154,6 @@ class PeopleScreen(ListDetailScreen):
         if prof.get("_score") is not None:
             lines.append("[dim]match score %.2f[/dim]" % float(prof["_score"]))
         lines += profile_lines(prof, width=self.detail_width())
-        if data is None and "businessName" not in prof:
-            lines.append("")
-            lines.append("[dim]the full profile arrives with Member API 2.5 — Open profile shows it in the app[/dim]")
         if data is not None and data.error:
             lines.append("[$warning]%s[/]" % esc(data.error))
         lines.append("")

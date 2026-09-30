@@ -215,11 +215,25 @@ def align_row(width: int, name: Any, date: Any = "", extra: Any = "", *, prefix:
     return guard_flags("".join(parts))
 
 
+def _flags_ok() -> bool:
+    """tmux redraws a line in pieces and can split a flag's two regional-indicator
+    letters, leaving a gray box and shifting the row. Under tmux (or DC_TUI_FLAGS=0)
+    show the two-letter code instead — same two columns, always readable.
+    DC_TUI_FLAGS=1 forces real flags."""
+    import os
+    forced = os.environ.get("DC_TUI_FLAGS")
+    if forced is not None:
+        return forced not in ("0", "false", "no", "")
+    return not os.environ.get("TMUX")
+
+
 def flag(country_code: Any) -> str:
-    """🇯🇵 from `JP` — the two regional-indicator letters; empty when unknown."""
+    """🇯🇵 from `JP` (or `JP` itself under tmux) — empty when unknown."""
     code = str(country_code or "").strip().upper()
     if len(code) != 2 or not code.isalpha():
         return ""
+    if not _flags_ok():
+        return code
     return "".join(chr(0x1F1E6 + ord(c) - ord("A")) for c in code)
 
 
