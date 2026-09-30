@@ -125,13 +125,13 @@ class DCApp(App):
     DataTable > .datatable--hover { background: #4D7D55; color: #FFFFFF; }
     OptionList > .option-list--option-hover { background: #4D7D55; color: #FFFFFF; }
     Button.action:hover { background: #FF8C5C; color: #FFFFFF; }
-    /* Tabs: DC orange text, never a background. The active tab is orange with the
+    /* Tabs: never a background. Inactive tabs light gray; the active tab is orange with the
        orange underline; gold (#FFB000) only on the tab under the keyboard cursor */
     Tabs { background: $background; }
     #nav-tabs { height: 2; background: $background; }
     /* every row's text starts in column 2: title, bars, list tabs, chips, hint, table */
     #nav-tabs #tabs-list-bar, #sub-tabs #tabs-list-bar { margin-left: 1; }
-    Tab { color: $primary; background: transparent; }
+    Tab { color: #C4C7CE; background: transparent; }          /* inactive: light gray */
     Tab:hover { color: #FF8C5C; background: transparent; text-style: none; }
     Tab.-active { color: $primary; background: transparent; text-style: bold; }
     Tab.-active:hover { color: #FF8C5C; background: transparent; }
