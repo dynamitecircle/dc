@@ -26,7 +26,8 @@ class TripsScreen(ListDetailScreen):
     LIST_COMMAND = "trips"
     COLUMNS = ("Where", "Note", "Dates")             # dates always last, flush right
     COLUMNS_COMPACT = ("Where", "Dates")
-    COLUMN_WIDTHS = {"Note": 24, "Dates": 20}
+    COLUMN_WIDTHS = {"Note": 24, "Dates": 25}      # cross-year ranges carry both years
+    COLUMN_DROP = ("Note",)
     EMPTY_TEXT = "no upcoming trips yet — press Enter (or click New trip) to plan one"
 
     BINDINGS = [

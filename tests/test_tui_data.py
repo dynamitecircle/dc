@@ -396,3 +396,9 @@ def test_room_title_follows_the_app_rule():
     assert room_title({"roomID": "dm_1_940", "type": "dm", "name": ""}, "Simon Payne") == "Direct message"
     assert room_title({"roomID": "r2", "roomType": "channel", "roomName": "SaaS"}) == "SaaS"
     assert room_title({"roomID": "g1", "type": "group", "name": "Beatriz, Simon, Alex"}, "Simon Payne") == "Beatriz, Simon, Alex"
+
+
+def test_say_count_matches_the_web_str_helper():
+    from dc_tui.format import say_count, say_count_title
+    assert [say_count(n) for n in (0, 1, 5, 10, 11, 250)] == ["zero", "one", "five", "ten", "11", "250"]
+    assert say_count_title(5) == "Five" and say_count_title(12) == "12"

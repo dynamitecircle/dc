@@ -655,12 +655,17 @@ class ListDetailScreen(DCScreen):
                 return inp
         return None
 
+    def _bar(self) -> Tabs:
+        return self.sub_tabs() or self.query_one("#nav-tabs", Tabs)
+
     def action_nav_up(self) -> None:
         """↑ : move in the table; from the top row, jump to the tab row above it,
         then the text field (if any), then the section bar."""
         focused = self.focused
+        if self.bar_step(focused, -1):
+            return
         if isinstance(focused, Input):
-            self.query_one("#nav-tabs", Tabs).focus()
+            self.focus_bar()
             return
         if isinstance(focused, DataTable):
             if focused.cursor_row is not None and focused.cursor_row > 0 and focused.row_count:
@@ -675,11 +680,11 @@ class ListDetailScreen(DCScreen):
             if tabs is not None:
                 tabs.focus()
             elif focused.id == "list":
-                (self.top_input() or self.query_one("#nav-tabs", Tabs)).focus()
+                (self.top_input() or self._bar()).focus()
             return
         if isinstance(focused, Tabs):
             if focused.id == "list-tabs":
-                (self.top_input() or self.query_one("#nav-tabs", Tabs)).focus()
+                (self.top_input() or self._bar()).focus()
             return
         if isinstance(focused, Button) and focused.has_class("chip"):
             tabs = None
@@ -710,7 +715,9 @@ class ListDetailScreen(DCScreen):
         """↓ : from the section bar into the list tabs (or list); from a tab row
         into its table; otherwise move in the table."""
         focused = self.focused
-        if isinstance(focused, Tabs) and focused.id == "nav-tabs":
+        if self.bar_step(focused, 1):
+            return
+        if isinstance(focused, Tabs) and focused.id in ("nav-tabs", "sub-tabs"):
             inp = self.top_input()
             if inp is not None:
                 inp.focus()                  # bar → search field

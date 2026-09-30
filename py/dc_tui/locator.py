@@ -8,14 +8,14 @@ Every row is selectable: Enter opens the person, trip, event or city."""
 from __future__ import annotations
 
 import webbrowser
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from textual import work
 from textual.binding import Binding
 from textual.widgets import OptionList, Static, Tabs
 
 from .data import Fetched
-from .format import align_row, date_range, event_dates, flag, fmt_date, guard_flags, pad, plural, trunc
+from .format import align_row, date_range, event_dates, flag, fmt_date, guard_flags, pad, plural, say_count_title, trunc
 from .labels import event_type_label
 from .screens import DCScreen, WEB_APP
 from .widgets import Panel
@@ -46,11 +46,17 @@ def _person_target(m: dict):
 
 
 class LocatorScreen(DCScreen):
+    """The web Locator tab (LocatorDigest.vue), card per block in the web's order:
+    your home chapter, each chapter you follow, DCers you follow, then one card
+    per trip of yours. Titles use the web's SayCount wording ("Five new trips")."""
+
     SECTION = "locator"
     TITLE_TEXT = "Locator"
-    HINT = "your Friday digest, live"
+    HINT = "your chapter · chapters you follow · DCers you follow · your trips"
     URL = WEB_APP + "/locator"
     HAS_DETAIL = False
+    AUTO_FOCUS = "#main"
+    SUB_TABS = True
 
     BINDINGS = [
         Binding("up", "card_up", "Up", show=False, priority=True),
@@ -62,11 +68,18 @@ class LocatorScreen(DCScreen):
         Binding("enter", "open_row", "Open", show=False),
     ]
 
-    CARDS = [("l-home", "Your city"), ("l-cities", "Chapters you follow"),
-             ("l-people", "DCers you follow"), ("l-trips", "Your trips")]
+    #: web caps: trip lists show 10, a member's nested trips 5 (LocatorTripList / LocatorGroupedTripList)
+    TRIP_CAP = 10
+    NESTED_CAP = 5
+
+    def __init__(self, *a, **kw) -> None:
+        super().__init__(*a, **kw)
+        self._expanded: Set[str] = set()
+        self._last_fetched: Optional[Fetched] = None
+        self._card_ids: List[str] = []
 
     def populate(self) -> None:
-        self.set_main(*[Panel(title, id=pid) for pid, title in self.CARDS])
+        self.set_main(Panel("Locator", id="l-loading"))
         self.refresh_data(force=False)
 
     def refresh_data(self, force: bool = False) -> None:
@@ -83,113 +96,70 @@ class LocatorScreen(DCScreen):
     def _card_width(self) -> int:
         pane = self.main_pane().size.width or self.app.size.width
         width = pane - 6                                   # pane padding + card border + card padding
-        try:
-            panel_w = self.query_one("#l-home", Panel).size.width
-            if panel_w > 10:
-                width = panel_w - 4
-        except Exception:  # noqa: BLE001
-            pass
+        panels = [p for p in self.query(Panel) if p.size.width > 10]
+        if panels:
+            width = panels[0].size.width - 4
         return max(20, width - 1)
 
     def on_resize(self, event) -> None:
         super().on_resize(event)
-        if getattr(self, "_last_fetched", None) is not None:
+        if self._last_fetched is not None:
             self._render_digest(self._last_fetched)            # rows re-fit to the new width
 
-    # ── rendering — mirrors the web digest (LocatorDigest.vue) ─────────
+    # ── rendering ────────────────────────────────────────────────────
     def _render_digest(self, f: Fetched) -> None:
         self._last_fetched = f
         digest = f.data if isinstance(f.data, dict) else {}
-        age = ("refreshed %dm ago" % (f.age // 60)) if (f.from_cache and f.age >= 60) else "refreshed just now"
-        flag_txt = (" · ⚠ " + trunc(f.error, 30)) if f.error else " · " + age
         width = self._card_width()
+        exp = self._expanded
+        cards: List[Tuple[str, str, List[Tuple[str, Any]], str]] = []     # (id, title, rows, subtitle)
         if f.error and not digest:
-            self._paint("l-home", [("[$warning]Couldn't load your Locator.[/] %s — press r to try again." % _esc(f.error), None)], "", "")
-            for pid in ("l-cities", "l-people", "l-trips"):
-                self._paint(pid, [], "", "")
-            return
-        if not _digest_has_content(digest):
-            self._paint("l-home", [("Your Locator is empty.", None),
-                                   ("[dim]Set your home city in your profile, follow some DCers, or plan a trip and it will start filling up here.[/dim]", None)], "", "")
-            for pid in ("l-cities", "l-people", "l-trips"):
-                self._paint(pid, [], "", "")
-            return
-        self._paint("l-home", *self._home(digest, width), flag_txt)
-        self._paint("l-cities", *self._cities(digest, width), "")
-        self._paint("l-people", *self._people(digest, width), "")
-        self._paint("l-trips", *self._trips(digest, width), "")
+            cards.append(("l-error", "Locator", [("[$warning]Couldn't load the Locator.[/] %s — press r to try again." % _esc(f.error), None)], ""))
+        elif not _digest_has_content(digest):
+            cards.append(("l-empty", "Locator", [("Your Locator is empty.", None),
+                                                 ("[dim]Set your home city in your profile, follow some DCers, or plan a trip and your Locator will start filling up here.[/dim]", None)], ""))
+        else:
+            home = digest.get("homeCity") if isinstance(digest.get("homeCity"), dict) else None
+            if home:
+                cards.append(_city_card("l-home", home, True, width, exp))
+            for i, c in enumerate(c for c in digest.get("favoriteCities") or [] if isinstance(c, dict)):
+                cards.append(_city_card("l-city-%d" % i, c, False, width, exp))
+            people = digest.get("favoritePeople") if isinstance(digest.get("favoritePeople"), dict) else {}
+            if any(people.get(k) for k in ("newTrips", "comingTrips", "purchased", "attending")):
+                cards.append(("l-people", "DCers you follow", _people_rows(people, width, exp), ""))
+            for i, t in enumerate(sorted((t for t in digest.get("myTrips") or [] if isinstance(t, dict)),
+                                         key=lambda t: str(_trip_of(t).get("startDate") or ""))):
+                cards.append(_my_trip_card("l-trip-%d" % i, t, width, exp))
+        if cards:
+            refreshed = "just now" if not (f.from_cache and f.age >= 60) else _ago(f.age)
+            note = (" · ⚠ " + trunc(f.error, 30)) if f.error else " · Last refreshed %s" % refreshed
+            cid, title, rows, sub = cards[0]
+            cards[0] = (cid, title, rows, (sub + note).lstrip(" ·"))
+        ids = [c[0] for c in cards]
+        if ids != self._card_ids:
+            self._card_ids = ids
+            self._remount(cards)
+        else:
+            for cid, title, rows, sub in cards:
+                self._paint(cid, title, rows, sub)
+
+    @work(exclusive=True, group="locator-cards", exit_on_error=False)
+    async def _remount(self, cards) -> None:
+        pane = self.main_pane()
+        await pane.remove_children()
+        await pane.mount(*[Panel(guard_flags(title), id=cid) for cid, title, _, _ in cards])
+        for cid, title, rows, sub in cards:
+            self._paint(cid, title, rows, sub)
         if self.focused is None or self.focused is self.main_pane():
             self.call_after_refresh(self.focus_content)
 
-    def _paint(self, pid: str, rows: List[Tuple[str, Any]], subtitle: str, flag: str) -> None:
+    def _paint(self, pid: str, title: str, rows: List[Tuple[str, Any]], subtitle: str) -> None:
         try:
-            self.query_one("#%s" % pid, Panel).set_rows(rows, subtitle=subtitle + flag)
+            panel = self.query_one("#%s" % pid, Panel)
         except Exception:  # noqa: BLE001
-            pass
-
-    def _home(self, digest: dict, width: int) -> Tuple[List[Tuple[str, Any]], str]:
-        home = digest.get("homeCity") if isinstance(digest.get("homeCity"), dict) else {}
-        city = home.get("cityName") or "your city"
-        rows: List[Tuple[str, Any]] = []
-        # LocatorCityBlock.vue order: new events → upcoming events → new DCers → planning → coming
-        rows += _event_section(_n(home.get("createdEvents"), "new event", "in %s" % city), home.get("createdEvents"), width)
-        rows += _event_section(_n(home.get("comingEvents"), "upcoming event", "in %s" % city), home.get("comingEvents"), width)
-        new = [m for m in home.get("newMembers") or [] if isinstance(m, dict)]
-        if new:
-            rows.append(_head(_n(new, "new DCer", "in %s" % city), None))
-            for m in new:
-                mm = _member(m) or m
-                rows.append((align_row(width, _name(mm), "", mm.get("headline") or "", prefix="👤 "), _person_target(mm)))
-        rows += _trip_section(_n(home.get("planningToCity"), "DCer", "planning trips to %s" % city), home.get("planningToCity"), width, show_place=False)
-        rows += _trip_section(_n(home.get("comingToCity"), "DCer", "coming to %s" % city), home.get("comingToCity"), width, show_place=False)
-        n = sum(len(home.get(k) or []) for k in ("newMembers", "planningToCity", "comingToCity", "createdEvents", "comingEvents"))
-        title = "%s DC %s Chapter · Home" % (flag(home.get("countryCode")), city) if home.get("cityName") else "set your home city in your profile"
-        return rows or [("[dim]quiet week in %s[/dim]" % _esc(city), None)], guard_flags("%s · %s" % (_esc(title.strip()), plural(n, "item")))
-
-    def _cities(self, digest: dict, width: int) -> Tuple[List[Tuple[str, Any]], str]:
-        cities = [c for c in digest.get("favoriteCities") or [] if isinstance(c, dict)]
-        rows: List[Tuple[str, Any]] = []
-        for c in cities:
-            name = c.get("cityName") or "a city"
-            n = sum(len(c.get(k) or []) for k in ("newTrips", "comingTrips", "newEvents", "comingEvents"))
-            link = c.get("shortURL") or c.get("chapterURL")
-            rows.append((guard_flags("%s [b]DC %s Chapter[/b]  [dim]%s[/dim]" % (flag(c.get("countryCode")) or "★", _esc(name), plural(n, "item"))),
-                         ("url", link) if link else None))
-            rows += _event_section(_n(c.get("newEvents"), "new event", "in %s" % name), c.get("newEvents"), width, indent="  ")
-            rows += _event_section(_n(c.get("comingEvents"), "upcoming event", "in %s" % name), c.get("comingEvents"), width, indent="  ")
-            rows += _trip_section(_n(c.get("newTrips"), "new trip", "to %s" % name), c.get("newTrips"), width, show_place=False, indent="  ")
-            rows += _trip_section(_n(c.get("comingTrips"), "DCer", "coming to %s" % name), c.get("comingTrips"), width, show_place=False, indent="  ")
-        return rows or [("[dim]follow a chapter and its comings and goings show up here[/dim]", None)], plural(len(cities), "city")
-
-    def _people(self, digest: dict, width: int) -> Tuple[List[Tuple[str, Any]], str]:
-        people = digest.get("favoritePeople") if isinstance(digest.get("favoritePeople"), dict) else {}
-        rows: List[Tuple[str, Any]] = []
-        # LocatorFavoritePeople.vue titles
-        rows += _grouped_trip_section(_n(people.get("newTrips"), "new trip", "from DCers you follow"), people.get("newTripsGrouped"), people.get("newTrips"), width)
-        rows += _grouped_trip_section(_n(people.get("comingTrips"), "more upcoming trip", ""), people.get("comingTripsGrouped"), people.get("comingTrips"), width)
-        rows += _event_group_section(_n(people.get("purchased"), "ticket", "just purchased"), people.get("purchasedByEvent"), people.get("purchased"), "got a ticket to", "bought tickets to", width)
-        rows += _event_group_section(_n(people.get("attending"), "event", "your follows are attending"), people.get("attendingByEvent"), people.get("attending"), "is attending", "are attending", width)
-        n = sum(len(people.get(k) or []) for k in ("newTrips", "comingTrips", "purchased", "attending"))
-        return rows or [("[dim]follow DCers and their plans show up here[/dim]", None)], "DCers you follow · %s" % plural(n, "item")
-
-    def _trips(self, digest: dict, width: int) -> Tuple[List[Tuple[str, Any]], str]:
-        trips = [t for t in digest.get("myTrips") or [] if isinstance(t, dict)]
-        rows: List[Tuple[str, Any]] = []
-        for t in sorted(trips, key=lambda t: str(t.get("startDate") or "")):
-            city = t.get("cityName") or _place(t) or "somewhere"
-            overlap = [x for x in t.get("plannedTrips") or [] if isinstance(x, dict)]
-            leads = [x for x in t.get("chapterLeads") or [] if isinstance(x, dict)]
-            locals_ = [x for x in t.get("localMembers") or [] if isinstance(x, dict)]
-            pill = " · ".join(b for b in (plural(len(overlap), "DCer") + " overlap" if overlap else "", plural(len(leads), "chapter lead") if leads else "") if b)
-            rows.append((align_row(width, "Your trip to " + city, date_range(t.get("startDate"), t.get("endDate")), pill, prefix="✈  "),
-                         ("trips", t.get("tripID")) if t.get("tripID") else None))
-            rows += _trip_section(_n(overlap, "DCer", "also visiting"), overlap, width, show_place=False, indent="  ")
-            if leads or locals_:
-                rows.append(_head("Local DCers · chapter leads first", 0, indent="  "))
-                for m in (leads + locals_)[:10]:
-                    mm = _member(m) or m
-                    rows.append((align_row(width, _name(mm), "", "chapter lead" if m in leads else "", prefix="👤 "), _person_target(mm)))
-        return rows or [("[dim]no upcoming trips[/dim] — Enter to plan one", ("trips", None))], plural(len(trips), "trip")
+            return
+        panel.border_title = guard_flags(title)
+        panel.set_rows(rows, subtitle=guard_flags(subtitle))
 
     # ── navigation (same model as Home) ───────────────────────────────
     def _cards(self) -> List[Panel]:
@@ -216,6 +186,8 @@ class LocatorScreen(DCScreen):
         card, cards = self._focused_card(), self._cards()
         if card is None:
             if isinstance(self.focused, Tabs):
+                if self.bar_step(self.focused, step):
+                    return
                 if step > 0 and cards:
                     self._jump(cards[0])
                 return
@@ -235,7 +207,7 @@ class LocatorScreen(DCScreen):
         if 0 <= nxt < len(cards):
             self._jump(cards[nxt], last=step < 0)
         elif nxt < 0:
-            self.query_one("#nav-tabs", Tabs).focus()
+            self.focus_bar()
 
     def action_card_up(self) -> None:
         self._move(-1)
@@ -278,6 +250,11 @@ class LocatorScreen(DCScreen):
         if not target:
             return
         kind, key = target
+        if kind == "expand":                              # "Show N more" / "Show less"
+            self._expanded.symmetric_difference_update({key})
+            if self._last_fetched is not None:
+                self._render_digest(self._last_fetched)
+            return
         if kind == "url":
             webbrowser.open(str(key))
             self.app.notify("Opened in browser", timeout=2)
@@ -287,30 +264,154 @@ class LocatorScreen(DCScreen):
             self.app.open_in_section(kind, key)  # type: ignore[attr-defined]
 
 
-# ── compaction helpers (mirror server groupLocator.ts + web renderers) ──
 
-def _head(title: str, count, indent: str = "") -> Tuple[str, Any]:
+
+# ── builders — one per web component ─────────────────────────────────
+def _head(title: str, indent: str = "") -> Tuple[str, Any]:
     return ("%s[dim]%s[/dim]" % (indent, _esc(title)), None)
 
 
-def _n(items: Any, noun: str, tail: str) -> str:
-    """`3 new events in Tokyo` — the web's SayCount titles."""
-    n = len(items) if isinstance(items, list) else 0
-    word = noun if n == 1 else (noun + "s")
-    return ("%d %s %s" % (n, word, tail)).strip()
+def _say(n: int, one: str, many: str, tail: str = "") -> str:
+    """`${SayCount(n)} ${n === 1 ? one : many} tail` — the web's title formula."""
+    return ("%s %s %s" % (say_count_title(n), one if n == 1 else many, tail)).strip()
+
+
+def _ago(seconds: float) -> str:
+    m = int(seconds // 60)
+    if m < 60:
+        return "%d min%s ago" % (m, "" if m == 1 else "s")
+    h = m // 60
+    if h < 24:
+        return "%d hour%s ago" % (h, "" if h == 1 else "s")
+    d = h // 24
+    return "%d day%s ago" % (d, "" if d == 1 else "s")
+
+
+def _list(items: Any) -> List[dict]:
+    return [x for x in (items or []) if isinstance(x, dict)]
+
+
+def _more_row(key: str, hidden: int, expanded: bool, indent: str = "") -> Tuple[str, Any]:
+    text = "Show less" if expanded else "Show %d more" % hidden
+    return ("%s[dim]%s[/dim]" % (indent, text), ("expand", key))
+
+
+def _capped(rows_per_item: List[List[Tuple[str, Any]]], cap: int, key: str, exp: Set[str], indent: str = "") -> List[Tuple[str, Any]]:
+    """First `cap` items, then a Show N more / Show less toggle (LocatorTripList)."""
+    open_ = key in exp
+    shown = rows_per_item if (open_ or len(rows_per_item) <= cap) else rows_per_item[:cap]
+    out = [r for rows in shown for r in rows]
+    if len(rows_per_item) > cap:
+        out.append(_more_row(key, len(rows_per_item) - cap, open_, indent))
+    return out
+
+
+def _city_card(cid: str, c: dict, is_home: bool, width: int, exp: Set[str]):
+    """LocatorCityBlock.vue — heading "DC {city} Chapter" (+ Home), sub-sections in web order."""
+    city = c.get("cityName") or "your city"
+    rows: List[Tuple[str, Any]] = []
+    new_events = c.get("createdEvents") if is_home else c.get("newEvents")
+    rows += _event_section(_say(len(_list(new_events)), "new event", "new events", "in %s" % city), new_events, width)
+    rows += _event_section(_say(len(_list(c.get("comingEvents"))), "upcoming event", "upcoming events", "in %s" % city), c.get("comingEvents"), width)
+    planning = _list(c.get("planningToCity") if is_home else c.get("newTrips"))
+    if is_home:
+        title = _say(len(planning), "DCer", "DCers", "planning trips to %s" % city)
+    else:
+        title = _say(len(planning), "new trip", "new trips", "to %s" % city)
+    rows += _trip_section(title, planning, width, key=cid + ":planning", exp=exp)
+    coming = _list(c.get("comingToCity") if is_home else c.get("comingTrips"))
+    rows += _trip_section(_say(len(coming), "DCer", "DCers", "coming to %s" % city), coming, width, key=cid + ":coming", exp=exp)
+    members = _list(c.get("newMembers"))
+    fresh = [m for m in members if m.get("isNewToDC") is True]
+    joined = [m for m in members if m.get("isNewToDC") is not True]
+    rows += _member_section(_say(len(fresh), "new DCer", "new DCers", "just joined DC and the %s chapter" % city), fresh, width)
+    rows += _member_section(_say(len(joined), "DCer", "DCers", "joined the %s chapter" % city), joined, width)
+    heading = "%s DC %s Chapter%s" % (flag(c.get("countryCode")) or "📍", city, " · Home" if is_home else "")
+    if not rows:
+        rows = [("[dim]Nothing here yet.[/dim]", None)]
+    return (cid, heading, rows, "")
+
+
+def _member_section(title: str, members: List[dict], width: int) -> List[Tuple[str, Any]]:
+    if not members:
+        return []
+    rows = [_head(title)]
+    for m in members:
+        rows.append((align_row(width, _name(m), fmt_date(m.get("joinedAt")) if m.get("joinedAt") else "", m.get("headline") or "",
+                               prefix="👤 "), _person_target(m)))
+    return rows
+
+
+def _people_rows(people: dict, width: int, exp: Set[str]) -> List[Tuple[str, Any]]:
+    """LocatorFavoritePeople.vue — counts from the flat arrays, rows from the grouped ones."""
+    rows: List[Tuple[str, Any]] = []
+    rows += _grouped_trip_section(_say(len(_list(people.get("newTrips"))), "new trip", "new trips", "from DCers you follow"),
+                                  people.get("newTripsGrouped"), people.get("newTrips"), width, "people:new", exp)
+    rows += _grouped_trip_section(_say(len(_list(people.get("comingTrips"))), "more upcoming trip", "more upcoming trips"),
+                                  people.get("comingTripsGrouped"), people.get("comingTrips"), width, "people:coming", exp)
+    rows += _event_group_section(_say(len(_list(people.get("purchased"))), "ticket", "tickets", "just purchased"),
+                                 people.get("purchasedByEvent"), people.get("purchased"), "got a ticket to", "bought tickets to", width, icon="🎫 ")
+    rows += _event_group_section(_say(len(_list(people.get("attending"))), "event", "events", "your follows are attending"),
+                                 people.get("attendingByEvent"), people.get("attending"), "is attending", "are attending", width)
+    return rows or [("[dim]Nothing here yet.[/dim]", None)]
+
+
+def _trip_of(entry: dict) -> dict:
+    t = entry.get("trip")
+    return t if isinstance(t, dict) else entry
+
+
+def _my_trip_card(cid: str, entry: dict, width: int, exp: Set[str]):
+    """LocatorMyTripSection.vue — "Your trip to {city}", dates + overlap badge (digits)."""
+    trip = _trip_of(entry)
+    city = entry.get("cityName") or _place(trip) or "a city"
+    overlap = _list(entry.get("plannedTrips"))
+    leads = _list(entry.get("chapterLeads"))
+    locals_ = _list(entry.get("localMembers"))
+    badge = ", ".join(b for b in ("%d DCer%s overlap" % (len(overlap), "" if len(overlap) == 1 else "s") if overlap else "",
+                                  "%d chapter lead%s" % (len(leads), "" if len(leads) == 1 else "s") if leads else "") if b)
+    rows: List[Tuple[str, Any]] = []
+    rows.append((align_row(width, "✈ " + (_place(trip) or city), date_range(trip.get("startDate"), trip.get("endDate")), badge, name_markup="%s"),
+                 ("trips", trip.get("tripID")) if trip.get("tripID") else None))
+    rows += _trip_section(_say(len(overlap), "DCer", "DCers", "also visiting"), overlap, width, key=cid + ":overlap", exp=exp)
+    local = leads + locals_
+    if local:
+        rows.append(_head(_say(len(local), "local DCer", "local DCers")))
+        per = []
+        for m in local:
+            per.append([(align_row(width, _name(m), "", "chapter lead" if m in leads else "", prefix="👤 "), _person_target(m))])
+        rows += _capped(per, 10, cid + ":local", exp)
+    return (cid, "Your trip to %s" % city, rows, "")
+
+
+def _trip_section(title: str, trips: Any, width: int, *, key: str, exp: Set[str], show_place: bool = False) -> List[Tuple[str, Any]]:
+    trips = _list(trips)
+    if not trips:
+        return []                      # empty sub-sections are hidden, like the web
+    return [_head(title)] + _trip_group_rows(_group_by_member(trips), width, show_place=show_place, key=key, exp=exp)
+
+
+def _grouped_trip_section(title: str, grouped: Any, flat: Any, width: int, key: str, exp: Set[str]) -> List[Tuple[str, Any]]:
+    flat = _list(flat)
+    groups = _list(grouped) if isinstance(grouped, list) else None
+    if groups is None:
+        groups = _group_by_member(flat)          # older payloads: group here
+    if not groups:
+        return []
+    return [_head(title)] + _trip_group_rows(groups, width, show_place=True, key=key, exp=exp)
+
+
+def _trip_target(t: dict, m: dict):
+    url = t.get("shortURL") or t.get("tripURL")
+    return ("url", url) if url else _person_target(m)
 
 
 def _digest_has_content(digest: dict) -> bool:
-    home = digest.get("homeCity") if isinstance(digest.get("homeCity"), dict) else {}
-    if any(home.get(k) for k in ("newMembers", "planningToCity", "comingToCity", "createdEvents", "comingEvents")):
+    """useLocatorDigest.ts isEmpty: no home city, no followed chapters, nothing from follows, no trips."""
+    if isinstance(digest.get("homeCity"), dict) or _list(digest.get("favoriteCities")) or _list(digest.get("myTrips")):
         return True
-    for c in digest.get("favoriteCities") or []:
-        if isinstance(c, dict) and any(c.get(k) for k in ("newTrips", "comingTrips", "newEvents", "comingEvents")):
-            return True
     people = digest.get("favoritePeople") if isinstance(digest.get("favoritePeople"), dict) else {}
-    if any(people.get(k) for k in ("newTrips", "comingTrips", "purchased", "attending")):
-        return True
-    return bool(digest.get("myTrips"))
+    return any(people.get(k) for k in ("newTrips", "comingTrips", "purchased", "attending"))
 
 
 def _group_by_member(trips: List[dict]) -> List[dict]:
@@ -326,40 +427,26 @@ def _group_by_member(trips: List[dict]) -> List[dict]:
     return groups
 
 
-def _trip_group_rows(groups: List[dict], width: int, *, show_place: bool, indent: str) -> List[Tuple[str, Any]]:
-    rows: List[Tuple[str, Any]] = []
+def _trip_group_rows(groups: List[dict], width: int, *, show_place: bool, key: str, exp: Set[str]) -> List[Tuple[str, Any]]:
+    """LocatorGroupedTripList.vue: one row per member; one trip → "planned a trip to X",
+    several → "planned N trips" with the trips one column in (first 5, then +N more)."""
+    per_member: List[List[Tuple[str, Any]]] = []
     for g in groups:
         m = g.get("member") if isinstance(g.get("member"), dict) else {}
-        trips = [t for t in g.get("trips") or [] if isinstance(t, dict)]
+        trips = _list(g.get("trips"))
         if not trips:
             continue
         if len(trips) == 1:
             t = trips[0]
-            extra = ("→ " + (_place(t) or "somewhere")) if show_place else (t.get("note") or "")
-            rows.append((align_row(width, _name(m), date_range(t.get("startDate"), t.get("endDate")), extra, prefix="👤 "), _person_target(m)))
-        else:
-            rows.append((align_row(width, _name(m), "", "planned %s" % plural(len(trips), "trip"), prefix="👤 "), _person_target(m)))
-            for t in trips:
-                rows.append((align_row(width, _place(t) or "somewhere", date_range(t.get("startDate"), t.get("endDate")), prefix=indent + "    ", name_markup="%s"),
-                             ("url", t.get("shortURL") or t.get("tripURL")) if (t.get("shortURL") or t.get("tripURL")) else _person_target(m)))
-    return rows
-
-
-def _trip_section(title: str, trips: Any, width: int, *, show_place: bool, indent: str = "") -> List[Tuple[str, Any]]:
-    trips = [t for t in (trips or []) if isinstance(t, dict)]
-    if not trips:
-        return []                      # empty sub-sections are hidden, like the web
-    return [_head(title, 0, indent)] + _trip_group_rows(_group_by_member(trips), width, show_place=show_place, indent=indent + "  ")
-
-
-def _grouped_trip_section(title: str, grouped: Any, flat: Any, width: int) -> List[Tuple[str, Any]]:
-    flat = [t for t in (flat or []) if isinstance(t, dict)]
-    groups = [g for g in (grouped or []) if isinstance(g, dict)] if isinstance(grouped, list) else None
-    if groups is None:
-        groups = _group_by_member(flat)          # older payloads: group here
-    if not groups:
-        return []
-    return [_head(title, 0)] + _trip_group_rows(groups, width, show_place=True, indent="  ")
+            extra = ("planned a trip to " + (_place(t) or "Somewhere")) if show_place else (t.get("note") or "")
+            per_member.append([(align_row(width, _name(m), date_range(t.get("startDate"), t.get("endDate")), extra, prefix="👤 "), _person_target(m))])
+            continue
+        rows = [(align_row(width, _name(m), "", "planned %d trips" % len(trips), prefix="👤 "), _person_target(m))]
+        nested = [[(align_row(width, _place(t) or "Somewhere", date_range(t.get("startDate"), t.get("endDate")), prefix=" ", name_markup="%s"),
+                    _trip_target(t, m))] for t in trips]
+        rows += _capped(nested, LocatorScreen.NESTED_CAP, "%s:%s" % (key, m.get("userID") or _name(m)), exp, indent=" ")
+        per_member.append(rows)
+    return _capped(per_member, LocatorScreen.TRIP_CAP, key, exp)
 
 
 def _group_by_event(tickets: List[dict]) -> List[dict]:
@@ -392,14 +479,15 @@ def _name_list(names: List[str], cap: int = 5) -> str:
     return "%s and %d other%s" % (", ".join(names[:cap]), extra, "" if extra == 1 else "s")
 
 
-def _event_group_section(title: str, grouped: Any, flat: Any, verb_one: str, verb_many: str, width: int) -> List[Tuple[str, Any]]:
+def _event_group_section(title: str, grouped: Any, flat: Any, verb_one: str, verb_many: str, width: int,
+                         icon: str = "📅 ") -> List[Tuple[str, Any]]:
     flat = [t for t in (flat or []) if isinstance(t, dict)]
     groups = [g for g in (grouped or []) if isinstance(g, dict)] if isinstance(grouped, list) else None
     if groups is None:
         groups = _group_by_event(flat)
     if not groups:
         return []
-    rows: List[Tuple[str, Any]] = [_head(title, 0)]
+    rows: List[Tuple[str, Any]] = [_head(title)]
     for g in groups:
         members = [m for m in g.get("members") or [] if isinstance(m, dict)]
         names = [_name(m) for m in members] or [str(x) for x in g.get("memberNames") or []]
@@ -408,7 +496,7 @@ def _event_group_section(title: str, grouped: Any, flat: Any, verb_one: str, ver
         sentence = "%s %s %s" % (_name_list(names), verb, trunc(g.get("eventName") or "Untitled event", 40))
         when = date_range(g.get("startDate") or (g.get("eventDates") or {}).get("startDate"), g.get("endDate") or (g.get("eventDates") or {}).get("endDate"))
         target = ("events", g.get("eventID")) if g.get("eventID") else (("url", g.get("shortURL")) if g.get("shortURL") else None)
-        rows.append((align_row(width, sentence, when, prefix="  ", name_markup="%s"), target))
+        rows.append((align_row(width, sentence, when, prefix=icon, name_markup="%s"), target))
     return rows
 
 
@@ -423,7 +511,7 @@ def _dedupe_events(events: List[dict]) -> List[dict]:
     return out
 
 
-def _event_row(e: dict, width: int, indent: str = "  ") -> Tuple[str, Any]:
+def _event_row(e: dict, width: int, indent: str = "") -> Tuple[str, Any]:
     city = e.get("city") if isinstance(e.get("city"), dict) else {}
     name = e.get("name") or e.get("eventName") or "Untitled event"
     kind = event_type_label(e.get("eventType"))
@@ -432,8 +520,8 @@ def _event_row(e: dict, width: int, indent: str = "  ") -> Tuple[str, Any]:
             ("events", e.get("eventID")) if e.get("eventID") else None)
 
 
-def _event_section(title: str, events: Any, width: int, indent: str = "") -> List[Tuple[str, Any]]:
-    events = _dedupe_events([e for e in (events or []) if isinstance(e, dict)])
+def _event_section(title: str, events: Any, width: int) -> List[Tuple[str, Any]]:
+    events = _dedupe_events(_list(events))
     if not events:
         return []
-    return [_head(title, 0, indent)] + [_event_row(e, width, indent + "  ") for e in events]
+    return [_head(title)] + [_event_row(e, width) for e in events]

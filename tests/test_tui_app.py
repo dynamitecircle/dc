@@ -138,7 +138,7 @@ def test_events_tabs_detail_tabs_and_bookmark(tmp_path):
         app, fake = make_app(tmp_path)
         async with app.run_test(size=(140, 40)) as pilot:
             await settle(pilot, 1.0)
-            await press(pilot, "5"); await settle(pilot, 1.5)
+            await press(pilot, "4"); await settle(pilot, 1.5)
             scr = app.screen
             assert [e["eventID"] for e in scr.items] == ["e-dcbkk", "e-dcbcn"]           # global tab
             assert scr.row_cells(scr.items[1])[-1] == "Jul 2027"                          # unconfirmed → month only
@@ -171,7 +171,7 @@ def test_search_all_and_type_tabs(tmp_path):
         app, _ = make_app(tmp_path)
         async with app.run_test(size=(120, 40)) as pilot:
             await settle(pilot, 1.0)
-            await press(pilot, "8"); await settle(pilot, 1.0)
+            await press(pilot, "7"); await settle(pilot, 1.0)
             assert fid(app) == "search-query"
             for ch in "SaaS": await press(pilot, ch)
             await press(pilot, "enter"); await settle(pilot, 1.5)
@@ -187,24 +187,48 @@ def test_search_all_and_type_tabs(tmp_path):
     run(go())
 
 
-def test_locator_page_rows_and_person_open(tmp_path):
+def test_locator_page_matches_the_web_digest(tmp_path):
+    """Card per block in the web order, SayCount titles, one-column nesting,
+    Locator sub-tabs (My Trips / Following / New Trips) under one bar entry."""
     async def go():
         app, _ = make_app(tmp_path)
         async with app.run_test(size=(120, 44)) as pilot:
             await settle(pilot, 1.0)
-            await press(pilot, "6"); await settle(pilot, 1.5)
+            await press(pilot, "5"); await settle(pilot, 1.8)
             scr = app.screen
             await shot(app, "locator")
             cards = {p.id: p for p in scr.query(Panel)}
+            assert list(cards)[:3] == ["l-home", "l-city-0", "l-people"]
+            assert "DC Osaka Chapter · Home" in str(cards["l-home"].border_title)
+            assert "🇯🇵" in str(cards["l-city-0"].border_title)
             rows = [str(o.prompt) for o in cards["l-home"].list._options]
-            assert any("1 DCer coming to Osaka" in r for r in rows) and any("Harley" in r for r in rows)
-            assert any("DC Tokyo Chapter" in str(o.prompt) for o in cards["l-cities"].list._options)
+            assert any("One DCer coming to Osaka" in r for r in rows) and any("Harley" in r for r in rows)
+            assert "Last refreshed" in str(cards["l-home"].border_subtitle)
             people = [str(o.prompt) for o in cards["l-people"].list._options]
-            assert any("Till Carlos is attending DCBKK 2026" in p for p in people)
+            assert any("One more upcoming trip" in r for r in people)
+            assert any("planned a trip to" in r for r in people)
+            assert any("Till Carlos is attending DCBKK 2026" in r for r in people)
+            # the bar shows Locator; the sub-tab row carries the web's Locator tabs
+            assert app.screen.query_one("#nav-tabs").active == "nav-locator"
+            sub = app.screen.query_one("#sub-tabs")
+            assert [str(t.label.plain) for t in sub.query("Tab")] == ["Locator", "My Trips", "Following", "New Trips"]
+            sub.active = "sub-following"; await settle(pilot, 1.5)
+            assert type(app.screen).__name__ == "FollowingScreen"
+            assert app.screen.query_one("#nav-tabs").active == "nav-locator"
+            assert [r.get("displayName") for r in app.screen.items] == ["Alex Harling", "Till Carlos"]
+            await shot(app, "locator-following")
+            app.screen.query_one("#sub-tabs").active = "sub-trips"; await settle(pilot, 1.5)
+            assert type(app.screen).__name__ == "TripsScreen"
+            app.screen.query_one("#sub-tabs").active = "sub-newtrips"; await settle(pilot, 1.5)
+            assert type(app.screen).__name__ == "NewTripsScreen" and app.screen.items
+            await shot(app, "locator-newtrips")
+            app.screen.query_one("#sub-tabs").active = "sub-locator"; await settle(pilot, 1.5)
+            scr = app.screen
+            cards = {p.id: p for p in scr.query(Panel)}
             cards["l-home"].list.focus(); cards["l-home"].first(); await settle(pilot, 0.2)
             await press(pilot, "enter"); await settle(pilot, 1.5)
             assert type(app.screen).__name__ == "PeopleScreen" and (app.screen._detail_item or {}).get("displayName") == "Harley Green"
-    run(go())
+    run(go(), timeout=150)
 
 
 def test_me_screen_renders_profile_sections(tmp_path):
@@ -212,7 +236,7 @@ def test_me_screen_renders_profile_sections(tmp_path):
         app, _ = make_app(tmp_path)
         async with app.run_test(size=(120, 44)) as pilot:
             await settle(pilot, 1.0)
-            await press(pilot, "9"); await settle(pilot, 1.5)
+            await press(pilot, "8"); await settle(pilot, 1.5)
             scr = app.screen
             await shot(app, "me")
             text = "\n".join(str(o.prompt) for p in scr.query(Panel) for o in p.list._options)
@@ -231,9 +255,13 @@ def test_every_section_fits_narrow_terminals(tmp_path, width):
         async with app.run_test(size=(width, 40)) as pilot:
             await settle(pilot, 1.2)
             await shot(app, "w%d-home" % width)
-            for key, name in (("2", "inbox"), ("3", "browse"), ("4", "trips"), ("5", "events"),
-                              ("6", "locator"), ("7", "people"), ("9", "me")):
-                await press(pilot, key); await settle(pilot, 1.2)
+            for key, name in (("2", "inbox"), ("3", "browse"), ("sub:trips", "trips"), ("4", "events"),
+                              ("5", "locator"), ("sub:following", "following"), ("sub:newtrips", "newtrips"), ("6", "people"), ("8", "me")):
+                if key.startswith("sub:"):
+                    app.action_goto_section(key[4:])
+                else:
+                    await press(pilot, key)
+                await settle(pilot, 1.2)
                 scr = app.screen
                 await shot(app, "w%d-%s" % (width, name))
                 tables = [t for t in scr.query("#list") if isinstance(t, DataTable) and t.display]

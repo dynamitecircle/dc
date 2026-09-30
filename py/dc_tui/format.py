@@ -61,6 +61,20 @@ def rpad(text: Any, width: int) -> str:
     return " " * max(0, width - display_width(s)) + s
 
 
+NUMBER_WORDS = ("zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten")
+
+
+def say_count(n: int) -> str:
+    """The web's `sayCount` (shared/util/str.ts): 0–10 as words, 11+ as digits."""
+    return NUMBER_WORDS[n] if isinstance(n, int) and 0 <= n <= 10 else str(n)
+
+
+def say_count_title(n: int) -> str:
+    """`SayCount`: same, first letter upper-cased — used by every Locator title."""
+    word = say_count(n)
+    return word[:1].upper() + word[1:]
+
+
 def plural(n: int, word: str) -> str:
     return f"{n:,} {word}{'' if n == 1 else 's'}"
 

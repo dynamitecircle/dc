@@ -181,6 +181,12 @@ class FakeDC:
     def profile_match(self, query=None, limit=50, **kw):
         return {"results": [{"score": 0.9, "profile": {"userID": "3", "displayName": "Ana Silva", "userName": "AnaSilva", "headline": "SaaS"}}]}
 
+    def unfollow_profile(self, user_id):
+        self._log("unfollow-profile", user_id); return {"ok": True}
+
+    def unfollow_chapter(self, city_id):
+        self._log("unfollow-chapter", city_id); return {"ok": True}
+
     def follow_profile(self, user_id):
         self._log("follow-profile", user_id); return {"ok": True}
 

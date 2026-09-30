@@ -46,13 +46,22 @@ SECTIONS: List[Section] = [
     Section("home",   "Home",       "unread · announcements · tickets · trips · locator", WEB_APP + "/"),
     Section("rooms",  "Inbox",      "DMs · groups · channels · discussions · quick questions", WEB_APP + "/inbox"),
     Section("browse", "Browse",     "discover channels · discussions · quick questions",      WEB_APP + "/inbox/browse"),
-    Section("trips",  "Trips",      "your trips · create/edit · who to meet",              WEB_APP + "/trips"),
     Section("events", "Events",     "global · local · live calls · schedule · my agenda",  WEB_APP + "/events"),
-    Section("locator", "Locator",   "your city · followed cities · followed people · your trips", WEB_APP + "/locator"),
+    Section("locator", "Locator",   "your chapter · chapters you follow · DCers you follow · your trips", WEB_APP + "/locator"),
+    Section("trips",  "My Trips",   "your trips · create/edit · who to meet",              WEB_APP + "/locator/my-trips"),
+    Section("following", "Following", "DCers and chapters you follow",                     WEB_APP + "/locator/following"),
+    Section("newtrips", "New Trips", "recently added trips",                               WEB_APP + "/locator/new-trips"),
     Section("people", "People",     "profile match · follows",                             WEB_APP + "/members"),
     Section("search", "Search",     "people · rooms · messages · events · chapters",       WEB_APP + "/search"),
     Section("me",     "Me",         "profile · membership · notifications · calendar",     WEB_APP + "/profile"),
 ]
+
+#: Sections shown as sub-tabs of another section (the web's Locator tabs), not on the main bar.
+SUB_SECTION_OF: Dict[str, str] = {"trips": "locator", "following": "locator", "newtrips": "locator"}
+#: The sub-tab row per group, in the web's order (LocatorCard.vue allTabs).
+SUB_TABS: Dict[str, List[str]] = {"locator": ["locator", "trips", "following", "newtrips"]}
+NAV_SECTIONS: List[Section] = [sec for sec in SECTIONS if sec.id not in SUB_SECTION_OF]
+_BY_ID: Dict[str, Section] = {sec.id: sec for sec in SECTIONS}
 
 
 class StatusBar(Static):
@@ -83,13 +92,15 @@ class DCScreen(Screen):
         focused = self.focused
         pane = self.main_pane()
         if isinstance(focused, Tabs):
+            if self.bar_step(focused, step):
+                return
             if step < 0:
                 return                      # ↑ on the bar stays on the bar
             pane.focus()
         elif focused is None:
             pane.focus()
         elif step < 0 and not page and not edge and pane.scroll_y <= 0:
-            self.query_one("#nav-tabs", Tabs).focus()     # ↑ at the top of the page → bar
+            self.focus_bar()                               # ↑ at the top of the page → bar
             return
         if edge:
             (pane.scroll_home if step < 0 else pane.scroll_end)(animate=False)
@@ -118,7 +129,10 @@ class DCScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
-        yield Tabs(*[Tab(sec.title, id="nav-" + sec.id) for sec in SECTIONS], id="nav-tabs")
+        yield Tabs(*[Tab(sec.title, id="nav-" + sec.id) for sec in NAV_SECTIONS], id="nav-tabs")
+        subs = SUB_TABS.get(self.nav_group(), [])
+        if subs:
+            yield Tabs(*[Tab(_BY_ID[sid].title, id="sub-" + sid) for sid in subs], id="sub-tabs", active="sub-" + self.SECTION)
         with Horizontal(id="body"):
             yield VerticalScroll(id="main")
             yield VerticalScroll(id="detail")
@@ -140,7 +154,10 @@ class DCScreen(Screen):
         bar of the new screen; otherwise the content gets focus once. Deferred one
         refresh so it lands after Textual's own auto-focus."""
         app = self.app
-        if getattr(app, "_focus_nav_next", False):
+        if getattr(app, "_focus_sub_next", False):
+            app._focus_sub_next = False
+            self.call_after_refresh(lambda: self.sub_tabs() and self.sub_tabs().focus())
+        elif getattr(app, "_focus_nav_next", False):
             app._focus_nav_next = False
 
             def _bar() -> None:
@@ -160,15 +177,48 @@ class DCScreen(Screen):
             return
         self._nav_syncing = True
         try:
-            if nav.active != "nav-" + self.SECTION:
-                nav.active = "nav-" + self.SECTION
+            if nav.active != "nav-" + self.nav_group():
+                nav.active = "nav-" + self.nav_group()
         finally:
             self.call_after_refresh(setattr, self, "_nav_syncing", False)
 
+    def nav_group(self) -> str:
+        """The main-bar section this screen belongs to (a Locator sub-tab → locator)."""
+        return SUB_SECTION_OF.get(self.SECTION, self.SECTION)
+
+    def sub_tabs(self) -> Optional[Tabs]:
+        try:
+            return self.query_one("#sub-tabs", Tabs)
+        except Exception:  # noqa: BLE001
+            return None
+
+    def focus_bar(self) -> None:
+        """↑ out of the content lands on the nearest bar: the sub-tabs, else the main bar."""
+        (self.sub_tabs() or self.query_one("#nav-tabs", Tabs)).focus()
+
+    def bar_step(self, focused: Any, step: int) -> bool:
+        """↑/↓ between the main bar and the sub-tab row. True when handled."""
+        sub = self.sub_tabs()
+        if sub is None or not isinstance(focused, Tabs):
+            return False
+        if focused.id == "nav-tabs" and step > 0:
+            sub.focus()
+            return True
+        if focused.id == "sub-tabs" and step < 0:
+            self.query_one("#nav-tabs", Tabs).focus()
+            return True
+        return False
+
     def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
+        if event.tabs.id == "sub-tabs" and event.tab is not None:
+            section = str(event.tab.id or "").replace("sub-", "", 1)
+            if section != self.SECTION:
+                self.app._focus_sub_next = True
+                self.app.action_goto_section(section)  # type: ignore[attr-defined]
+            return
         if event.tabs.id == "nav-tabs" and not getattr(self, "_nav_syncing", False) and event.tab is not None:
             section = str(event.tab.id or "").replace("nav-", "", 1)
-            if section != self.SECTION:
+            if section != self.nav_group():
                 self.app._focus_nav_next = True   # chosen on the bar → stay on the bar
                 self.app.action_goto_section(section)  # type: ignore[attr-defined]
 
@@ -378,7 +428,7 @@ class HomeScreen(DCScreen):
             (cards[nxt].first if step > 0 else cards[nxt].last)()
             cards[nxt].scroll_visible()
         elif nxt < 0:
-            self.query_one("#nav-tabs", Tabs).focus()
+            self.focus_bar()
 
     def action_card_up(self) -> None:
         self._move(-1)

@@ -22,11 +22,12 @@ from .data import DataClient, Fetched
 from .layout import layout_mode
 from .browse import BrowseScreen
 from .events import EventsScreen
+from .following import FollowingScreen, NewTripsScreen
 from .locator import LocatorScreen
 from .me import MeScreen
 from .people import PeopleScreen
 from .rooms import RoomsScreen
-from .screens import SECTIONS, DCScreen, HomeScreen, PlaceholderScreen, StatusBar
+from .screens import NAV_SECTIONS, SECTIONS, DCScreen, HomeScreen, PlaceholderScreen, StatusBar
 from .search import SearchScreen
 from .trips import TripsScreen
 from .theme import DC_THEME
@@ -34,7 +35,7 @@ from .theme import DC_THEME
 WEB_APP = "https://dc.dynamitecircle.com"
 
 SCREEN_CLASSES = {"home": HomeScreen, "rooms": RoomsScreen, "browse": BrowseScreen, "trips": TripsScreen, "events": EventsScreen,
-                  "locator": LocatorScreen, "people": PeopleScreen, "search": SearchScreen, "me": MeScreen}
+                  "locator": LocatorScreen, "following": FollowingScreen, "newtrips": NewTripsScreen, "people": PeopleScreen, "search": SearchScreen, "me": MeScreen}
 
 HELP_TEXT = """\
 [b]DC terminal[/b]
@@ -104,7 +105,7 @@ class DCApp(App):
                for section in SECTIONS}
 
     BINDINGS = [Binding(str(i + 1), "goto_section('%s')" % section.id, section.title, show=False)
-                for i, section in enumerate(SECTIONS)] + [
+                for i, section in enumerate(NAV_SECTIONS)] + [
         Binding("up,down", "noop", "Move", show=True, key_display="↑↓"),
         Binding("left,right", "noop", "Panes", show=True, key_display="←→"),
         Binding("enter", "noop", "Open", show=True, key_display="Enter"),
