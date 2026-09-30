@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from rich.text import Text
 from textual import work
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Button, DataTable, Input, Static, Tab, Tabs
 
 from .data import Fetched
@@ -92,6 +92,8 @@ class ListDetailScreen(DCScreen):
     ListDetailScreen #list-hint { color: $text-muted; height: auto; padding: 0 1; margin-bottom: 1; }  /* a blank line before the table */
     ListDetailScreen Tabs { height: 2; margin: 0 0 0 0; }
     ListDetailScreen #list-tabs { margin-bottom: 1; }             /* blank line: tabs → content */
+    ListDetailScreen.has-filters #list-tabs { margin-bottom: 0; }  /* …unless the filter tabs follow */
+    ListDetailScreen #list-filters { margin-bottom: 1; }
     ListDetailScreen Tab.-active { color: $primary; text-style: bold; background: transparent; }
     ListDetailScreen Tabs:focus Tab.-active { color: #FFB000; background: transparent; text-style: bold; }
     ListDetailScreen Tabs .underline--bar { color: $primary; background: $panel; }
@@ -107,7 +109,7 @@ class ListDetailScreen(DCScreen):
     ListDetailScreen .detail-actions Button.action.-active { border: none; tint: transparent; }
     ListDetailScreen .detail-actions Button.action:focus { background: $block-cursor-background; color: $block-cursor-foreground; text-style: bold; border: none; }
     ListDetailScreen .detail-actions Button.action.back { background: $surface; color: $primary; }
-    ListDetailScreen #list-filters { height: 1; margin: 0; }
+    ListDetailScreen #list-filters { height: 2; }
     ListDetailScreen Button.chip { height: 1; min-width: 0; border: none; padding: 0; margin: 0 1 0 0;  /* Button line-pad (1) is the only inset: label starts in column 2 */
                                    background: transparent; color: $text-muted; text-style: none; }
     ListDetailScreen Button.chip:hover { background: transparent; color: #FF8C5C; border: none; }
@@ -115,6 +117,11 @@ class ListDetailScreen(DCScreen):
     ListDetailScreen Button.chip.-on { color: $primary; text-style: bold; }
     ListDetailScreen Button.chip:focus { background: transparent; color: #FFB000; text-style: bold; border: none; }
     ListDetailScreen .detail-body { height: auto; padding: 0 1; }
+    ListDetailScreen .detail-scroll { height: 1fr; }
+    ListDetailScreen .detail-scroll.-hidden { display: none; }
+    ListDetailScreen .detail-scroll.-fit { height: auto; }
+    ListDetailScreen #detail-inline { height: 1fr; }
+    ListDetailScreen .detail-table { height: 1fr; }
     ListDetailScreen .detail-table { height: auto; max-height: 100%; }
     ListDetailScreen .-hidden { display: none; }
     """
@@ -141,11 +148,13 @@ class ListDetailScreen(DCScreen):
         widgets: List[Any] = []
         # a tab row right under the bars: no blank line between tab rows
         self.set_class(bool(self.LIST_TABS) and not self.TOP_INPUT, "tabs-first")
+        self.set_class(bool(self.LIST_FILTERS), "has-filters")
         if self.LIST_TABS:
             widgets.append(Tabs(*[Tab(label, id=tid) for tid, label in self.LIST_TABS], id="list-tabs"))
         if self.LIST_FILTERS:
-            widgets.append(Horizontal(*[Button(label, id="chip-" + fid, classes="chip" + (" -on" if fid == self.list_filter else ""))
-                                        for fid, label in self.LIST_FILTERS], id="list-filters"))
+            # the filters are a tab row of their own, right under the type tabs
+            widgets.append(Tabs(*[Tab(label, id="chip-" + fid) for fid, label in self.LIST_FILTERS],
+                                id="list-filters", active="chip-" + self.list_filter))
         widgets += [Static("", id="list-hint"), HoverTable(id="list", cursor_type="row", zebra_stripes=True),
                     Vertical(*self._detail_widgets_for("inline"), id="detail-inline", classes="-hidden")]
         self.set_main(*widgets)
@@ -158,7 +167,9 @@ class ListDetailScreen(DCScreen):
         return [Tabs(id="detail-tabs-" + suffix, classes="-hidden"),
                 Static("", id="detail-title-" + suffix, classes="detail-title"),
                 Vertical(id="detail-actions-" + suffix, classes="detail-actions"),
-                Static("", id="detail-body-" + suffix, classes="detail-body"),
+                # only the text scrolls: tabs, title and buttons stay put above it
+                VerticalScroll(Static("", id="detail-body-" + suffix, classes="detail-body"),
+                               id="detail-scroll-" + suffix, classes="detail-scroll"),
                 HoverTable(id="detail-table-" + suffix, cursor_type="row", zebra_stripes=True, classes="detail-table")]
 
     # ── action buttons (mouse-first; Tab/Enter on the keyboard) ───────
@@ -198,8 +209,12 @@ class ListDetailScreen(DCScreen):
         if fid == self.list_filter:
             return
         self.list_filter = fid
-        for b in self.query("Button.chip"):
-            b.set_class(str(b.id) == "chip-" + fid, "-on")
+        try:
+            tabs = self.query_one("#list-filters", Tabs)
+            if tabs.active != "chip-" + fid:
+                tabs.active = "chip-" + fid
+        except Exception:  # noqa: BLE001
+            pass
         self._detail_item = None
         self.refresh_data(force=False)
 
@@ -294,6 +309,9 @@ class ListDetailScreen(DCScreen):
         if self._syncing_tabs or event.tab is None:
             return
         tid = str(event.tab.id or "")
+        if event.tabs.id == "list-filters":
+            self.set_filter(tid[5:] if tid.startswith("chip-") else tid)
+            return
         if event.tabs.id == "list-tabs":
             if tid != self.list_tab:
                 self.list_tab = tid
@@ -510,6 +528,10 @@ class ListDetailScreen(DCScreen):
         if isinstance(rendered, Table):
             body.update(rendered.title)
             body.set_class(not rendered.title, "-hidden")
+            scroll = body.parent
+            if scroll is not None:            # the table fills the space; the text area just fits its title
+                scroll.set_class(True, "-fit")
+                scroll.set_class(not rendered.title, "-hidden")
             table.remove_class("-hidden")
             table.clear(columns=True)
             avail = max(30, (self.detail_pane().size.width if self.two_pane else self.main_pane().size.width) - 2)
@@ -524,6 +546,8 @@ class ListDetailScreen(DCScreen):
         else:
             table.add_class("-hidden")
             body.remove_class("-hidden")
+            if body.parent is not None:
+                body.parent.remove_class("-fit", "-hidden")
             body.update("\n".join(rendered) if rendered else "[dim]nothing to show[/dim]")
 
     def _detail_widgets(self) -> Tuple[Static, DataTable]:
@@ -540,10 +564,20 @@ class ListDetailScreen(DCScreen):
     def detail_width(self) -> int:
         """Usable columns inside the detail (pane in split/wide, main pane inline)."""
         pane = self.detail_pane() if self.two_pane else self.main_pane()
-        return max(30, (pane.size.width or self.app.size.width) - 2)
+        return max(30, (pane.size.width or self.app.size.width) - 4)     # pane inset + text inset
+
+    def detail_scroller(self):
+        """What scrolls in the detail: the text area (messages, info), else the pane."""
+        try:
+            area = self.query_one("#detail-scroll-" + ("pane" if self.two_pane else "inline"), VerticalScroll)
+            if area.display and not area.has_class("-hidden"):
+                return area
+        except Exception:  # noqa: BLE001
+            pass
+        return self.detail_pane() if self.two_pane else self.main_pane()
 
     def _detail_scroll(self, step: int, *, page: bool = False, edge: bool = False) -> None:
-        pane = self.detail_pane() if self.two_pane else self.main_pane()
+        pane = self.detail_scroller()
         if edge:
             (pane.scroll_home if step < 0 else pane.scroll_end)(animate=False)
         elif page:
@@ -624,7 +658,7 @@ class ListDetailScreen(DCScreen):
         return tabs if not tabs.has_class("-hidden") and tabs.tab_count else None
 
     def _table_for(self, tabs: Tabs):
-        if tabs.id == "list-tabs":
+        if tabs.id in ("list-tabs", "list-filters"):
             return self.query_one("#list", DataTable)
         suffix = str(tabs.id or "").rsplit("-", 1)[-1]
         actions = self.query_one("#detail-actions-" + suffix, Vertical)
@@ -657,9 +691,14 @@ class ListDetailScreen(DCScreen):
     def action_page_end(self) -> None:
         self._table_key("action_scroll_bottom", 1, edge=True)
 
-    def _chips(self) -> Optional[Button]:
-        """The active filter chip (or the first), if this screen has a filter row."""
-        chips = list(self.query("Button.chip"))
+    def _chips(self) -> Optional[Tabs]:
+        """The filter tab row, if this screen has one."""
+        try:
+            tabs = self.query_one("#list-filters", Tabs)
+            return None if tabs.has_class("-hidden") else tabs
+        except Exception:  # noqa: BLE001
+            return None
+        chips: List[Any] = []
         if not chips:
             return None
         for b in chips:
@@ -702,7 +741,12 @@ class ListDetailScreen(DCScreen):
                 (self.top_input() or self._bar()).focus()
             return
         if isinstance(focused, Tabs):
-            if focused.id == "list-tabs":
+            if focused.id == "list-filters":
+                try:
+                    self.query_one("#list-tabs", Tabs).focus()
+                except Exception:  # noqa: BLE001
+                    (self.top_input() or self._bar()).focus()
+            elif focused.id == "list-tabs":
                 (self.top_input() or self._bar()).focus()
             return
         if isinstance(focused, Button) and focused.has_class("chip"):
@@ -716,10 +760,6 @@ class ListDetailScreen(DCScreen):
         if isinstance(focused, Button) and self._button_row_step(focused, -1):
             return
         if isinstance(focused, Button):
-            pane = self.detail_pane() if self.two_pane else self.main_pane()
-            if pane.scroll_y > 0:
-                self._detail_scroll(-1)          # scroll the messages first …
-                return
             tabs = None
             try:
                 tabs = self.query_one("#detail-tabs-" + ("pane" if self.two_pane else "inline"), Tabs)

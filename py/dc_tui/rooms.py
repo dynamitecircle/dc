@@ -288,9 +288,9 @@ class RoomsScreen(ListDetailScreen):
         self.action_read_messages()
 
     def _paint_detail(self) -> None:
-        pane = self.detail_pane() if self.two_pane else self.main_pane()
         keep, self._keep_scroll = self._keep_scroll, None
         super()._paint_detail()
+        pane = self.detail_scroller()
         if (self.detail_tab or "messages") == "messages" and isinstance(self._detail_data, dict) and "messages" in self._detail_data:
             if keep is not None:
                 # older messages were added above: stay on the message you were reading
@@ -303,8 +303,7 @@ class RoomsScreen(ListDetailScreen):
     def _at_messages_top(self) -> bool:
         if (self.detail_tab or "messages") != "messages" or not isinstance(self._detail_data, dict) or "messages" not in self._detail_data:
             return False
-        pane = self.detail_pane() if self.two_pane else self.main_pane()
-        return pane.scroll_y <= 0
+        return self.detail_scroller().scroll_y <= 0
 
     def load_older(self) -> None:
         item = self._detail_item
@@ -341,7 +340,7 @@ class RoomsScreen(ListDetailScreen):
             self._paint_detail_keeping()
 
     def _paint_detail_keeping(self) -> None:
-        pane = self.detail_pane() if self.two_pane else self.main_pane()
+        pane = self.detail_scroller()
         self._keep_scroll = (pane.max_scroll_y, pane.scroll_y)
         self._paint_detail()
 
@@ -361,6 +360,8 @@ class RoomsScreen(ListDetailScreen):
         """Highlighting shows Info (cheap) unless this room was already opened."""
         if item.get("roomID") not in self._opened:
             self.detail_tab = "info"
+        elif self.detail_tab == "info":
+            self.detail_tab = "messages"      # a room you opened comes back on its messages
         super()._queue_detail(item)
 
     def action_mark_read(self) -> None:
