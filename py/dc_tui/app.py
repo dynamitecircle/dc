@@ -122,7 +122,6 @@ class DCApp(App):
     CSS = """
     Screen { layout: vertical; background: $background; }
     * { scrollbar-size: 0 0; }
-    Header { background: $background; color: $text; }
     DataTable > .datatable--hover { background: #4D7D55; color: #FFFFFF; }
     OptionList > .option-list--option-hover { background: #4D7D55; color: #FFFFFF; }
     Button.action:hover { background: #FF8C5C; color: #FFFFFF; }
@@ -137,8 +136,6 @@ class DCApp(App):
     Tabs:focus Tab.-active { color: #FFB000; background: transparent; text-style: bold; }
     Tabs .underline--bar { color: $primary; background: $panel; }
     Tabs:focus .underline--bar { color: $primary; }
-    HeaderIcon { display: none; }
-    Header HeaderTitle { color: $primary; text-style: bold; content-align: left middle; text-align: left; padding: 0 1; }
     Footer { background: $background; }
     #body { height: 1fr; }
     #main { width: 1fr; height: 1fr; padding: 1 1 0 1; }

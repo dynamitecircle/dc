@@ -18,7 +18,8 @@ from textual.binding import Binding
 from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Footer, Header, OptionList, Static, Tab, Tabs
+from rich.text import Text
+from textual.widgets import Footer, OptionList, Static, Tab, Tabs
 
 from textual import work
 from textual.containers import Vertical
@@ -27,6 +28,7 @@ from .data import Fetched
 from .format import align_row, date_range, event_dates, flag, fmt_date, guard_flags, pad, plural, rpad, strip_markdown, trunc
 from .labels import room_title, room_type_label
 from .layout import MODES, layout_mode
+from .theme import GREY_700
 from .widgets import Panel
 
 WEB_APP = "https://dc.dynamitecircle.com"
@@ -62,6 +64,28 @@ SUB_SECTION_OF: Dict[str, str] = {"trips": "locator", "following": "locator", "n
 SUB_TABS: Dict[str, List[str]] = {"locator": ["locator", "trips", "following", "newtrips"]}
 NAV_SECTIONS: List[Section] = [sec for sec in SECTIONS if sec.id not in SUB_SECTION_OF]
 _BY_ID: Dict[str, Section] = {sec.id: sec for sec in SECTIONS}
+
+
+class TitleBar(Static):
+    """`── DC - Home ───────…` across the full width in the UI line colour, the
+    title in white, then one empty line."""
+
+    DEFAULT_CSS = """
+    TitleBar { height: 2; background: $background; padding: 0 0; }
+    """
+
+    def render(self) -> Text:
+        title = "DC - %s" % (getattr(self.screen, "sub_title", "") or getattr(self.screen, "TITLE_TEXT", ""))
+        width = max(10, self.size.width or 80)
+        line = Text("── ", style=_LINE_STYLE)
+        line.append(title, style="bold #FFFFFF")
+        line.append(" " + "─" * max(0, width - len(title) - 4), style=_LINE_STYLE)
+        line.append("\n")
+        return line
+
+
+#: the same gray as the tab-row separator lines ($panel in the DC theme)
+_LINE_STYLE = GREY_700
 
 
 class StatusBar(Static):
@@ -128,7 +152,7 @@ class DCScreen(Screen):
         self._page(1, edge=True)
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=False)
+        yield TitleBar(id="title-bar")
         yield Tabs(*[Tab(sec.title, id="nav-" + sec.id) for sec in NAV_SECTIONS], id="nav-tabs")
         subs = SUB_TABS.get(self.nav_group(), [])
         if subs:
@@ -143,6 +167,10 @@ class DCScreen(Screen):
 
     def on_mount(self) -> None:
         self.sub_title = self.TITLE_TEXT
+        try:
+            self.query_one(TitleBar).refresh()
+        except Exception:  # noqa: BLE001
+            pass
         self._sync_nav()
         self.set_layout_mode(layout_mode(self.app.size.width))
         self.populate()
