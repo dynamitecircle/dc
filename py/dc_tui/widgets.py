@@ -44,6 +44,14 @@ class Panel(Vertical):
     def compose(self) -> ComposeResult:
         yield OptionList()
 
+    def row_width(self) -> int:
+        """Columns a row can use once laid out (0 before layout) — measured, not
+        estimated, so the last item (the date) lands one space from the border."""
+        try:
+            return int(self.list.content_region.width)
+        except Exception:  # noqa: BLE001
+            return 0
+
     @property
     def list(self) -> OptionList:
         return self.query_one(OptionList)

@@ -90,15 +90,20 @@ class LocatorScreen(DCScreen):
     @work(thread=True, exclusive=True, group="locator", exit_on_error=False)
     def _load(self, force: bool) -> None:
         fetched = self.app.data.fetch("locator", force=force)  # type: ignore[attr-defined]
+        # The digest's event and ticket dates carry no isDateConfirmed, and ticket
+        # dates are a copy taken at purchase. The events list is the truth for both.
+        events = self.app.data.fetch("events", limit=50)  # type: ignore[attr-defined]
+        _EVENTS.clear()
+        _EVENTS.update({str(e.get("eventID")): e for e in _list(dict_of_items(events)) if e.get("eventID")})
         self.app.call_from_thread(self._render_digest, fetched)
         self.app.call_from_thread(self.app.refresh_status)  # type: ignore[attr-defined]
 
     def _card_width(self) -> int:
         pane = self.main_pane().size.width or self.app.size.width
         width = pane - 6                                   # pane padding + card border + card padding
-        panels = [p for p in self.query(Panel) if p.size.width > 10]
-        if panels:
-            width = panels[0].size.width - 4
+        measured = [p.row_width() for p in self.query(Panel) if p.row_width() > 10]
+        if measured:
+            return min(measured)
         return max(20, width - 1)
 
     def on_resize(self, event) -> None:
@@ -150,6 +155,8 @@ class LocatorScreen(DCScreen):
         await pane.mount(*[Panel(guard_flags(title), id=cid) for cid, title, _, _ in cards])
         for cid, title, rows, sub in cards:
             self._paint(cid, title, rows, sub)
+        # the first paint was sized before layout; re-fit once the cards have a width
+        self.call_after_refresh(lambda: self._last_fetched is not None and self._render_digest(self._last_fetched))
         if self.focused is None or self.focused is self.main_pane():
             self.call_after_refresh(self.focus_content)
 
@@ -264,6 +271,22 @@ class LocatorScreen(DCScreen):
             self.app.open_in_section(kind, key)  # type: ignore[attr-defined]
 
 
+
+
+#: eventID → event from GET /events (dates + isDateConfirmed), refreshed with the digest.
+_EVENTS: Dict[str, dict] = {}
+
+
+def dict_of_items(f: Any) -> List[dict]:
+    data = getattr(f, "data", None)
+    return list(data.get("items") or []) if isinstance(data, dict) else []
+
+
+def _dates_for(event_id: Any, start: Any, end: Any) -> str:
+    """The event's own dates (month only while unconfirmed, as dc-web's formatDates),
+    falling back to the digest's copy only for events the list does not carry."""
+    truth = _EVENTS.get(str(event_id)) if event_id else None
+    return event_dates(truth) if truth else date_range(start, end)
 
 
 # ── builders — one per web component ─────────────────────────────────
@@ -494,7 +517,8 @@ def _event_group_section(title: str, grouped: Any, flat: Any, verb_one: str, ver
         count = int(g.get("count") or len(names))
         verb = verb_many if count > 1 else verb_one
         sentence = "%s %s %s" % (_name_list(names), verb, trunc(g.get("eventName") or "Untitled event", 40))
-        when = date_range(g.get("startDate") or (g.get("eventDates") or {}).get("startDate"), g.get("endDate") or (g.get("eventDates") or {}).get("endDate"))
+        when = _dates_for(g.get("eventID"), g.get("startDate") or (g.get("eventDates") or {}).get("startDate"),
+                          g.get("endDate") or (g.get("eventDates") or {}).get("endDate"))
         target = ("events", g.get("eventID")) if g.get("eventID") else (("url", g.get("shortURL")) if g.get("shortURL") else None)
         rows.append((align_row(width, sentence, when, prefix=icon, name_markup="%s"), target))
     return rows
@@ -516,7 +540,8 @@ def _event_row(e: dict, width: int, indent: str = "") -> Tuple[str, Any]:
     name = e.get("name") or e.get("eventName") or "Untitled event"
     kind = event_type_label(e.get("eventType"))
     extra = city.get("name") or ("" if kind.lower() in str(name).lower() else kind)   # no "Junto Junto"
-    return (align_row(width, name, event_dates(e), extra, prefix=indent + "📅 ", name_markup="%s"),
+    truth = _EVENTS.get(str(e.get("eventID")))
+    return (align_row(width, name, event_dates(truth if truth else e), extra, prefix=indent + "📅 ", name_markup="%s"),
             ("events", e.get("eventID")) if e.get("eventID") else None)
 
 

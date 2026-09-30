@@ -402,3 +402,27 @@ def test_say_count_matches_the_web_str_helper():
     from dc_tui.format import say_count, say_count_title
     assert [say_count(n) for n in (0, 1, 5, 10, 11, 250)] == ["zero", "one", "five", "ten", "11", "250"]
     assert say_count_title(5) == "Five" and say_count_title(12) == "12"
+
+
+def test_locator_dates_follow_the_event_not_the_ticket_copy():
+    pytest.importorskip("textual")
+    from dc_tui import locator
+    locator._EVENTS.clear()
+    locator._EVENTS["bcn"] = {"eventID": "bcn", "startDate": "2027-07-26", "endDate": "2027-07-30", "isDateConfirmed": False}
+    locator._EVENTS["mex"] = {"eventID": "mex", "startDate": "2027-04-06", "endDate": "2027-04-09", "isDateConfirmed": True}
+    assert locator._dates_for("bcn", "2027-07-26", "2027-07-30") == "Jul 2027"          # unconfirmed → month only
+    assert locator._dates_for("mex", "2027-04-05", "2027-04-09") == "06–09 Apr 2027"    # stale ticket copy ignored
+    assert locator._dates_for("other", "2026-10-22", "2026-10-25") == "22–25 Oct 2026"
+    locator._EVENTS.clear()
+
+
+def test_profile_fields_strip_editor_html():
+    from dc_tui.format import html_to_text
+    from dc_tui.profile import profile_lines
+    assert html_to_text("<ul><li><p>Osaka</p></li><li><p>Tokyo</p></li></ul>") == "Osaka, Tokyo"
+    assert html_to_text("<p>I am building a new version of DC.</p>") == "I am building a new version of DC."
+    assert html_to_text('<p><a class="text-link" href="http://x.com">RemoteFirst.com</a></p><p><a href="http://y.com">DynamiteJobs.com</a></p>') == "RemoteFirst.com DynamiteJobs.com"
+    assert html_to_text("<ul><li><p>Software &amp; Web</p></li></ul>") == "Software & Web"
+    lines = "\n".join(profile_lines({"displayName": "S", "relevantLocations": "<ul><li><p>Osaka</p></li><li><p>Prague</p></li></ul>",
+                                     "expertise": "<ul><li><p>SAAS</p></li></ul>"}, width=80))
+    assert "<" not in lines and "Osaka, Prague" in lines

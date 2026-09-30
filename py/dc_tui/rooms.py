@@ -80,7 +80,12 @@ class RoomsScreen(ListDetailScreen):
         return cols
 
     def title_of(self, item: dict) -> str:
-        return room_title(item, getattr(self, "_me_name", ""))
+        me = getattr(self, "_me_name", "")
+        if not me:                     # rows can paint from cache before fetch_rows ran
+            cached = self.app.data.cached("profile")  # type: ignore[attr-defined]
+            me = str(dict_of(cached).get("displayName") or "") if cached is not None else ""
+            self._me_name = me
+        return room_title(item, me)
 
     def row_cells(self, item: dict) -> Tuple[str, ...]:
         unread = self._unread.get(item.get("roomID"), 0)

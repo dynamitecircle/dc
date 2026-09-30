@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, List
 
-from .format import flag, fmt_date, guard_flags, trunc
+from .format import flag, fmt_date, guard_flags, html_to_text, trunc
 
 
 def _esc(t: Any) -> str:
@@ -18,7 +18,7 @@ def _val(v: Any) -> str:
         return ("%s %s" % (fl, name)).strip() if name else ""
     if isinstance(v, list):
         return ", ".join(_val(x) for x in v if _val(x))
-    return " ".join(str(v).split()) if v not in (None, "", [], {}) else ""
+    return html_to_text(v) if v not in (None, "", [], {}) else ""
 
 
 SECTIONS = [

@@ -9,6 +9,8 @@ Python 3.9 compatible: `from __future__ import annotations` everywhere, no
 """
 from __future__ import annotations
 
+import os
+import re
 import sys
 from typing import Any, Optional, Sequence
 
@@ -34,20 +36,37 @@ def run(dc: Any, argv: Optional[Sequence[str]] = None) -> int:
 
     argv = list(argv or [])
     if "--help" in argv or "-h" in argv:
-        print("usage: dc tui [section] [--clear-cache]\n\n"
+        print("usage: dc tui [section] [--clear-cache] [--api-url URL]\n\n"
               "  Interactive terminal app for your DC membership.\n"
-              "  section: home | rooms | browse | trips | events | locator | people | search | me\n"
-              "  Keys: 1-7 sections · / palette · r refresh · o open in browser · ? help · q quit\n"
-              "  --clear-cache   drop the on-disk response cache before starting")
+              "  section: home | rooms | browse | events | locator | trips | following | newtrips | people | search | me\n"
+              "  Keys: 1-8 sections · / palette · r refresh · o open in browser · ? help · q quit\n"
+              "  --clear-cache   drop the on-disk response cache before starting\n"
+              "  --api-url URL   talk to another Member API (e.g. a local dev server); also DC_API_URL")
         return 0
 
     from .app import DCApp
+    from .cache import DiskCache, cache_dir
+    from .data import DataClient
+
+    api_url = os.environ.get("DC_API_URL") or ""
+    if "--api-url" in argv:
+        i = argv.index("--api-url")
+        api_url = argv[i + 1] if i + 1 < len(argv) else ""
+        del argv[i:i + 2]
 
     if "--clear-cache" in argv:
         clear_cache()
 
-    client = dc() if isinstance(dc, type) else dc
-    app = DCApp(client, argv=[a for a in argv if not a.startswith("--")])
+    if api_url:
+        client = (dc if isinstance(dc, type) else type(dc))(api_url=api_url)
+        # a separate cache per API host, so dev and production data never mix
+        host = re.sub(r"[^A-Za-z0-9]+", "-", api_url.split("//", 1)[-1]).strip("-")
+        data = DataClient(client, cache=DiskCache(cache_dir() / ("api-" + host)))
+        print("dc tui → %s" % api_url, file=sys.stderr)
+    else:
+        client = dc() if isinstance(dc, type) else dc
+        data = None
+    app = DCApp(client, argv=[a for a in argv if not a.startswith("--")], data=data)
     app.run()
     return 0
 

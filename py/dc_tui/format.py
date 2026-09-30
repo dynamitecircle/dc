@@ -1,6 +1,7 @@
 """Tiny formatting helpers shared by the screens (no Textual imports)."""
 from __future__ import annotations
 
+import html
 import re
 import unicodedata
 from datetime import datetime
@@ -149,6 +150,34 @@ def strip_markdown(text: Any) -> str:
     return " ".join(s.split())
 
 
+_LI = re.compile(r"<li\b[^>]*>(.*?)</li>", re.IGNORECASE | re.DOTALL)
+_TAG = re.compile(r"<[^>]+>")
+_BLOCK_END = re.compile(r"</(p|div|h[1-6])>|<br\s*/?>", re.IGNORECASE)
+
+
+def html_to_text(value: Any) -> str:
+    """Profile/room fields stored as editor HTML → one plain line: list items become
+    "a, b, c", paragraphs and line breaks a space, links keep their text, entities decode."""
+    text = str(value if value is not None else "")
+    if "<" not in text and "&" not in text:
+        return " ".join(text.split())
+    items = [_TAG.sub("", m) for m in _LI.findall(text)]
+    if items:
+        rest = _TAG.sub(" ", _LI.sub("", text))
+        parts = [html.unescape(" ".join(i.split())) for i in items if i.strip()]
+        lead = html.unescape(" ".join(rest.split()))
+        return (lead + " " if lead else "") + ", ".join(parts)
+    text = _BLOCK_END.sub(" ", text)
+    return html.unescape(" ".join(_TAG.sub("", text).split()))
+
+
+def term_text(text: Any) -> str:
+    """Drop the emoji variation selector (U+FE0F). Rich measures "🗺️" as one cell
+    but terminals draw it as two, which pushes the row into a wrap; without the
+    selector both agree."""
+    return str(text if text is not None else "").replace("\ufe0f", "")
+
+
 def align_row(width: int, name: Any, date: Any = "", extra: Any = "", *, prefix: str = "",
               name_min: int = 10, extra_min: int = 8, name_markup: str = "[b]%s[/b]") -> str:
     """One list row that always fits `width` columns and never wraps:
@@ -161,6 +190,7 @@ def align_row(width: int, name: Any, date: Any = "", extra: Any = "", *, prefix:
     """
     def esc(t: Any) -> str:
         return str(t if t is not None else "").replace("[", r"\[")
+    name, date, extra = term_text(name), term_text(date), term_text(extra)
     width = max(12, int(width))
     date = str(date or "")
     extra = str(extra or "")

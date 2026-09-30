@@ -576,12 +576,9 @@ class HomeScreen(DCScreen):
         width = pane - 6
         if self._columns == 2:
             width = (pane - 2) * 3 // 5 - 4
-        try:
-            panel_w = self.query_one("#p-inbox", Panel).size.width
-            if panel_w > 10:
-                width = panel_w - 4
-        except Exception:  # noqa: BLE001
-            pass
+        measured = [p.row_width() for p in self.query(Panel) if p.row_width() > 10]
+        if measured:
+            return min(measured)
         return max(20, width - 1)
 
     # ── renderers: (results) -> (lines, subtitle) ─────────────────────
