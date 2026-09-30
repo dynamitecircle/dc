@@ -131,7 +131,7 @@ class DCApp(App):
     Tabs { background: $background; }
     #nav-tabs { height: 2; background: $background; }
     /* every row's text starts in column 2: title, bars, list tabs, chips, hint, table */
-    #nav-tabs #tabs-list-bar, #sub-tabs #tabs-list-bar { margin-left: 1; }
+    #nav-tabs, #sub-tabs { padding-left: 1; }      /* inset without overflowing (an overflow scrolls the bar) */
     Tab { color: #C4C7CE; background: transparent; }          /* inactive: light gray */
     Tab:hover { color: #FF8C5C; background: transparent; text-style: none; }
     Tab.-active { color: $primary; background: transparent; text-style: bold; }
@@ -142,6 +142,8 @@ class DCApp(App):
     Footer { background: $background; }
     #body { height: 1fr; }
     #main { width: 1fr; height: 1fr; padding: 1 1 0 1; }
+    /* tab rows stack with no gap; the blank line comes after the LAST tab row */
+    Screen.tabs-first #main { padding: 0 1 0 1; }
     Screen.compact #main { padding: 0; }
     #detail { width: 45%; height: 1fr; border-left: solid $panel-lighten-2; padding: 0 1; }
     Screen.wide #detail { width: 55%; }

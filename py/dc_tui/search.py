@@ -29,6 +29,7 @@ class SearchScreen(ListDetailScreen):
     COLUMN_WIDTHS = {"Type": 8, "Where": 26}
     EMPTY_TEXT = "type something above and press Enter"
     AUTO_FOCUS = "#search-query"
+    TOP_INPUT = True
 
     DEFAULT_CSS = """
     SearchScreen #search-query { margin: 0 0 1 0; }

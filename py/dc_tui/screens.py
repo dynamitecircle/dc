@@ -59,7 +59,9 @@ SECTIONS: List[Section] = [
 ]
 
 #: Sections shown as sub-tabs of another section (the web's Locator tabs), not on the main bar.
-SUB_SECTION_OF: Dict[str, str] = {"trips": "locator", "following": "locator", "newtrips": "locator"}
+SUB_SECTION_OF: Dict[str, str] = {"trips": "locator", "following": "locator", "newtrips": "locator", "people": "locator"}
+#: Screens reached from a sub-tab without one of their own: a profile opens from Following.
+SUB_TAB_ALIAS: Dict[str, str] = {"people": "following"}
 #: The sub-tab row per group, in the web's order (LocatorCard.vue allTabs).
 SUB_TABS: Dict[str, List[str]] = {"locator": ["locator", "trips", "following", "newtrips"]}
 NAV_SECTIONS: List[Section] = [sec for sec in SECTIONS if sec.id not in SUB_SECTION_OF]
@@ -156,7 +158,8 @@ class DCScreen(Screen):
         yield Tabs(*[Tab(sec.title, id="nav-" + sec.id) for sec in NAV_SECTIONS], id="nav-tabs")
         subs = SUB_TABS.get(self.nav_group(), [])
         if subs:
-            yield Tabs(*[Tab(_BY_ID[sid].title, id="sub-" + sid) for sid in subs], id="sub-tabs", active="sub-" + self.SECTION)
+            yield Tabs(*[Tab(_BY_ID[sid].title, id="sub-" + sid) for sid in subs], id="sub-tabs",
+                       active="sub-" + SUB_TAB_ALIAS.get(self.SECTION, self.SECTION))
         with Horizontal(id="body"):
             yield VerticalScroll(id="main")
             yield VerticalScroll(id="detail")
@@ -240,7 +243,7 @@ class DCScreen(Screen):
     def on_tabs_tab_activated(self, event: Tabs.TabActivated) -> None:
         if event.tabs.id == "sub-tabs" and event.tab is not None:
             section = str(event.tab.id or "").replace("sub-", "", 1)
-            if section != self.SECTION:
+            if section != SUB_TAB_ALIAS.get(self.SECTION, self.SECTION):
                 self.app._focus_sub_next = True
                 self.app.action_goto_section(section)  # type: ignore[attr-defined]
             return

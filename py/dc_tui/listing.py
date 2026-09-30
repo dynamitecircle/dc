@@ -89,8 +89,9 @@ class ListDetailScreen(DCScreen):
     DEFAULT_CSS = """
     ListDetailScreen DataTable { scrollbar-size: 0 0; }
     ListDetailScreen #list { height: auto; max-height: 100%; }
-    ListDetailScreen #list-hint { color: $text-muted; height: auto; padding: 0 1; }
+    ListDetailScreen #list-hint { color: $text-muted; height: auto; padding: 0 1; margin-bottom: 1; }  /* a blank line before the table */
     ListDetailScreen Tabs { height: 2; margin: 0 0 0 0; }
+    ListDetailScreen #list-tabs { margin-bottom: 1; }             /* blank line: tabs → content */
     ListDetailScreen Tab.-active { color: $primary; text-style: bold; background: transparent; }
     ListDetailScreen Tabs:focus Tab.-active { color: #FFB000; background: transparent; text-style: bold; }
     ListDetailScreen Tabs .underline--bar { color: $primary; background: $panel; }
@@ -138,6 +139,8 @@ class ListDetailScreen(DCScreen):
         self.main_pane().can_focus = False
         self.detail_pane().can_focus = False
         widgets: List[Any] = []
+        # a tab row right under the bars: no blank line between tab rows
+        self.set_class(bool(self.LIST_TABS) and not self.TOP_INPUT, "tabs-first")
         if self.LIST_TABS:
             widgets.append(Tabs(*[Tab(label, id=tid) for tid, label in self.LIST_TABS], id="list-tabs"))
         if self.LIST_FILTERS:
@@ -222,6 +225,9 @@ class ListDetailScreen(DCScreen):
         for i, col in enumerate(cols):
             width = self.flex_width if i == 0 else self.COLUMN_WIDTHS.get(col, 10)
             table.add_column(col, key=col, width=width)
+
+    #: True for screens that mount a text field above the list tabs (Search, Profiles).
+    TOP_INPUT = False
 
     #: Middle columns to give up first when the pane is too narrow (default: right to left).
     COLUMN_DROP: Sequence[str] = ()

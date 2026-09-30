@@ -171,7 +171,7 @@ def test_search_all_and_type_tabs(tmp_path):
         app, _ = make_app(tmp_path)
         async with app.run_test(size=(120, 40)) as pilot:
             await settle(pilot, 1.0)
-            await press(pilot, "7"); await settle(pilot, 1.0)
+            await press(pilot, "6"); await settle(pilot, 1.0)
             assert fid(app) == "search-query"
             for ch in "SaaS": await press(pilot, ch)
             await press(pilot, "enter"); await settle(pilot, 1.5)
@@ -236,7 +236,7 @@ def test_me_screen_renders_profile_sections(tmp_path):
         app, _ = make_app(tmp_path)
         async with app.run_test(size=(120, 44)) as pilot:
             await settle(pilot, 1.0)
-            await press(pilot, "8"); await settle(pilot, 1.5)
+            await press(pilot, "7"); await settle(pilot, 1.5)
             scr = app.screen
             await shot(app, "me")
             text = "\n".join(str(o.prompt) for p in scr.query(Panel) for o in p.list._options)
@@ -256,7 +256,7 @@ def test_every_section_fits_narrow_terminals(tmp_path, width):
             await settle(pilot, 1.2)
             await shot(app, "w%d-home" % width)
             for key, name in (("2", "inbox"), ("3", "browse"), ("sub:trips", "trips"), ("4", "events"),
-                              ("5", "locator"), ("sub:following", "following"), ("sub:newtrips", "newtrips"), ("6", "people"), ("8", "me")):
+                              ("5", "locator"), ("sub:following", "following"), ("sub:newtrips", "newtrips"), ("sub:people", "people"), ("7", "me")):
                 if key.startswith("sub:"):
                     app.action_goto_section(key[4:])
                 else:
