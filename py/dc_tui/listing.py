@@ -497,6 +497,7 @@ class ListDetailScreen(DCScreen):
         self._detail_data = None
         self._sync_detail_tabs()
         self._sync_actions()
+        self._paint_detail()          # clear the previous item's text now — never show it under the new title
         self._set_detail_title(self.detail_title(item) + "  [dim]loading…[/dim]")
         self._load_detail(item, force, self.detail_tab)
 

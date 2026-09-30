@@ -308,3 +308,21 @@ def test_a_slow_load_for_the_previous_tab_never_paints(tmp_path):
             scr._rows_arrived(stale_gen, [{"userID": "1", "displayName": "Alex Harling"}], "")
             assert all(r.get("cityID") for r in scr.items), scr.items
     run(go())
+
+
+def test_switching_rooms_never_shows_the_previous_rooms_messages(tmp_path):
+    """While the next room loads, its detail says loading — not the last room's messages."""
+    async def go():
+        app, fake = make_app(tmp_path)
+        async with app.run_test(size=(90, 40)) as pilot:
+            await settle(pilot, 1.0); await press(pilot, "2"); await settle(pilot, 1.5)
+            scr = app.screen
+            table = scr.query_one("#list", DataTable); table.focus(); table.move_cursor(row=1); await settle(pilot, 0.3)
+            await press(pilot, "enter"); await settle(pilot, 1.5)
+            assert "only in r1" in str(scr.query_one("#detail-body-inline").render())
+            scr._opened.add(scr.items[0]["roomID"]); scr.load_detail(scr.items[0])   # the next room, before its data arrives
+            assert "only in r1" not in str(scr.query_one("#detail-body-inline").render())
+            await settle(pilot, 1.5)
+            body = str(scr.query_one("#detail-body-inline").render())
+            assert "only in r2" in body and "only in r1" not in body
+    run(go())
