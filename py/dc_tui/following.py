@@ -87,15 +87,32 @@ class FollowingScreen(ListDetailScreen):
         return [("View profile", "view_person"), ("Unfollow", "unfollow"), ("Open in app", "app.open_in_browser")]
 
     def fetch_detail(self, item: dict, force: bool) -> Any:
+        data = self.app.data  # type: ignore[attr-defined]
+        if self.list_tab == "people" and item.get("userID") and hasattr(data.dc, "dcer"):
+            return data.fetch("dcer", item.get("userID"), force=force)     # the full profile, always
         return None
 
     def render_detail(self, item: dict, data: Any) -> List[str]:
         if self.list_tab == "chapters":
             return ["You follow this chapter: its events, new DCers and visitors show up in your Locator."]
-        return profile_lines(item, width=self.detail_width(), header=False) + ["", "[dim]View profile shows the full profile[/dim]"]
+        prof = dict(item)
+        if data is not None and getattr(data, "ok", False):
+            body = dict_of(data)
+            prof.update(body.get("profile") if isinstance(body.get("profile"), dict) else body)
+        lines = profile_lines(prof, width=self.detail_width(), header=False)
+        if prof.get("headline"):
+            lines = [esc(str(prof["headline"]))] + lines       # profile_lines already opens with a blank line
+        if data is None:
+            lines.append("[dim]loading the profile…[/dim]")
+        elif getattr(data, "error", None):
+            lines.append("[$warning]%s[/]" % esc(data.error))
+        return lines
 
     def action_open_detail(self) -> None:
         item = self.selected()
+        if self.two_pane:                     # side by side: the profile shows in the pane
+            super().action_open_detail()
+            return
         if item is not None and self.list_tab == "people":
             self.app.open_person(dict(item))  # type: ignore[attr-defined]
             return
