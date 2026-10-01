@@ -25,8 +25,8 @@ class HoverTable(DataTable):
 
     def watch_hover_coordinate(self, old, value) -> None:
         super().watch_hover_coordinate(old, value)
-        if not self.is_mounted or value == old or not self.row_count:
-            return
+        if not self.is_mounted or value == old or not self.row_count or not self.show_cursor:
+            return                      # nothing to point at (or skeleton rows while loading)
         if not getattr(self, "_mouse_inside", False):
             return                      # a programmatic reset (clear / refill), not the mouse
         if 0 <= value.row < self.row_count and value.row != self.cursor_row:

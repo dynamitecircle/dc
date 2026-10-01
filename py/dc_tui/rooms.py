@@ -71,6 +71,13 @@ class RoomsScreen(ListDetailScreen):
         if fetched.error and fetched.data is None:
             raise RuntimeError(fetched.error)
         rooms = items_of(fetched)
+        if not seen_filter:
+            # a page holds the most recent rooms only; the web lists every pinned room on
+            # top, so fetch the pinned set too and add the ones older than this page
+            args = (self.room_type,) if self.room_type else ()
+            pinned = data.fetch("rooms", *args, force=force, filter="pinned")
+            have = {r.get("roomID") for r in rooms}
+            rooms += [r for r in items_of(pinned) if r.get("roomID") not in have and self._flags(r).get("isPinned")]
         if seen_filter:                  # older servers ignore ?filter — apply it here too when flags are present
             key = {"pinned": "isPinned", "muted": "isMuted", "archived": "isArchived"}[seen_filter]
             if any(isinstance(r.get("seen"), dict) for r in rooms):

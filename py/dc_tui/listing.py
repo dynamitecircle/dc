@@ -250,7 +250,7 @@ class ListDetailScreen(DCScreen):
         table = self.query_one("#list", DataTable)
         table.clear(columns=True)
         cols = list(self._columns())
-        avail = max(30, (self.main_pane().size.width or self.app.size.width) - 2)
+        avail = max(30, self.main_pane().size.width or self.app.size.width - 2)   # every cell: the date ends at the edge
         fixed = sum(self.COLUMN_WIDTHS.get(c, 10) for c in cols[1:])
         self.flex_width = max(12, avail - fixed - 2 * len(cols))
         for i, col in enumerate(cols):
@@ -277,7 +277,7 @@ class ListDetailScreen(DCScreen):
         (name) and last (date) columns always stay, so the date is never clipped."""
         cols = list(self.base_columns())
         try:
-            avail = max(30, (self.main_pane().size.width or self.app.size.width) - 2)
+            avail = max(30, self.main_pane().size.width or self.app.size.width - 2)   # every cell: the date ends at the edge
         except Exception:  # noqa: BLE001 — not composed yet
             return cols
         drop = [c for c in (self.COLUMN_DROP or reversed(cols[1:-1])) if c in cols[1:-1]]
@@ -414,9 +414,10 @@ class ListDetailScreen(DCScreen):
         widths = [c.width for c in table.columns.values()]
         if not widths:
             return
-        for i in range(self.SKELETON_ROWS):
-            span = [max(3, int(w * f)) for w, f in zip(widths, (0.55, 0.6, 0.4, 0.7, 0.5)[i:] + (0.5,) * 5)]
-            table.add_row(*[Text("━" * n, style="#30333D") for n in span], key="skeleton-%d" % i)
+        for i in range(self.SKELETON_ROWS):        # blank striped rows: no lines, no cursor, no hover
+            table.add_row(*["" for _ in widths], key="skeleton-%d" % i)
+        table.show_cursor = False
+        table.add_class("-skeleton")
         table.display = True
 
     def refresh_data(self, force: bool = False) -> None:
@@ -458,6 +459,10 @@ class ListDetailScreen(DCScreen):
 
     def _rows_loaded(self, rows: List[dict], error: str) -> None:
         self.items = rows
+        table = self.query_one("#list", DataTable)
+        if table.has_class("-skeleton"):
+            table.remove_class("-skeleton")
+            table.show_cursor = True
         self._setup_columns()
         self._fill_table()
         # no rows → no bare header row; the hint line says why it is empty
@@ -1031,8 +1036,13 @@ def _fit(cell: Any, width: int) -> Any:
 _DATE_HEADERS = {"Dates", "Date", "Activity", "When", "Joined", "Time"}
 
 
+_ICON_COLUMNS = {"🎫"}
+
+
 def _header(col: str) -> Any:
     """Date columns are right-aligned, so their header is too."""
+    if col in _ICON_COLUMNS:
+        return ""                                    # an icon-only column (the ticket mark) has no header
     return Text(col, justify="right") if col in _DATE_HEADERS else col
 
 

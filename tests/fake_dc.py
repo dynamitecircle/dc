@@ -121,6 +121,9 @@ class FakeDC:
                   "seen": {"isPinned": True, "isMuted": True, "isArchived": False}},
                  {"roomID": "dm_940_1", "name": "", "displayName": "Alex Harling", "type": "dm", "scope": "dc", "lastActivityAt": "2026-09-26T09:00:00Z",
                   "participant": {"userID": "1", "displayName": "Alex Harling", "userName": "AlexHarling", "profileURL": ""}}]
+        if filter == "pinned":           # an older pinned DM, past the first page of recent rooms
+            rooms.append({"roomID": "dm_940_7", "name": "", "displayName": "Ian Schoen", "type": "dm", "scope": "dc",
+                          "lastActivityAt": "2026-01-02T09:00:00Z", "seen": {"isPinned": True, "isMuted": False, "isArchived": False}})
         key = {"pinned": "isPinned", "muted": "isMuted", "archived": "isArchived"}.get(filter or "")
         return _env([r for r in rooms if (not room_type or r["type"] == room_type) and (not key or (r.get("seen") or {}).get(key))])
 

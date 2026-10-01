@@ -107,19 +107,19 @@ def test_inbox_tabs_filter_chips_and_messages(tmp_path):
             await settle(pilot, 1.0)
             await press(pilot, "2"); await settle(pilot, 1.5)
             scr = app.screen
-            assert [r.get("roomID") for r in scr.items][:2] == ["r2", "r1"]  # pinned tier first, then unread
+            assert [r.get("roomID") for r in scr.items][:3] == ["r2", "dm_940_7", "r1"]  # every pinned room first, then unread
             assert scr.row_cells(scr.items[0])[0].startswith(" # 📌 🔕 ")               # pinned + muted marks
-            assert scr.row_cells(scr.items[2])[0] == "👤 Alex Harling"                 # DM named after the other person
+            assert scr.row_cells(scr.items[3])[0] == "👤 Alex Harling"                 # DM named after the other person
             await pilot.click("#chip-pinned"); await settle(pilot, 1.0)
-            assert [r.get("roomID") for r in scr.items] == ["r2"] and ("rooms", "", "pinned") in fake.calls
+            assert [r.get("roomID") for r in scr.items] == ["r2", "dm_940_7"] and ("rooms", "", "pinned") in fake.calls
             assert [b.label.plain for b in scr.query("Button.action")][1:3] or True
             await pilot.click("#chip-show-all"); await settle(pilot, 1.0)
             await pilot.click("#chip-unread"); await settle(pilot, 1.0)
             assert [r.get("roomID") for r in scr.items] == ["r1"]
             await pilot.click("#chip-show-all"); await settle(pilot, 1.0)
-            assert len(scr.items) == 3
+            assert len(scr.items) == 4
             scr.query_one("#list-tabs", Tabs).active = "dm"; await settle(pilot, 1.0)
-            assert [r.get("type") for r in scr.items] == ["dm"]
+            assert [r.get("type") for r in scr.items] == ["dm", "dm"]        # incl. the older pinned DM
             assert "Type" not in scr._columns()                               # redundant inside the DMs tab
             scr.query_one("#list-tabs", Tabs).active = "all"; await settle(pilot, 1.0)
             table = scr.query_one("#list", DataTable); table.focus(); await settle(pilot, 0.2)
@@ -129,7 +129,7 @@ def test_inbox_tabs_filter_chips_and_messages(tmp_path):
             await pilot.click("#act-pane-0"); await settle(pilot, 1.5)                    # Mark unread
             assert ("room-unread", "r2") in fake.calls
             assert [b.label.plain for b in scr.query("Button.action")][0] == "Mark read"
-            table.focus(); table.move_cursor(row=1); await settle(pilot, 0.3)       # DC Announcements (r1)
+            table.focus(); table.move_cursor(row=2); await settle(pilot, 0.3)       # DC Announcements (r1)
             await press(pilot, "enter"); await settle(pilot, 1.5)
             await shot(app, "inbox-messages")
             assert [b.label.plain for b in scr.query("Button.action")][:4] == ["Mark read", "Mute", "Pin", "Archive"]
@@ -338,7 +338,7 @@ def test_switching_rooms_never_shows_the_previous_rooms_messages(tmp_path):
         async with app.run_test(size=(90, 40)) as pilot:
             await settle(pilot, 1.0); await press(pilot, "2"); await settle(pilot, 1.5)
             scr = app.screen
-            table = scr.query_one("#list", DataTable); table.focus(); table.move_cursor(row=1); await settle(pilot, 0.3)
+            table = scr.query_one("#list", DataTable); table.focus(); table.move_cursor(row=2); await settle(pilot, 0.3)
             await press(pilot, "enter"); await settle(pilot, 1.5)
             assert "only in r1" in str(scr.query_one("#detail-body-inline").render())
             scr._opened.add(scr.items[0]["roomID"]); scr.load_detail(scr.items[0])   # the next room, before its data arrives
