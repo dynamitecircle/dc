@@ -57,6 +57,8 @@ def run(dc: Any, argv: Optional[Sequence[str]] = None) -> int:
     if "--clear-cache" in argv:
         clear_cache()
 
+    _tmux_flags()
+
     if api_url:
         client = (dc if isinstance(dc, type) else type(dc))(api_url=api_url)
         # a separate cache per API host, so dev and production data never mix
@@ -69,6 +71,35 @@ def run(dc: Any, argv: Optional[Sequence[str]] = None) -> int:
     app = DCApp(client, argv=[a for a in argv if not a.startswith("--")], data=data)
     app.run()
     return 0
+
+
+#: tmux keeps its own width table. Unless it counts a flag's regional-indicator
+#: letters as wide, it positions them one by one in a pane that does not start at
+#: the left edge, and the terminal draws a gray box instead of the flag (and the
+#: row loses a column). One entry fixes it for every pane of that tmux server.
+_TMUX_RI_WIDTHS = "U+1F1E6-U+1F1FF=2"
+
+
+def _tmux_flags() -> None:
+    """Inside tmux: teach the server that flags are two columns wide, then use real
+    flags. If that fails (old tmux, no permission) flags fall back to country codes.
+    DC_TUI_FLAGS=0/1 skips this and forces the choice."""
+    import subprocess
+    if not os.environ.get("TMUX") or os.environ.get("DC_TUI_FLAGS") is not None:
+        return
+    try:
+        current = subprocess.run(["tmux", "show-options", "-sv", "codepoint-widths"],
+                                 capture_output=True, text=True, timeout=3)
+        if current.returncode != 0:
+            return
+        if "1F1E6" not in current.stdout.upper():
+            added = subprocess.run(["tmux", "set-option", "-as", "codepoint-widths", _TMUX_RI_WIDTHS],
+                                   capture_output=True, text=True, timeout=3)
+            if added.returncode != 0:
+                return
+        os.environ["DC_TUI_FLAGS"] = "1"
+    except (OSError, subprocess.SubprocessError):
+        return
 
 
 def clear_cache() -> None:

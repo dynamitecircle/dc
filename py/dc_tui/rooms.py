@@ -12,6 +12,7 @@ import re
 
 from .format import fmt_date, pad, plural, trunc, display_width
 from .labels import room_title, room_type_label
+from .profile import profile_lines
 from .listing import ListDetailScreen, dict_of, esc, items_of, plain
 from .screens import SECTIONS, WEB_APP
 
@@ -161,7 +162,11 @@ class RoomsScreen(ListDetailScreen):
         data = self.app.data  # type: ignore[attr-defined]
         room_id = item.get("roomID")
         out = {"room": data.fetch("room", room_id, force=force)}
-        if room_id in self._opened and (self.detail_tab or "messages") == "messages":
+        person = item.get("participant") if isinstance(item.get("participant"), dict) else None
+        if (self.detail_tab or "messages") == "info" and person and person.get("userID") and hasattr(data.dc, "dcer"):
+            out["person"] = data.fetch("dcer", person.get("userID"), force=force)
+        if (self.detail_tab or "messages") == "messages":
+            self._opened.add(room_id)                    # the Messages tab itself is an explicit open
             out["messages"] = data.fetch("room-messages", room_id, limit=25, force=force)
             if force:
                 self._older.pop(str(room_id), None)      # a refresh starts from the newest page again
@@ -173,13 +178,19 @@ class RoomsScreen(ListDetailScreen):
         tab = self.detail_tab or "messages"
         room = dict_of(data["room"])
         if tab == "info":
-            return self._render_info(item, room, data["room"])
+            return self._render_info(item, room, data["room"], data.get("person"))
         if tab == "summary":
             return self._render_summary(room, data["room"])
         return self._render_messages(item, data)
 
-    def _render_info(self, item: dict, room: dict, f: Fetched) -> List[str]:
+    def _render_info(self, item: dict, room: dict, f: Fetched, person: Optional[Fetched] = None) -> List[str]:
         lines: List[str] = []
+        if person is not None and person.ok:          # a DM: who you are talking to
+            body = dict_of(person)
+            prof = body.get("profile") if isinstance(body.get("profile"), dict) else body
+            lines += profile_lines(prof, width=self.detail_width())
+            lines += ["", "[dim]View profile opens the full page[/dim]"]
+            return lines
         desc = plain(item.get("description"))
         if desc:
             lines.append(esc(trunc(desc, 400)))
@@ -224,6 +235,7 @@ class RoomsScreen(ListDetailScreen):
         if "messages" not in data:
             return ["[dim]Enter, → or the Read messages button loads the latest messages (read-only).[/dim]"]
         self._links: List[str] = []
+        self._authors: List[dict] = []
         first = items_of(data["messages"])
         older = self._older.get(str(item.get("roomID")), {})
         messages = first + list(older.get("items") or [])          # newest first, then older pages
@@ -243,12 +255,18 @@ class RoomsScreen(ListDetailScreen):
             author = m.get("author") if isinstance(m.get("author"), dict) else {}
             who = author.get("displayName") or author.get("userName") or "system"
             when = fmt_date(m.get("sentAt"))
-            lines.append("[b]%s[/b] [dim]%s[/dim]" % (esc(pad(who, max(4, width - display_width(when) - 1))), when))
+            name_w = max(4, width - display_width(when) - 1)
+            if author.get("userID"):                     # click a name to open that DCer's profile
+                self._authors.append(author)
+                gap = " " * max(1, name_w - display_width(who))
+                lines.append("[b][@click=screen.open_author(%d)]%s[/][/b]%s[dim]%s[/dim]" % (len(self._authors) - 1, esc(who), gap, when))
+            else:
+                lines.append("[b]%s[/b] [dim]%s[/dim]" % (esc(pad(who, name_w)), when))
             if m.get("isDeleted"):
                 lines.append("[dim](deleted)[/dim]")
             else:
                 raw = str(m.get("text") or "")
-                text, reply_to = _split_reply(plain(raw, bool(m.get("isHTML"))))
+                text, reply_to = _split_reply(plain(raw, bool(m.get("isHTML"))), str(item.get("name") or ""))
                 if reply_to:
                     lines.append("[dim]↳ replying to %s[/dim]" % esc(reply_to))
                 kind = attachment_label(m.get("type"), raw)
@@ -278,6 +296,11 @@ class RoomsScreen(ListDetailScreen):
             return
         self._pending_toggle = (str(item.get("roomID")), command)
         self.mutate(command, item.get("roomID"), ok_text="%s %s" % (self.title_of(item), done))
+
+    def action_open_author(self, index: int) -> None:
+        authors = getattr(self, "_authors", [])
+        if 0 <= int(index) < len(authors):
+            self.app.open_person(dict(authors[int(index)]))  # type: ignore[attr-defined]
 
     def action_open_attachment(self, index: int) -> None:
         links = getattr(self, "_links", [])
@@ -380,8 +403,14 @@ class RoomsScreen(ListDetailScreen):
             self.load_older()
 
     def _queue_detail(self, item: dict) -> None:
-        """Highlighting shows Info (cheap) unless this room was already opened."""
-        if item.get("roomID") not in self._opened:
+        """Side by side, the messages pane is always in view: highlighting a room
+        shows its messages (debounced, cached). One pane: highlighting shows Info
+        (cheap) until the room is opened."""
+        if self.two_pane:
+            self._opened.add(item.get("roomID"))
+            if self.detail_tab == "info" and item is not self._detail_item:
+                self.detail_tab = "messages"
+        elif item.get("roomID") not in self._opened:
             self.detail_tab = "info"
         elif self.detail_tab == "info":
             self.detail_tab = "messages"      # a room you opened comes back on its messages
@@ -469,9 +498,17 @@ def _dm_label(room: dict) -> str:
 _REPLY = re.compile(r"^[^\w]*Replying to (.+?) in (?:.+?)\s+(.*)$", re.DOTALL)   # any glyph/bar prefix
 
 
-def _split_reply(text: str):
+_REPLY_HEAD = re.compile(r"^[^\w]*Replying to (.+?) in (.*)$", re.DOTALL)
+
+
+def _split_reply(text: str, room: str = ""):
     """The app prefixes quoted replies with 'Replying to <name> in <room>' — lift
-    that into its own line and return (body, replied_to_name)."""
+    that into its own line and return (body, replied_to_name). With the room's
+    name known the cut is exact, even for multi-word rooms ("DC Early Adopters")."""
+    if room:
+        m = _REPLY_HEAD.match(text or "")
+        if m and m.group(2).startswith(room):
+            return m.group(2)[len(room):].strip(), m.group(1).strip()
     m = _REPLY.match(text or "")
     if not m:
         return text, None

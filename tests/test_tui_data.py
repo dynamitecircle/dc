@@ -322,6 +322,7 @@ def test_reply_prefix_is_split_out():
     from dc_tui.rooms import _split_reply
     assert _split_reply("▌ Replying to Sharif ElKomi in SaaS The app generates reports") == ("The app generates reports", "Sharif ElKomi")
     assert _split_reply("plain message") == ("plain message", None)
+    assert _split_reply("▌ Replying to Simon Payne in DC Early Adopters Thanks Simon!", "DC Early Adopters") == ("Thanks Simon!", "Simon Payne")
 
 
 

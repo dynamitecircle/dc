@@ -24,6 +24,7 @@ from .browse import BrowseScreen
 from .events import EventsScreen
 from .following import FollowingScreen, NewTripsScreen
 from .locator import LocatorScreen
+from .profile_page import ProfileScreen
 from .me import MeScreen
 from .people import PeopleScreen
 from .rooms import RoomsScreen
@@ -35,7 +36,7 @@ from .theme import DC_THEME
 WEB_APP = "https://dc.dynamitecircle.com"
 
 SCREEN_CLASSES = {"home": HomeScreen, "rooms": RoomsScreen, "browse": BrowseScreen, "trips": TripsScreen, "events": EventsScreen,
-                  "locator": LocatorScreen, "following": FollowingScreen, "newtrips": NewTripsScreen, "people": PeopleScreen, "search": SearchScreen, "me": MeScreen}
+                  "locator": LocatorScreen, "following": FollowingScreen, "profile": ProfileScreen, "newtrips": NewTripsScreen, "people": PeopleScreen, "search": SearchScreen, "me": MeScreen}
 
 HELP_TEXT = """\
 [b]DC terminal[/b]
@@ -210,10 +211,10 @@ class DCApp(App):
     def open_person(self, member: dict) -> None:
         """Show a DCer's profile in the People section (terminal first; the web
         profile is a button inside it)."""
-        self.action_goto_section("people")
+        self.action_goto_section("profile")
         screen = self.screen
-        if hasattr(screen, "show_person"):
-            screen.show_person(member)  # type: ignore[attr-defined]
+        if hasattr(screen, "show"):
+            screen.show(member)  # type: ignore[attr-defined]
 
     def action_back(self) -> None:
         """Esc / Backspace: close an open modal, else the previous section, else Home."""

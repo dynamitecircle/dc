@@ -54,14 +54,16 @@ SECTIONS: List[Section] = [
     Section("following", "Following", "DCers and chapters you follow",                     WEB_APP + "/locator/following"),
     Section("newtrips", "New Trips", "recently added trips",                               WEB_APP + "/locator/new-trips"),
     Section("people", "Profiles",   "profile match · follows",                             WEB_APP + "/members"),
+    Section("profile", "Profile",   "one DCer's profile",                                  WEB_APP + "/members"),
     Section("search", "Search",     "profiles · rooms · messages · events · chapters",       WEB_APP + "/search"),
     Section("me",     "Me",         "profile · membership · notifications · calendar",     WEB_APP + "/profile"),
 ]
 
 #: Sections shown as sub-tabs of another section (the web's Locator tabs), not on the main bar.
-SUB_SECTION_OF: Dict[str, str] = {"trips": "locator", "following": "locator", "newtrips": "locator", "people": "locator"}
+SUB_SECTION_OF: Dict[str, str] = {"trips": "locator", "following": "locator", "newtrips": "locator", "people": "locator",
+                                   "profile": "locator"}
 #: Screens reached from a sub-tab without one of their own: a profile opens from Following.
-SUB_TAB_ALIAS: Dict[str, str] = {"people": "following"}
+SUB_TAB_ALIAS: Dict[str, str] = {"people": "following", "profile": "following"}
 #: The sub-tab row per group, in the web's order (LocatorCard.vue allTabs).
 SUB_TABS: Dict[str, List[str]] = {"locator": ["locator", "trips", "following", "newtrips"]}
 NAV_SECTIONS: List[Section] = [sec for sec in SECTIONS if sec.id not in SUB_SECTION_OF]

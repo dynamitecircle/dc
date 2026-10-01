@@ -244,7 +244,11 @@ def test_locator_page_matches_the_web_digest(tmp_path):
             cards = {p.id: p for p in scr.query(Panel)}
             cards["l-home"].list.focus(); cards["l-home"].first(); await settle(pilot, 0.2)
             await press(pilot, "enter"); await settle(pilot, 1.5)
-            assert type(app.screen).__name__ == "PeopleScreen" and (app.screen._detail_item or {}).get("displayName") == "Harley Green"
+            assert type(app.screen).__name__ == "ProfileScreen" and app.screen._member.get("displayName") == "Harley Green"
+            await settle(pilot, 1.0)
+            titles = [str(p.border_title) for p in app.screen.query(Panel) if p.display]
+            assert "👤 Alex Harling" in titles[0] and "Primary Business" in titles                       # dcer → full profile cards
+            await shot(app, "profile")
     run(go(), timeout=150)
 
 
