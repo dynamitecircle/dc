@@ -249,6 +249,15 @@ def test_locator_page_matches_the_web_digest(tmp_path):
             titles = [str(p.border_title) for p in app.screen.query(Panel) if p.display]
             assert "👤 Alex Harling" in titles[0] and "Primary Business" in titles                       # dcer → full profile cards
             await shot(app, "profile")
+            assert not app.screen.query("#sub-tabs")                                   # its own page, not a Locator tab
+            assert [t.id for t in app.screen.query_one("#profile-tabs").query("Tab")] == ["pt-profile", "pt-messages", "pt-threads", "pt-events"]
+            app.screen.query_one("#profile-tabs").active = "pt-messages"; await settle(pilot, 1.5)
+            lst = app.screen.query_one("#pf-list", Panel)
+            assert lst.display and not app.screen.query_one("#pf-head", Panel).display
+            assert any("Hello from the profile" in str(o.prompt) for o in lst.list._options)
+            await shot(app, "profile-messages")
+            app.screen.query_one("#profile-tabs").active = "pt-profile"; await settle(pilot, 0.5)
+            assert app.screen.query_one("#pf-head", Panel).display and not lst.display
     run(go(), timeout=150)
 
 

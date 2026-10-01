@@ -198,6 +198,8 @@ class FakeDC:
         return {"hits": [{"roomID": "r2", "name": "SaaS", "type": "channel"}]}
 
     def search_messages(self, q, **kw):
+        if kw.get("user_id"):
+            return {"hits": [{"messageID": "pm1", "roomID": "r2", "roomName": "SaaS", "body": "<p>Hello from the profile</p>", "sentAt": "2026-09-20"}]}
         return {"hits": []}
 
     def search_events(self, q, **kw):

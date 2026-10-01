@@ -60,13 +60,14 @@ SECTIONS: List[Section] = [
 ]
 
 #: Sections shown as sub-tabs of another section (the web's Locator tabs), not on the main bar.
-SUB_SECTION_OF: Dict[str, str] = {"trips": "locator", "following": "locator", "newtrips": "locator", "people": "locator",
-                                   "profile": "locator"}
+SUB_SECTION_OF: Dict[str, str] = {"trips": "locator", "following": "locator", "newtrips": "locator", "people": "locator"}
 #: Screens reached from a sub-tab without one of their own: a profile opens from Following.
-SUB_TAB_ALIAS: Dict[str, str] = {"people": "following", "profile": "following"}
+SUB_TAB_ALIAS: Dict[str, str] = {"people": "following"}
 #: The sub-tab row per group, in the web's order (LocatorCard.vue allTabs).
 SUB_TABS: Dict[str, List[str]] = {"locator": ["locator", "trips", "following", "newtrips"]}
-NAV_SECTIONS: List[Section] = [sec for sec in SECTIONS if sec.id not in SUB_SECTION_OF]
+#: Pages of their own, opened from content (a DCer's profile) — never on a bar.
+PAGE_SECTIONS = {"profile"}
+NAV_SECTIONS: List[Section] = [sec for sec in SECTIONS if sec.id not in SUB_SECTION_OF and sec.id not in PAGE_SECTIONS]
 _BY_ID: Dict[str, Section] = {sec.id: sec for sec in SECTIONS}
 
 
@@ -210,8 +211,11 @@ class DCScreen(Screen):
             return
         self._nav_syncing = True
         try:
-            if nav.active != "nav-" + self.nav_group():
-                nav.active = "nav-" + self.nav_group()
+            target = "nav-" + self.nav_group()
+            if not any(str(t.id) == target for t in nav.query(Tab)):
+                target = ""                     # a page of its own (a profile): no section is active
+            if nav.active != target:
+                nav.active = target
         finally:
             self.call_after_refresh(setattr, self, "_nav_syncing", False)
 

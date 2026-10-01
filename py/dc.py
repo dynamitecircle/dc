@@ -1692,8 +1692,8 @@ class _DCCore:
         """Search rooms by name / topic. Optional ?type= filter
         (channel / dm / group / discussion / quick-question / event)
         and ?userID= for rooms created by that DCer."""
-        if not q:
-            raise UsageError("search-rooms requires a query")
+        if not q and not user_id:
+            raise UsageError("search-rooms requires a query (or --user-id to list one DCer's)")
         return self._search_get("/search/rooms", {
             "limit":  limit,
             "page":   page,
@@ -1710,8 +1710,8 @@ class _DCCore:
         Scope to one room with `--room-id` (must be a room you're in,
         else 403). Scope to one author with `--user-id`. The two
         compose."""
-        if not q:
-            raise UsageError("search-messages requires a query")
+        if not q and not user_id:
+            raise UsageError("search-messages requires a query (or --user-id to list one DCer's)")
         return self._search_get("/search/messages", {
             "limit":  limit,
             "page":   page,
@@ -1728,8 +1728,8 @@ class _DCCore:
         filters: ?userID= (host), ?cityID= (Google Place ID),
         ?country= (ISO alpha-2 like 'TH'), ?since=/?until=
         (ISO 8601 dates, compose for a window)."""
-        if not q:
-            raise UsageError("search-events requires a query")
+        if not q and not user_id:
+            raise UsageError("search-events requires a query (or --user-id to list one DCer's)")
         return self._search_get("/search/events", {
             "cityID":  city_id,
             "country": country,
