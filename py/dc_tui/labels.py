@@ -49,7 +49,7 @@ def is_global_event(event: dict) -> bool:
 # names after it line up. Emoji only, no VS16 sequences: those render 1 or 2 wide.
 _THEMED_ICONS = (("sessionID", "🎥"), ("tripID", "🛫"), ("meetupID", "📆"), ("eventID", "📅"), ("cityID", "🏢"))
 _TYPE_ICONS = {"channel": "# ", "group": "👥", "dm": "👤", "direct": "👤", "discussion": "💬",
-               "quick-question": "⚡", "activity": "⚡", "event": "📅", "city": "🏢", "country": "🌐",
+               "quick-question": "❓", "activity": "❓", "event": "📅", "city": "🏢", "country": "🌐",
                "mastermind": "🧠"}
 
 

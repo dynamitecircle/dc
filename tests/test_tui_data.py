@@ -477,7 +477,7 @@ def test_room_icon_follows_the_apps():
     assert room_icon({"type": "channel"}) == "# "
     assert room_icon({"type": "group"}) == "👥"
     assert room_icon({"type": "dm"}) == "👤" and room_icon({"roomID": "dm_1_2"}) == "👤"
-    assert room_icon({"type": "quick-question"}) == "⚡"
+    assert room_icon({"type": "quick-question"}) == "❓"
     assert room_icon({"type": "group", "eventID": "e1"}) == "📅"           # themed beats type
     assert room_icon({"type": "channel", "sessionID": "s", "eventID": "e"}) == "🎥"   # a call first
     assert room_icon({"roomID": "trip_9", "type": "group"}) == "🛫"
