@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from textual import work
 from textual.binding import Binding
+from textual.widgets import DataTable
 
 from .data import Fetched
 import re
@@ -67,10 +68,14 @@ class RoomsScreen(ListDetailScreen):
         self._unread = {r.get("roomID"): int(r.get("badgeCount") or 0) for r in items_of(unread)}
         seen_filter = self.list_filter if self.list_filter in ("pinned", "muted", "archived") else None
         kwargs = {"filter": seen_filter} if seen_filter else {}
+        kwargs["limit"] = self.PAGE                  # the API's max page for the inbox
         fetched = data.fetch("rooms", self.room_type, force=force, **kwargs) if self.room_type else data.fetch("rooms", force=force, **kwargs)
         if fetched.error and fetched.data is None:
             raise RuntimeError(fetched.error)
         rooms = items_of(fetched)
+        body = dict_of(fetched)
+        self._next_cursor = body.get("cursor") if body.get("has_more") else None   # older rooms load on scroll
+        self._page_args = (self.room_type, seen_filter)
         if not seen_filter:
             # a page holds the most recent rooms only; the web lists every pinned room on
             # top, so fetch the pinned set too and add the ones older than this page
@@ -82,6 +87,9 @@ class RoomsScreen(ListDetailScreen):
             key = {"pinned": "isPinned", "muted": "isMuted", "archived": "isArchived"}[seen_filter]
             if any(isinstance(r.get("seen"), dict) for r in rooms):
                 rooms = [r for r in rooms if self._flags(r).get(key)]
+        return self._ordered(rooms)
+
+    def _ordered(self, rooms: List[dict]) -> List[dict]:
         if self.list_filter == "unread":
             rooms = [r for r in rooms if self._unread.get(r.get("roomID"), 0) > 0 and not self._flags(r).get("isArchived")]
         # web order (SidebarInbox.vue): pinned tier, active tier, archived tier; unread floats up
@@ -129,7 +137,63 @@ class RoomsScreen(ListDetailScreen):
         if not self.items:
             return self.EMPTY_TEXT
         total = sum(self._unread.values())
-        return "%s · %s  [dim]%s[/dim]" % (plural(len(self.items), "room"), plural(total, "unread"), self.HINT)
+        more = " · scroll for older" if getattr(self, "_next_cursor", None) else ""
+        return "%s%s · %s  [dim]%s[/dim]" % (plural(len(self.items), "room"), more, plural(total, "unread"), self.HINT)
+
+    # ── older rooms: the next page loads when the list reaches its end ──
+    PAGE = 100
+    def on_data_table_row_highlighted(self, event) -> None:
+        table = event.data_table
+        if table.id == "list" and table.row_count and event.cursor_row >= table.row_count - 1:
+            self.load_more_rooms()
+
+    def on_mouse_scroll_down(self, event) -> None:
+        # the table swallows the wheel while it can still scroll; one that reaches
+        # the screen means the list is already at its end
+        try:
+            table = self.query_one("#list", DataTable)
+        except Exception:  # noqa: BLE001
+            return
+        if table.region.contains(event.screen_x, event.screen_y) and table.scroll_y >= table.max_scroll_y:
+            self.load_more_rooms()
+
+    def load_more_rooms(self) -> None:
+        if not getattr(self, "_next_cursor", None) or getattr(self, "_loading_more", False):
+            return
+        self._loading_more = True
+        self.set_hint(self.hint_text().replace("scroll for older", "loading older…", 1))
+        self._fetch_more(self._next_cursor, self._page_args, getattr(self, "_load_gen", 0))
+
+    @work(thread=True, exclusive=True, group="rooms-more", exit_on_error=False)
+    def _fetch_more(self, cursor: str, page_args: tuple, gen: int) -> None:
+        room_type, seen_filter = page_args
+        kwargs = {"filter": seen_filter} if seen_filter else {}
+        args = (room_type,) if room_type else ()
+        fetched = self.app.data.fetch("rooms", *args, cursor=cursor, limit=self.PAGE, **kwargs)  # type: ignore[attr-defined]
+        self.app.call_from_thread(self._more_arrived, gen, page_args, fetched)
+
+    def _more_arrived(self, gen: int, page_args: tuple, fetched) -> None:
+        self._loading_more = False
+        if gen != getattr(self, "_load_gen", 0) or page_args != self._page_args:
+            return                                   # the tab or filter changed meanwhile
+        if fetched.error and fetched.data is None:
+            self.notify(fetched.error, severity="warning", timeout=5)
+            self.set_hint(self.hint_text())
+            return
+        body = dict_of(fetched)
+        self._next_cursor = body.get("cursor") if body.get("has_more") else None
+        have = {r.get("roomID") for r in self.items}
+        fresh = [r for r in items_of(fetched) if r.get("roomID") not in have]
+        table = self.query_one("#list", DataTable)
+        keep = self.selected()
+        row, scroll = table.cursor_row, table.scroll_y
+        self.items = self._ordered(self.items + fresh)
+        self._fill_table()
+        if keep is not None:                         # stay on the same room, where it was
+            index = next((i for i, r in enumerate(self.items) if r is keep), row)
+            table.move_cursor(row=index, animate=False)
+            table.scroll_y = scroll
+        self.set_hint(self.hint_text())
 
     # ── detail ────────────────────────────────────────────────────────
     def _flags(self, item: dict) -> dict:

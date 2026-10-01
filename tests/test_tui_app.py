@@ -364,3 +364,19 @@ def test_image_messages_are_a_clickable_link(tmp_path):
             await scr.run_action("open_attachment(0)"); await settle(pilot, 0.3)
             assert opened == ["https://cdn.example/sunset.jpg"]
     run(go())
+
+
+def test_inbox_loads_older_rooms_at_the_end_of_the_list(tmp_path):
+    async def go():
+        app, fake = make_app(tmp_path)
+        fake.room_pages = True
+        async with app.run_test(size=(120, 40)) as pilot:
+            await settle(pilot, 1.0); await press(pilot, "2"); await settle(pilot, 1.5)
+            scr = app.screen
+            assert "scroll for older" in str(scr.query_one("#list-hint").render())
+            assert "old1" not in [r.get("roomID") for r in scr.items]
+            table = scr.query_one("#list", DataTable); table.focus()
+            table.move_cursor(row=table.row_count - 1); await settle(pilot, 1.5)   # ↓ to the last row
+            assert [r.get("roomID") for r in scr.items][-1] == "old1"
+            assert "scroll for older" not in str(scr.query_one("#list-hint").render())
+    run(go())

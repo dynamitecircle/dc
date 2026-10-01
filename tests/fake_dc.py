@@ -125,6 +125,13 @@ class FakeDC:
             rooms.append({"roomID": "dm_940_7", "name": "", "displayName": "Ian Schoen", "type": "dm", "scope": "dc",
                           "lastActivityAt": "2026-01-02T09:00:00Z", "seen": {"isPinned": True, "isMuted": False, "isArchived": False}})
         key = {"pinned": "isPinned", "muted": "isMuted", "archived": "isArchived"}.get(filter or "")
+        if getattr(self, "room_pages", False) and not filter:   # paging: an older page behind a cursor
+            if cursor == "p2":
+                return {"items": [{"roomID": "old1", "name": "Old Channel", "type": "channel", "scope": "dc",
+                                   "lastActivityAt": "2025-01-01T09:00:00Z"}], "count": 1, "cursor": None, "has_more": False}
+            page = _env([r for r in rooms if not room_type or r["type"] == room_type])
+            page.update(cursor="p2", has_more=True)
+            return page
         return _env([r for r in rooms if (not room_type or r["type"] == room_type) and (not key or (r.get("seen") or {}).get(key))])
 
     def browse_rooms(self, room_type, limit=50, cursor=None):
