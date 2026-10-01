@@ -46,7 +46,7 @@ def run(dc: Any, argv: Optional[Sequence[str]] = None) -> int:
 
     from .app import DCApp
     from .cache import DiskCache, cache_dir
-    from .data import DataClient
+    from .data import DataClient, cache_secret
 
     api_url = os.environ.get("DC_API_URL") or ""
     if "--api-url" in argv:
@@ -63,7 +63,7 @@ def run(dc: Any, argv: Optional[Sequence[str]] = None) -> int:
         client = (dc if isinstance(dc, type) else type(dc))(api_url=api_url)
         # a separate cache per API host, so dev and production data never mix
         host = re.sub(r"[^A-Za-z0-9]+", "-", api_url.split("//", 1)[-1]).strip("-")
-        data = DataClient(client, cache=DiskCache(cache_dir() / ("api-" + host)))
+        data = DataClient(client, cache=DiskCache(cache_dir() / ("api-" + host), secret=cache_secret(client)))
         print("dc tui → %s" % api_url, file=sys.stderr)
     else:
         client = dc() if isinstance(dc, type) else dc

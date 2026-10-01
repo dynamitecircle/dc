@@ -1,4 +1,4 @@
-"""Disk cache for Member API reads — JSON files under ``~/.cache/dc/``.
+"""Disk cache for Member API reads — sealed files under ``~/.cache/dc/``.
 
 The Member API has no push transport and tight per-key budgets (DCC
 10/min · 300/day, DCB 60/min · 3,000/day), so the TUI never hits the
@@ -9,6 +9,13 @@ screens can render instantly and refresh in the background
 (stale-while-revalidate). When the rate budget is exhausted, stale data is
 what keeps the UI usable.
 
+Entries are member data, so they are not stored as plain text: each file is
+zlib-compressed JSON, encrypted with a keystream from keyed BLAKE2b in counter
+mode and authenticated with a keyed BLAKE2b tag. The key is derived from the
+member's API key (``secret``) — without it the files are unreadable, and a
+changed key or a tampered file reads as a cache miss. It keeps the cache from
+being casually readable; it is not a vault (anyone with the API key can read it).
+
 Pure stdlib, no Textual import — unit-tested offline.
 """
 from __future__ import annotations
@@ -16,6 +23,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import zlib
 import threading
 import time
 from pathlib import Path
@@ -89,6 +97,54 @@ def cache_dir() -> Path:
     return base / "dc"
 
 
+_MAGIC = b"DCC1"
+_SUFFIX = ".bin"
+
+
+def _keys(secret: str) -> "tuple[bytes, bytes]":
+    root = hashlib.sha256(("dc-tui-cache\0" + (secret or "")).encode("utf-8")).digest()
+    return (hashlib.blake2b(b"enc", key=root, digest_size=32).digest(),
+            hashlib.blake2b(b"mac", key=root, digest_size=32).digest())
+
+
+def _keystream(key: bytes, nonce: bytes, length: int) -> bytes:
+    blocks = []
+    for counter in range((length + 63) // 64):
+        blocks.append(hashlib.blake2b(nonce + counter.to_bytes(8, "big"), key=key, digest_size=64).digest())
+    return b"".join(blocks)[:length]
+
+
+def _xor(data: bytes, stream: bytes) -> bytes:
+    n = len(data)
+    return (int.from_bytes(data, "big") ^ int.from_bytes(stream, "big")).to_bytes(n, "big") if n else b""
+
+
+def seal(doc: Any, secret: str) -> bytes:
+    """``doc`` → MAGIC · nonce · tag · ciphertext."""
+    enc, mac = _keys(secret)
+    plain = zlib.compress(json.dumps(doc, ensure_ascii=False, default=str).encode("utf-8"), 6)
+    nonce = os.urandom(16)
+    body = _xor(plain, _keystream(enc, nonce, len(plain)))
+    tag = hashlib.blake2b(nonce + body, key=mac, digest_size=16).digest()
+    return _MAGIC + nonce + tag + body
+
+
+def unseal(blob: bytes, secret: str) -> Any:
+    """Inverse of :func:`seal`; ``ValueError`` when the key is wrong or the file was changed."""
+    if len(blob) < 36 or blob[:4] != _MAGIC:
+        raise ValueError("not a cache file")
+    nonce, tag, body = blob[4:20], blob[20:36], blob[36:]
+    enc, mac = _keys(secret)
+    if not hmac_equal(hashlib.blake2b(nonce + body, key=mac, digest_size=16).digest(), tag):
+        raise ValueError("cache file failed its check")
+    return json.loads(zlib.decompress(_xor(body, _keystream(enc, nonce, len(body)))).decode("utf-8"))
+
+
+def hmac_equal(a: bytes, b: bytes) -> bool:
+    import hmac
+    return hmac.compare_digest(a, b)
+
+
 class Entry:
     """One cached result plus its bookkeeping."""
 
@@ -118,8 +174,9 @@ class DiskCache:
     """
 
     def __init__(self, root: Optional[Path] = None, ttls: Optional[Dict[str, int]] = None,
-                 clock: Callable[[], float] = time.time):
+                 clock: Callable[[], float] = time.time, secret: str = ""):
         self.root = Path(root) if root is not None else cache_dir()
+        self._secret = secret
         self.ttls: Dict[str, int] = dict(DEFAULT_TTLS)
         if ttls:
             self.ttls.update(ttls)
@@ -135,6 +192,12 @@ class DiskCache:
                 pass
         except OSError:
             self._disk_ok = False
+        if self._disk_ok:                       # earlier versions wrote plain JSON — remove it
+            try:
+                for old in self.root.glob("*.json"):
+                    old.unlink()
+            except OSError:
+                pass
 
     # ── Keys / TTLs ───────────────────────────────────────────────────
 
@@ -155,7 +218,7 @@ class DiskCache:
     # ── Read / write ──────────────────────────────────────────────────
 
     def _path(self, key: str) -> Path:
-        return self.root / (key + ".json")
+        return self.root / (key + _SUFFIX)
 
     def get(self, key: str) -> Optional[Entry]:
         """Return the entry (fresh *or* stale) or ``None`` when absent."""
@@ -167,14 +230,14 @@ class DiskCache:
                 return None
             path = self._path(key)
             try:
-                raw = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
+                raw = path.read_bytes()
+            except OSError:
                 return None
             try:
-                doc = json.loads(raw)
+                doc = unseal(raw, self._secret)
                 entry = Entry(key, str(doc.get("command", "")), doc.get("data"), float(doc.get("storedAt", 0)))
-            except (ValueError, TypeError, AttributeError):
-                # Corrupt file — drop it rather than fail forever.
+            except (ValueError, TypeError, AttributeError, zlib.error):
+                # Corrupt, tampered or sealed with another key — drop it rather than fail forever.
                 try:
                     path.unlink()
                 except OSError:
@@ -197,9 +260,9 @@ class DiskCache:
             if self._disk_ok:
                 doc = {"command": command, "storedAt": entry.stored_at, "data": data}
                 path = self._path(key)
-                tmp = path.with_suffix(".json.tmp")
+                tmp = path.with_suffix(_SUFFIX + ".tmp")
                 try:
-                    tmp.write_text(json.dumps(doc, ensure_ascii=False, default=str), encoding="utf-8")
+                    tmp.write_bytes(seal(doc, self._secret))
                     try:
                         os.chmod(tmp, 0o600)
                     except OSError:
@@ -245,6 +308,6 @@ class DiskCache:
 
     def _iter_files(self):
         try:
-            return [p for p in self.root.iterdir() if p.suffix == ".json"]
+            return [p for p in self.root.iterdir() if p.suffix == _SUFFIX]
         except OSError:
             return []

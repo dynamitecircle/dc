@@ -482,3 +482,32 @@ def test_room_icon_follows_the_apps():
     assert room_icon({"type": "channel", "sessionID": "s", "eventID": "e"}) == "🎥"   # a call first
     assert room_icon({"roomID": "trip_9", "type": "group"}) == "🛫"
     assert room_icon({"type": "channel", "cityID": "c"}) == "🏢"
+
+
+def test_disk_cache_is_sealed_with_the_api_key(tmp_path):
+    cache = DiskCache(tmp_path, secret="dk_one")
+    cache.set(DiskCache.key("profile"), "profile", {"displayName": "Simon Payne"})
+    files = list(tmp_path.glob("*.bin"))
+    assert files and b"Simon" not in files[0].read_bytes()            # not plain text, not even compressed JSON
+    assert DiskCache(tmp_path, secret="dk_one").get(DiskCache.key("profile")).data == {"displayName": "Simon Payne"}
+    assert DiskCache(tmp_path, secret="dk_two").get(DiskCache.key("profile")) is None   # another key: a miss
+    cache.set(DiskCache.key("profile"), "profile", {"displayName": "Simon Payne"})
+    path = next(tmp_path.glob("*.bin"))
+    blob = bytearray(path.read_bytes()); blob[-1] ^= 1; path.write_bytes(bytes(blob))
+    assert DiskCache(tmp_path, secret="dk_one").get(DiskCache.key("profile")) is None   # tampered: a miss
+
+
+def test_cache_only_answers_from_the_cache_without_the_network(tmp_path):
+    calls = []
+
+    class Fake:
+        def trips(self, **kw):
+            calls.append(kw)
+            return {"items": [{"tripID": "t1"}]}
+
+    data = DataClient(Fake(), cache=DiskCache(tmp_path))
+    with data.cache_only():
+        assert data.fetch("trips").data is None and not calls           # nothing cached: no request either
+    data.fetch("trips")
+    with data.cache_only():
+        assert data.fetch("trips", force=True).data == {"items": [{"tripID": "t1"}]} and len(calls) == 1

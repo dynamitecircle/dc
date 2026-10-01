@@ -84,15 +84,24 @@ class Fetched:
             self.command, self.from_cache, self.stale, self.age, self.error)
 
 
+def cache_secret(dc: Any) -> str:
+    """The member's API key seals the disk cache (see cache.py); empty when unknown."""
+    try:
+        return str(dc._core._api_key())             # noqa: SLF001 — same package family
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 class DataClient:
     def __init__(self, dc: Any, cache: Optional[DiskCache] = None,
                  budget: Optional[RateBudget] = None, clock: Callable[[], float] = time.time):
         self.dc = dc
-        self.cache = cache if cache is not None else DiskCache()
+        self.cache = cache if cache is not None else DiskCache(secret=cache_secret(dc))
         self.budget = budget if budget is not None else RateBudget()
         self._clock = clock
         self._inflight: Dict[str, threading.Lock] = {}
         self._inflight_guard = threading.Lock()
+        self._local = threading.local()
         self._attach_header_observer()
 
     # ── Wiring ────────────────────────────────────────────────────────
@@ -131,6 +140,22 @@ class DataClient:
             raise AttributeError("DC client has no command %r" % command)
         return fn
 
+    def cache_only(self):
+        """``with data.cache_only(): …`` — every fetch on this thread answers from the
+        cache (fresh or stale) and never touches the network: a screen paints what
+        it showed last time while the real fetch runs."""
+        client = self
+
+        class _Scope:
+            def __enter__(self):
+                client._local.cache_only = True
+
+            def __exit__(self, *exc):
+                client._local.cache_only = False
+                return False
+
+        return _Scope()
+
     def cached(self, command: str, *args: Any, **kwargs: Any) -> Optional[Fetched]:
         """Whatever the cache holds for this call (fresh or stale), no network."""
         key = DiskCache.key(command, *args, **kwargs)
@@ -157,6 +182,8 @@ class DataClient:
         """
         key = DiskCache.key(command, *args, **kwargs)
         now = self._clock()
+        if getattr(self._local, "cache_only", False):
+            return self._fallback(command, self.cache.get(key), "not cached yet")   # any age, never the network
         ttl = self.cache.ttl_for(command)
         if not force:
             entry = self.cache.get_fresh(key, command)

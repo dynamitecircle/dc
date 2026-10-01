@@ -40,8 +40,9 @@ DC_THEME = Theme(
         "block-cursor-background": HIGHLIGHT,
         "block-cursor-foreground": GREY_900,
         "block-cursor-text-style": "bold",
-        # an unfocused list keeps its place in gray, never a second colour
-        "block-cursor-blurred-background": GREY_700,
+        # an unfocused list keeps its place in gray, never a second colour — one shade
+        # lighter than the table header (GREY_700), so the two never look alike
+        "block-cursor-blurred-background": GREY_600,
         "block-cursor-blurred-foreground": GREY_100,
         "block-hover-background": GREY_900,
         "footer-key-foreground": ORANGE,

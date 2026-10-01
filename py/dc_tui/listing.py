@@ -441,11 +441,27 @@ class ListDetailScreen(DCScreen):
 
     @work(thread=True, exclusive=True, group="rows", exit_on_error=False)
     def _load_rows(self, force: bool, gen: int = 0) -> None:
+        # what the cache holds first (instant, even when stale), then the fresh rows
+        cached: Optional[List[dict]] = None
+        data = getattr(self.app, "data", None)
+        if not force and data is not None and hasattr(data, "cache_only"):
+            try:
+                with data.cache_only():
+                    cached = self.fetch_rows(False)
+            except Exception:  # noqa: BLE001 — nothing cached yet
+                cached = None
+            if cached:
+                self.app.call_from_thread(self._rows_arrived, gen, cached, "")
         try:
             rows = self.fetch_rows(force)
             error = ""
         except Exception as exc:  # noqa: BLE001
             rows, error = [], str(exc)
+        if cached and not error and rows == cached:
+            return                                   # nothing changed: no repaint, no flicker
+        if cached and error:
+            self.app.call_from_thread(self.set_hint, "[$warning]%s[/] [dim]· showing cached[/dim]" % esc(error))
+            return
         self.app.call_from_thread(self._rows_arrived, gen, rows, error)
         self.app.call_from_thread(self.app.refresh_status)  # type: ignore[attr-defined]
 
@@ -471,8 +487,11 @@ class ListDetailScreen(DCScreen):
         self._rows_loaded(rows, error)
 
     def _rows_loaded(self, rows: List[dict], error: str) -> None:
-        self.items = rows
         table = self.query_one("#list", DataTable)
+        was = self.selected()                         # a repaint (cached → fresh) keeps the row
+        was_key = self.row_key(was, -1) if was is not None else None
+        was_scroll = table.scroll_y
+        self.items = rows
         if table.has_class("-skeleton"):
             table.remove_class("-skeleton")
             table.show_cursor = True
@@ -489,6 +508,11 @@ class ListDetailScreen(DCScreen):
                 self._detail_item = fresh
                 if changed:
                     self.load_detail(fresh)
+        if was_key is not None and rows:
+            index = next((i for i, r in enumerate(rows) if self.row_key(r, i) == was_key), None)
+            if index is not None:
+                table.move_cursor(row=index, animate=False)
+                table.scroll_y = was_scroll
         pending = getattr(self, "_pending_key", None)
         if pending and rows:
             self._pending_key = None
