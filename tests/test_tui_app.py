@@ -183,6 +183,26 @@ def test_events_tabs_detail_tabs_and_bookmark(tmp_path):
     run(go())
 
 
+def test_event_info_who_to_meet_and_sponsors(tmp_path):
+    async def go():
+        app, fake = make_app(tmp_path)
+        async with app.run_test(size=(140, 40)) as pilot:
+            await settle(pilot, 1.0); await press(pilot, "4"); await settle(pilot, 1.5)
+            scr = app.screen
+            scr.query_one("#list", DataTable).focus(); await press(pilot, "enter"); await settle(pilot, 1.5)
+            labels = [b.label.plain for b in scr.query("Button.action")]
+            assert "Open map" in labels and "Open chat" in labels                       # buttons, not raw links
+            body = str(scr.query_one("#detail-body-pane").render())
+            assert body.index("Conrad") < body.index("Big event") and "tickets\n" not in body   # place first, then the text
+            assert [t for t, _ in scr.detail_tabs()][-2:] == ["meet", "sponsors"]
+            scr.detail_tab = "meet"; scr._sync_detail_tabs(); scr.load_detail(scr._detail_item); await settle(pilot, 1.5)
+            assert scr.detail_table().row_count == 1 and "Ana Silva" in str(scr.detail_table().get_row_at(0)[0])
+            scr.detail_tab = "sponsors"; scr._sync_detail_tabs(); scr.load_detail(scr._detail_item); await settle(pilot, 1.5)
+            assert "Acme Payroll" in str(scr.query_one("#detail-body-pane").render())
+            await shot(app, "event-sponsors")
+    run(go())
+
+
 def test_search_all_and_type_tabs(tmp_path):
     async def go():
         app, _ = make_app(tmp_path)
@@ -382,4 +402,16 @@ def test_inbox_loads_older_rooms_at_the_end_of_the_list(tmp_path):
             table.move_cursor(row=table.row_count - 1); await settle(pilot, 1.5)   # ↓ to the last row
             assert [r.get("roomID") for r in scr.items][-1] == "old1"
             assert "scroll for more" not in str(scr.query_one("#list-hint").render())
+    run(go())
+
+
+def test_search_match_tab_recommends_without_a_query(tmp_path):
+    async def go():
+        app, _ = make_app(tmp_path)
+        async with app.run_test(size=(120, 40)) as pilot:
+            await settle(pilot, 1.0); await press(pilot, "6"); await settle(pilot, 1.0)
+            scr = app.screen
+            scr.query_one("#list-tabs", Tabs).active = "match"; await settle(pilot, 1.5)
+            assert [r.get("displayName") for r in scr.items] == ["Ana Silva"]
+            assert "recommended for you" in str(scr.query_one("#list-hint").render())
     run(go())

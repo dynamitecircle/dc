@@ -4,6 +4,8 @@ for live calls. Schedule and agenda are first-class: day-grouped, ★ on your
 bookmarks, ✓ on meetups you joined, one-key bookmark / join / RSVP."""
 from __future__ import annotations
 
+import re
+
 from datetime import date
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -46,6 +48,15 @@ def _city(event: dict) -> str:
     city = event.get("city") if isinstance(event.get("city"), dict) else {}
     venue = event.get("venue") if isinstance(event.get("venue"), dict) else {}
     return str(city.get("name") or venue.get("city") or city.get("country") or "")
+
+
+_URL = re.compile(r"https?://\S+")
+
+
+def _map_url(event: dict) -> str:
+    """A maps link in the venue info (the web shows it as a link)."""
+    m = _URL.search(plain(event.get("venueInfo") or "") if event.get("venueInfo") else "")
+    return m.group(0).rstrip(".,)") if m else ""
 
 
 def event_flag(event: dict) -> str:
@@ -110,6 +121,11 @@ class EventsScreen(ListDetailScreen):
             going = str(item.get("myRsvp") or "") == "yes"
             return [("Not going", "rsvp('no')") if going else ("Going", "rsvp('yes')"), ("Open call link", "app.open_in_browser")]
         acts = []
+        if self.detail_tab == "info":
+            if _map_url(item):
+                acts.append(("Open map", "open_map"))
+            if item.get("chatRoomID") and item.get("chatEnabled") is not False:
+                acts.append(("Open chat", "open_chat"))
         if self.detail_tab in ("schedule", "agenda"):
             acts.append(("Bookmark session", "bookmark"))
         if self.detail_tab in ("schedule", "agenda", "meetups"):
@@ -128,7 +144,7 @@ class EventsScreen(ListDetailScreen):
         tabs = [("info", "Info"), ("schedule", "Schedule")]
         if item.get("eventID") in self._tickets:
             tabs.append(("agenda", "My agenda"))
-        tabs += [("meetups", "Meetups"), ("attendees", "Attendees")]
+        tabs += [("meetups", "Meetups"), ("attendees", "Attendees"), ("meet", "Who to meet"), ("sponsors", "Sponsors")]
         return tabs
 
     def select_key(self, key: str) -> None:
@@ -236,6 +252,15 @@ class EventsScreen(ListDetailScreen):
             out["meetups"] = data.fetch("event-meetups", event_id, force=force)
         if tab in ("schedule", "agenda", "meetups") and event_id in self._tickets:
             out["agenda"] = data.fetch("event-agenda", event_id, force=force)
+        if tab == "agenda":
+            me = str(dict_of(data.cached("profile")).get("userID") or "") if data.cached("profile") is not None else ""
+            if me:
+                out["free"] = data.fetch("event-free-slots", event_id, [me], force=force)
+        if tab == "meet":
+            # the RAG matcher, narrowed to this event's ticket holders, ranked against your profile
+            out["meet"] = data.fetch("profile-match", event_id=event_id, limit=50, force=force)
+        if tab == "sponsors":
+            out["sponsors"] = data.fetch("event-sponsors", event_id, force=force)
         if tab == "attendees":
             out["attendees"] = data.fetch("event-attendees", event_id, limit=100, force=force)
             self.__dict__.setdefault("_more_attendees", {}).pop(event_id, None)      # a fresh first page
@@ -251,33 +276,88 @@ class EventsScreen(ListDetailScreen):
             return self._render_info(item, data.get("event"))
         if tab == "attendees":
             return self._render_attendees(item, data.get("attendees"))
-        return self._render_schedule(item, data, tab)
+        if tab == "meet":
+            return self._render_meet(item, data.get("meet"))
+        if tab == "sponsors":
+            return self._render_sponsors(data.get("sponsors"))
+        rendered = self._render_schedule(item, data, tab)
+        if tab == "agenda" and data.get("free") is not None:
+            rendered = self._with_free_windows(rendered, data.get("free"))
+        return rendered
+
+    def _render_meet(self, item: dict, fetched: Optional[Fetched]) -> Any:
+        body = dict_of(fetched)
+        results = [r for r in (body.get("results") or items_of(fetched)) if isinstance(r, dict)] if fetched else []
+        rows = []
+        for r in results:
+            prof = r.get("profile") if isinstance(r.get("profile"), dict) else r
+            rows.append((str(prof.get("userID")), [prof.get("displayName") or prof.get("userName") or "",
+                                                   plain(prof.get("headline") or ""), prof.get("businessIndustry") or ""]))
+        title = "[b]Who to meet[/b]  [dim]attendees ranked against your profile · Enter opens a profile[/dim]"
+        if fetched is not None and fetched.error:
+            title += "  [$warning]%s[/]" % esc(fetched.error)
+        if not rows:
+            return [title, "", "[dim]no matches yet — the list fills as DCers get tickets[/dim]"]
+        return Table(("Name", "Headline", "Industry"), rows, title=title, widths={"Headline": 34, "Industry": 16})
+
+    def _render_sponsors(self, fetched: Optional[Fetched]) -> List[str]:
+        body = dict_of(fetched)
+        sponsors = [x for x in (body.get("sponsors") or items_of(fetched)) if isinstance(x, dict)] if fetched else []
+        if fetched is not None and fetched.error:
+            return ["[$warning]%s[/]" % esc(fetched.error)]
+        if not sponsors:
+            return ["[dim]no sponsors announced[/dim]"]
+        lines: List[str] = []
+        for sp in sponsors:
+            name = esc(sp.get("name") or "Sponsor")
+            tier = sp.get("tier") or sp.get("tierName") or ""
+            url = sp.get("websiteURL") or ""
+            head = "[b]%s[/b]%s" % (("[@click=app.open_url(%r)]%s ↗[/]" % (str(url), name)) if url else name, ("  [dim]%s[/dim]" % esc(tier)) if tier else "")
+            lines += [head]
+            if sp.get("description"):
+                lines.append(esc(strip_markdown(sp.get("description"))))
+            lines.append("")
+        return lines
+
+    def _with_free_windows(self, rendered: Any, fetched: Fetched) -> Any:
+        body = dict_of(fetched)
+        slots = [x for x in (body.get("slots") or items_of(fetched)) if isinstance(x, dict)]
+        if not slots:
+            return rendered
+        lines = ["", "[b]Your free windows[/b]  [dim]no bookmarked session or meetup[/dim]"]
+        for sl in sorted(slots, key=lambda x: str(x.get("startAt") or ""))[:12]:
+            start, end = str(sl.get("startAt") or ""), str(sl.get("endAt") or "")
+            lines.append("%s  %s–%s  [dim]%s min[/dim]" % (_day_label(start[:10]), _hhmm(start), _hhmm(end), sl.get("durationMinutes") or "?"))
+        if isinstance(rendered, Table):
+            rendered.title = (rendered.title or "") + "\n" + "\n".join(lines[1:])
+            return rendered
+        return list(rendered) + lines
 
     def _render_info(self, item: dict, fetched: Optional[Fetched]) -> List[str]:
         ev = dict_of(fetched).get("event") if fetched is not None else None
         ev = ev if isinstance(ev, dict) else item
         lines: List[str] = []
-        desc = strip_markdown(ev.get("description") or ev.get("descriptionShort") or "")
-        if desc:
-            lines.append(esc(trunc(desc, 900)))
-        venue = ev.get("venue") if isinstance(ev.get("venue"), dict) else {}
-        if venue.get("name"):
-            lines.append("")
-            lines.append("[dim]venue:[/dim] %s" % esc(", ".join(x for x in (venue.get("name"), venue.get("city"), venue.get("country")) if x)))
-        if ev.get("venueInfo"):
-            lines.append("[dim]%s[/dim]" % esc(trunc(plain(ev.get("venueInfo")), 300)))
-        flags = []
-        if ev.get("ticketsEnabled"):
-            flags.append("tickets")
-        if ev.get("rsvpEnabled"):
-            flags.append("free RSVP")
+        # what you can do first: your ticket, or how to get in
         my = dict_of(fetched).get("myTickets") if fetched is not None else None
-        if isinstance(my, list) and my:
-            flags.append("you hold %s" % plural(len(my), "ticket"))
-        if flags:
-            lines.append("[dim]%s[/dim]" % " · ".join(flags))
+        ticket = self._tickets.get(item.get("eventID"))
+        if (isinstance(my, list) and my) or ticket:
+            lines.append("[$success]🎫 You're going[/]%s" % ("  [dim]%s[/dim]" % esc(ticket) if ticket and ticket != "ticket" else ""))
+        elif ev.get("rsvpEnabled"):
+            lines.append("[dim]Free event — RSVP with Going below[/dim]")
+        elif ev.get("ticketsEnabled"):
+            lines.append("[dim]Tickets on sale — Get tickets below[/dim]")
+        venue = ev.get("venue") if isinstance(ev.get("venue"), dict) else {}
+        place = ", ".join(x for x in (venue.get("name"), venue.get("city"), venue.get("country")) if x)
+        if place:
+            lines.append("📍 %s" % esc(place))
+        info = plain(ev.get("venueInfo") or "")
+        if info and not _map_url(ev) == info.strip():
+            lines.append("[dim]%s[/dim]" % esc(info))
         if fetched is not None and fetched.error:
             lines.append("[$warning]%s[/]" % esc(fetched.error))
+        desc = strip_markdown(ev.get("description") or ev.get("descriptionShort") or "")
+        if desc:
+            lines += ["", esc(desc)]                       # in full — the detail scrolls
         return lines
 
     def _render_attendees(self, item: dict, fetched: Optional[Fetched]) -> Any:
@@ -299,6 +379,28 @@ class EventsScreen(ListDetailScreen):
         if not rows:
             return [title, "", "[dim]no attendee list yet[/dim]"]
         return Table(("Name", "Headline", "Industry"), rows, title=title, widths={"Headline": 34, "Industry": 16})
+
+    def action_open_map(self) -> None:
+        item = dict(self._detail_item or {})
+        detail = self._detail_data.get("event") if isinstance(self._detail_data, dict) else None
+        full = dict_of(detail).get("event") if detail is not None else None
+        url = _map_url(full if isinstance(full, dict) else item) or _map_url(item)
+        if url:
+            self.app.open_url(url)  # type: ignore[attr-defined]
+
+    def action_open_chat(self) -> None:
+        room_id = (self._detail_item or {}).get("chatRoomID")
+        if room_id:
+            self.app.open_in_section("rooms", str(room_id))  # type: ignore[attr-defined]
+
+    # people rows (Attendees, Who to meet): Enter opens the DCer's profile
+    def on_data_table_row_selected(self, event) -> None:
+        if str(event.data_table.id or "").startswith("detail-table") and self.detail_tab in ("attendees", "meet"):
+            user_id = str(event.row_key.value or "")
+            if user_id:
+                self.app.open_person({"userID": user_id})  # type: ignore[attr-defined]
+            return
+        super().on_data_table_row_selected(event)
 
     # ── attendees: one page at a time (↓ onto the last row, or "load more") ──
     def on_data_table_row_highlighted(self, event) -> None:

@@ -22,7 +22,7 @@ class SearchScreen(ListDetailScreen):
     HINT = "type and press Enter · tabs pick the content type · Enter on a hit opens it"
     URL = WEB_APP + "/search"
     LIST_TABS = (("all", "All"), ("profiles", "Profiles"), ("rooms", "Rooms"), ("messages", "Messages"),
-                 ("events", "Events"), ("chapters", "Chapters"))
+                 ("events", "Events"), ("chapters", "Chapters"), ("match", "Match"))
     COLUMNS = ("Result", "Type", "Where")
     COLUMN_DROP = ("Type",)
     COLUMNS_COMPACT = ("Result", "Type", "Where")
@@ -47,7 +47,7 @@ class SearchScreen(ListDetailScreen):
         self.query_one("#search-query", Input).focus()
 
     def refresh_data(self, force: bool = False) -> None:
-        if not self.query_text:
+        if not self.query_text and self.list_tab != "match":     # Match without text = recommendations
             self.items = []
             self._rows_loaded([], "")
             self.set_hint(self.EMPTY_TEXT)       # no "0 hits for ''" before a search
@@ -55,6 +55,9 @@ class SearchScreen(ListDetailScreen):
         super().refresh_data(force)
 
     def hint_text(self) -> str:
+        if self.list_tab == "match":
+            what = ("matches for “%s”" % self.query_text) if self.query_text else "DCers recommended for you"
+            return "%d %s  [dim]AI match on profiles — describe who you want to meet, or leave it empty[/dim]" % (len(self.items), what)
         if not self.query_text:
             return self.EMPTY_TEXT
         return "%s for “%s”  [dim]%s[/dim]" % (plural(len(self.items), "hit"), self.query_text, self.HINT)
@@ -73,6 +76,14 @@ class SearchScreen(ListDetailScreen):
         data = self.app.data  # type: ignore[attr-defined]
         q = self.query_text
         rows: List[dict] = []
+        if self.list_tab == "match":
+            # the RAG profile matcher: a description, or your own profile when empty
+            fetched = data.fetch("profile-match", query=q or None, limit=50, force=force)
+            if fetched.error and fetched.data is None:
+                raise RuntimeError(fetched.error)
+            body = dict_of(fetched)
+            results = body.get("results") if isinstance(body.get("results"), list) else items_of(fetched)
+            return [dict(_tag(r, "profiles"), _score=r.get("score")) for r in results if isinstance(r, dict)]
         if self.list_tab == "all":
             fetched = data.fetch("search", q, limit=25, force=force)       # the omni search's max per kind
             if fetched.error and fetched.data is None:

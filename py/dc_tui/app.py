@@ -243,6 +243,20 @@ class DCApp(App):
             screen.refresh_data(force=True)
         self.poll_unread(force=True)
 
+    def open_url(self, url: str) -> None:
+        """Open a link in the browser (map, sponsor site, attachment)."""
+        try:
+            opened = webbrowser.open(url)
+        except Exception:  # noqa: BLE001
+            opened = False
+        if opened:
+            self.notify("Opened in browser", title=url, timeout=3)
+        else:
+            self.notify(url, title="Couldn't launch a browser — open this URL", severity="warning", timeout=8)
+
+    def action_open_url(self, url: str) -> None:
+        self.open_url(url)
+
     def action_open_in_browser(self) -> None:
         screen = self.screen
         url = screen.current_url() if isinstance(screen, DCScreen) else WEB_APP

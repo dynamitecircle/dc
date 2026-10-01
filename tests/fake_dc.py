@@ -71,7 +71,8 @@ class FakeDC:
         return _env([
             {"eventID": "e-dcbkk", "name": "DCBKK 2026", "eventType": "dcbkk", "startDate": "2026-10-22", "endDate": "2026-10-25",
              "city": {"name": None, "placeID": "bkk", "country": "Thailand"}, "venue": {"name": "Conrad", "city": "Bangkok"}, "isDateConfirmed": True,
-             "ticketsEnabled": True, "rsvpEnabled": False, "description": "The big one"},
+             "ticketsEnabled": True, "rsvpEnabled": False, "description": "The big one",
+             "venueInfo": "https://maps.app.goo.gl/abc123", "chatRoomID": "r1"},
             {"eventID": "e-junto", "name": "Tokyo October 14 Junto", "eventType": "junto", "startDate": "2026-10-14", "endDate": "2026-10-14",
              "city": {"name": "Tokyo", "placeID": "tokyo"}, "isDateConfirmed": True, "rsvpEnabled": True},
             {"eventID": "e-dcbcn", "name": "DCBCN 2027", "eventType": "dcbcn", "startDate": "2027-07-26", "endDate": "2027-07-30",
@@ -226,6 +227,12 @@ class FakeDC:
 
     def search_chapters(self, q, **kw):
         return {"hits": [{"cityID": "tokyo", "name": "Tokyo", "memberCount": 40}]}
+
+    def event_sponsors(self, event_id):
+        return {"sponsors": [{"sponsorID": "sp1", "name": "Acme Payroll", "websiteURL": "https://acme.example", "description": "Payroll for remote teams"}]}
+
+    def event_free_slots(self, event_id, user_ids, min_duration_mins=30, within_day_date=None):
+        return {"slots": [{"startAt": "2026-10-23T12:00:00", "endAt": "2026-10-23T14:00:00", "durationMinutes": 120}]}
 
     def profile_match(self, query=None, limit=50, **kw):
         return {"results": [{"score": 0.9, "profile": {"userID": "3", "displayName": "Ana Silva", "userName": "AnaSilva", "headline": "SaaS"}}]}
