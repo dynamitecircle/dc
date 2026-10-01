@@ -37,7 +37,7 @@ def profile_lines(p: dict, *, width: int = 80, header: bool = True) -> List[str]
     if header:
         name = p.get("displayName") or p.get("userName") or "DCer"
         nick = (" “%s”" % p.get("nickname")) if p.get("nickname") else ""
-        lines.append("[b]%s[/b]%s  [dim]@%s[/dim]" % (_esc(name), _esc(nick), _esc(p.get("userName") or "")))
+        lines.append("[b]%s[/b]%s" % (_esc(name), _esc(nick)))
         if p.get("headline"):
             lines.append(_esc(trunc(_val(p.get("headline")), width)))
         if p.get("joinedDate"):

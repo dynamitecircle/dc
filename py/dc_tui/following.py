@@ -12,7 +12,7 @@ from typing import Any, List, Tuple
 
 from .data import Fetched
 from .format import date_range, flag, plural
-from .listing import ListDetailScreen, dict_of, esc, items_of
+from .listing import ListDetailScreen, dict_of, esc, items_of, name_and_headline
 from .profile import profile_lines
 from .screens import WEB_APP
 
@@ -37,12 +37,12 @@ class FollowingScreen(ListDetailScreen):
     HINT = "↑↓ pick · Enter opens the profile · Unfollow is a button in the detail"
     URL = WEB_APP + "/locator/following"
     LIST_TABS = (("people", "DCers"), ("chapters", "Chapters"))
-    COLUMNS = ("Name", "Handle")
+    COLUMNS = ("Name",)
     COLUMN_WIDTHS = {"Handle": 24, "Country": 16}
     EMPTY_TEXT = "you don't follow anyone here yet — follow DCers from their profile (Profiles) and chapters in the app"
 
     def base_columns(self):
-        return ("Chapter", "Country") if self.list_tab == "chapters" else ("Name", "Handle")
+        return ("Chapter", "Country") if self.list_tab == "chapters" else ("Name",)
 
     def fetch_rows(self, force: bool) -> List[dict]:
         data = self.app.data  # type: ignore[attr-defined]
@@ -68,7 +68,7 @@ class FollowingScreen(ListDetailScreen):
                      "Country": str(item.get("country") or "")}
         else:
             cells = {"Name": "👤 " + str(item.get("displayName") or item.get("userName") or "DCer"),
-                     "Handle": "@" + str(item.get("userName") or "")}
+                     }
         return tuple(cells[c] for c in self._columns())
 
     def hint_text(self) -> str:
@@ -79,7 +79,17 @@ class FollowingScreen(ListDetailScreen):
     def detail_title(self, item: dict) -> str:
         if self.list_tab == "chapters":
             return "%s  [dim]%s[/dim]" % (esc(_chapter_name(item)), esc(item.get("country") or ""))
-        return "%s  [dim]@%s[/dim]" % (esc(item.get("displayName") or "DCer"), esc(item.get("userName") or ""))
+        prof = self._full(item)
+        return name_and_headline(prof.get("displayName") or "DCer", str(prof.get("headline") or ""))
+
+    def _full(self, item: dict) -> dict:
+        """The list row merged with its loaded full profile (when it is the open item)."""
+        prof = dict(item)
+        data = self._detail_data if item is self._detail_item else None
+        if data is not None and getattr(data, "ok", False):
+            body = dict_of(data)
+            prof.update(body.get("profile") if isinstance(body.get("profile"), dict) else body)
+        return prof
 
     def detail_actions(self):
         if self.list_tab == "chapters":
@@ -95,13 +105,8 @@ class FollowingScreen(ListDetailScreen):
     def render_detail(self, item: dict, data: Any) -> List[str]:
         if self.list_tab == "chapters":
             return ["You follow this chapter: its events, new DCers and visitors show up in your Locator."]
-        prof = dict(item)
-        if data is not None and getattr(data, "ok", False):
-            body = dict_of(data)
-            prof.update(body.get("profile") if isinstance(body.get("profile"), dict) else body)
-        lines = profile_lines(prof, width=self.detail_width(), header=False)
-        if prof.get("headline"):
-            lines = [esc(str(prof["headline"]))] + lines       # profile_lines already opens with a blank line
+        prof = self._full(item)
+        lines = profile_lines(prof, width=self.detail_width(), header=False)[1:]   # the headline sits in the title
         if data is None:
             lines.append("[dim]loading the profile…[/dim]")
         elif getattr(data, "error", None):

@@ -777,7 +777,7 @@ class HomeScreen(DCScreen):
         renew_txt = ("  · renews %s" % renew) if renew else ("  · renews in %s" % plural(int(days), "day") if isinstance(days, int) else "")
         chapter = profile.get("chapter") if isinstance(profile.get("chapter"), dict) else {}
         lines = [
-            ("[b]%s[/b]  [dim]@%s[/dim]" % (_escape(str(name)), _escape(str(profile.get("userName") or ""))), ("me", None)),
+            ("[b]%s[/b]" % _escape(str(name)), ("me", None)),
             ("%s%s" % (badge, renew_txt), None),
             ("[dim]API %s/min · %s/day[/dim]" % (limits.get("perMinute", "?"), limits.get("perDay", "?")), None),
         ]

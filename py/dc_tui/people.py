@@ -12,7 +12,7 @@ from textual.widgets import Input
 from .data import Fetched
 from .format import flag, plural, trunc
 from .profile import profile_lines
-from .listing import ListDetailScreen, dict_of, esc, items_of, plain
+from .listing import ListDetailScreen, dict_of, esc, items_of, plain, name_and_headline
 from .screens import WEB_APP
 
 MODES = ("follows", "search", "match")
@@ -99,7 +99,7 @@ class PeopleScreen(ListDetailScreen):
 
     def base_columns(self):
         if self.mode == "follows":
-            return ("Name", "Handle")
+            return ("Name",)
         return super().base_columns()
 
     def _rows_loaded(self, rows, error):
@@ -111,7 +111,7 @@ class PeopleScreen(ListDetailScreen):
         chapter = ("%s %s" % (flag(chapter.get("countryCode")), chapter.get("cityName") or "")).strip() if isinstance(chapter, dict) else (chapter or "")
         name = item.get("displayName") or item.get("userName") or ""
         name = ("★ " if item.get("userID") in self._following else "👤 ") + name
-        cells = {"Name": trunc(name, 26), "Handle": "@" + str(item.get("userName") or ""),
+        cells = {"Name": trunc(name, 26), 
                  "Headline": trunc(plain(item.get("headline") or item.get("businessName") or ""), 40),
                  "Chapter": trunc(str(chapter or ""), 16)}
         return tuple(cells[c] for c in self._columns())
@@ -137,7 +137,7 @@ class PeopleScreen(ListDetailScreen):
 
     # ── detail ────────────────────────────────────────────────────────
     def detail_title(self, item: dict) -> str:
-        return "%s  [dim]@%s[/dim]" % (esc(item.get("displayName") or ""), esc(item.get("userName") or ""))
+        return name_and_headline(item.get("displayName") or "", str(item.get("headline") or ""))
 
     def fetch_detail(self, item: dict, force: bool) -> Any:
         dc = self.app.data.dc  # type: ignore[attr-defined]

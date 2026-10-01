@@ -100,7 +100,8 @@ class ListDetailScreen(DCScreen):
     ListDetailScreen Tabs:focus .underline--bar { color: $primary; }
     ListDetailScreen .detail-title { color: $primary; text-style: bold; height: auto; padding: 0 1; }  /* text in column 2, like the tabs */
     ListDetailScreen .detail-actions { height: auto; margin: 1 0 1 0; }   /* one empty line above and one below the buttons */
-    ListDetailScreen .detail-actions .action-row { height: 1; }
+    ListDetailScreen .detail-actions .action-row { height: 1; margin: 0 0 1 0; }   /* rows never touch */
+    ListDetailScreen .detail-actions .action-row.-last { margin: 0; }
     ListDetailScreen .detail-actions Button.action {
         height: 1; min-width: 0; border: none; padding: 0 1; margin: 0 1 0 0;
         background: $panel; color: $text; text-style: none;
@@ -213,7 +214,8 @@ class ListDetailScreen(DCScreen):
         await box.remove_children()
         await box.mount(*[Horizontal(*[Button(labels[i], id="act-%s-%d" % (suffix, i),
                                               classes="action back" if labels[i].startswith("←") else "action")
-                                       for i in row], classes="action-row") for row in rows])
+                                       for i in row], classes="action-row" + (" -last" if n == len(rows) - 1 else ""))
+                        for n, row in enumerate(rows)])
 
     def set_filter(self, fid: str) -> None:
         if fid == self.list_filter:
@@ -1044,3 +1046,9 @@ def items_of(fetched: Fetched) -> List[dict]:
 def dict_of(fetched: Any) -> dict:
     data = getattr(fetched, "data", fetched)
     return data if isinstance(data, dict) else {}
+
+
+def name_and_headline(name: str, headline: str) -> str:
+    """Detail title: the name, and the headline right under it in plain text."""
+    first = esc(name or "DCer")
+    return "%s\n[not b][#C4C7CE]%s[/][/]" % (first, esc(headline)) if headline else first

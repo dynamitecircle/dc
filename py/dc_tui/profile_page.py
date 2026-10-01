@@ -93,7 +93,7 @@ class ProfileScreen(DCScreen):
             return
         name = p.get("displayName") or p.get("userName") or "DCer"
         nick = (" “%s”" % p.get("nickname")) if p.get("nickname") and p.get("nickname") != name else ""
-        lines = ["[b]%s[/b]%s  [dim]@%s[/dim]" % (esc(name), esc(nick), esc(p.get("userName") or ""))]
+        lines = ["[b]%s[/b]%s" % (esc(name), esc(nick))]
         if p.get("headline"):
             lines.append(esc(_val(p.get("headline"))))
         if p.get("joinedDate"):
