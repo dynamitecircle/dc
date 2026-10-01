@@ -108,7 +108,7 @@ def test_inbox_tabs_filter_chips_and_messages(tmp_path):
             await press(pilot, "2"); await settle(pilot, 1.5)
             scr = app.screen
             assert [r.get("roomID") for r in scr.items][:2] == ["r2", "r1"]  # pinned tier first, then unread
-            assert scr.row_cells(scr.items[0])[0].startswith("#  📌 🔕 ")               # pinned + muted marks
+            assert scr.row_cells(scr.items[0])[0].startswith(" # 📌 🔕 ")               # pinned + muted marks
             assert scr.row_cells(scr.items[2])[0] == "👤 Alex Harling"                 # DM named after the other person
             await pilot.click("#chip-pinned"); await settle(pilot, 1.0)
             assert [r.get("roomID") for r in scr.items] == ["r2"] and ("rooms", "", "pinned") in fake.calls

@@ -474,7 +474,7 @@ def test_flags_become_country_codes_under_tmux(monkeypatch):
 
 def test_room_icon_follows_the_apps():
     from dc_tui.labels import room_icon
-    assert room_icon({"type": "channel"}) == "# "
+    assert room_icon({"type": "channel"}) == " #"
     assert room_icon({"type": "group"}) == "👥"
     assert room_icon({"type": "dm"}) == "👤" and room_icon({"roomID": "dm_1_2"}) == "👤"
     assert room_icon({"type": "quick-question"}) == "❓"
