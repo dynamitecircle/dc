@@ -58,7 +58,7 @@ class TripsScreen(ListDetailScreen):
 
     def detail_actions(self):
         return [("New trip", "new_trip"), ("Edit", "edit_trip"), ("Delete", "delete_trip"),
-                ("Re-match", "refresh_discovery"), ("Open in app", "app.open_in_browser")]
+                ("Re-match", "refresh_discovery"), ("Open on web", "app.open_in_browser")]
 
     def action_open_detail(self) -> None:
         if not self.items:

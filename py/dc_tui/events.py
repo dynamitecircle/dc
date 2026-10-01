@@ -110,7 +110,7 @@ class EventsScreen(ListDetailScreen):
             acts += [("Going", "rsvp('yes')"), ("Not going", "rsvp('no')")]
         elif item.get("ticketsEnabled") and item.get("eventID") not in self._tickets:
             acts.append(("Get tickets", "app.open_in_browser"))
-        acts.append(("Open in app", "app.open_in_browser"))
+        acts.append(("Open on web", "app.open_in_browser"))
         return acts
 
     def detail_tabs(self) -> Sequence[Tuple[str, str]]:
@@ -384,7 +384,7 @@ class EventsScreen(ListDetailScreen):
                         ok_text="RSVP %s: %s" % (status, item.get("name")))
             return
         if not item.get("rsvpEnabled"):
-            self.notify("This event sells tickets — press o to get one in the app.", severity="warning", timeout=5)
+            self.notify("This event sells tickets — press o to get one on the web.", severity="warning", timeout=5)
             return
         self.mutate("event-rsvp", item.get("eventID"), status=status, ok_text="RSVP %s: %s" % (status, item.get("name")))
 

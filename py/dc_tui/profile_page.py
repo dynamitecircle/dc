@@ -9,12 +9,12 @@ from typing import Any, Dict, List, Optional
 
 from textual import work
 from textual.containers import Horizontal
-from textual.widgets import Button, OptionList, Tab, Tabs
+from textual.widgets import Button, OptionList, Static, Tab, Tabs
 
 from .data import Fetched
 from .format import align_row, event_dates, fmt_date, guard_flags
 from .labels import event_type_label, room_title, room_type_label
-from .listing import dict_of, esc
+from .listing import dict_of, esc, items_of
 from .profile import SECTIONS, _val
 from .screens import DCScreen, WEB_APP
 from .widgets import Panel
@@ -34,6 +34,7 @@ class ProfileScreen(DCScreen):
 
     DEFAULT_CSS = """
     ProfileScreen #profile-tabs { height: 2; margin: 0 0 1 0; }
+    ProfileScreen #profile-name { height: auto; padding: 0 1; margin: 0 0 1 0; }
     ProfileScreen #profile-actions { height: 1; margin: 0 0 1 0; }
     ProfileScreen #profile-actions Button { height: 1; min-width: 0; border: none; padding: 0 1; margin: 0 1 0 0;
                                             background: $panel; color: $text; text-style: none; }
@@ -69,10 +70,10 @@ class ProfileScreen(DCScreen):
     def populate(self) -> None:
         self.add_class("tabs-first")
         self.set_main(Tabs(*[Tab(label, id="pt-" + tid) for tid, label in self.TABS], id="profile-tabs"),
-                      Horizontal(Button("← Back", id="profile-back", classes="back"),
-                                 Button("Follow", id="profile-follow"),
-                                 Button("Open in app", id="profile-open"), id="profile-actions"),
-                      Panel("Profile", id="pf-head"),
+                      Static("", id="profile-name"),
+                      Horizontal(Button("Follow", id="profile-follow"),
+                                 Button("Send DM", id="profile-dm"),
+                                 Button("Open Profile", id="profile-open"), id="profile-actions"),
                       *[Panel(title, id="pf-%d" % i) for i, (title, _) in enumerate(SECTIONS)],
                       Panel("", id="pf-list"))
         self.call_after_refresh(self._show_tab)
@@ -104,24 +105,24 @@ class ProfileScreen(DCScreen):
     def _render_all(self, error: str = "") -> None:
         p = self._profile
         try:
-            head = self.query_one("#pf-head", Panel)
-            head.list                              # noqa: B018 — raises until the card's list is mounted
+            head = self.query_one("#profile-name", Static)
+            self.query_one("#pf-0", Panel).list           # noqa: B018 — raises until the cards' lists are mounted
         except Exception:  # noqa: BLE001 — not composed yet; populate renders again
             return
         name = p.get("displayName") or p.get("userName") or "DCer"
-        nick = (" “%s”" % p.get("nickname")) if p.get("nickname") and p.get("nickname") != name else ""
-        lines = ["[b]%s[/b]" % esc(nick.strip())] if nick else []   # the name is the card's title
+        lines = ["[b $primary]%s[/]" % esc(name)]
         if p.get("headline"):
-            lines.append(esc(_val(p.get("headline"))))
+            lines.append("[#C4C7CE]%s[/]" % esc(_val(p.get("headline"))))
+        meta = []
         if p.get("joinedDate"):
-            lines.append("[dim]Joined DC %s[/dim]" % fmt_date(p.get("joinedDate")))
-        if self._following is not None:
-            lines.append("[dim]%s[/dim]" % ("★ you follow this DCer" if self._following else "not following"))
+            meta.append("Joined DC %s" % fmt_date(p.get("joinedDate")))
+        if self._following:
+            meta.append("★ you follow this DCer")
+        if meta:
+            lines.append("[dim]%s[/dim]" % " · ".join(meta))
         if error:
             lines.append("[$warning]%s[/]" % esc(error))
-        head.border_title = "👤 " + esc(name)
-        head.display = self._tab == "profile"
-        head.set_lines(lines)
+        head.update("\n".join(lines))
         for i, (title, fields) in enumerate(SECTIONS):
             try:
                 panel = self.query_one("#pf-%d" % i, Panel)
@@ -151,10 +152,7 @@ class ProfileScreen(DCScreen):
         for panel in self.query(Panel):
             if panel.id == "pf-list":
                 panel.display = not profile
-            elif profile:
-                if panel.id == "pf-head":
-                    panel.display = True
-            else:
+            elif not profile:
                 panel.display = False
         if profile:
             self._render_all()                     # re-applies which section cards have content
@@ -222,12 +220,29 @@ class ProfileScreen(DCScreen):
     # ── actions ──────────────────────────────────────────────────────
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
-        if bid == "profile-back":
-            self.app.action_back()  # type: ignore[attr-defined]
+        if bid == "profile-dm":
+            self._send_dm()
         elif bid == "profile-open":
             self.app.action_open_in_browser()  # type: ignore[attr-defined]
         elif bid == "profile-follow":
             self._toggle_follow()
+
+    @work(thread=True, exclusive=True, group="profile-dm", exit_on_error=False)
+    def _send_dm(self) -> None:
+        """As the web's Send DM: open the existing direct message with this DCer.
+        The Member API cannot start a new DM, so without one the web profile opens."""
+        user_id = str(self._member.get("userID") or "")
+        fetched = self.app.data.fetch("rooms", "dm", limit=500)  # type: ignore[attr-defined]
+        room = next((r for r in items_of(fetched) if isinstance(r, dict) and str((r.get("participant") or {}).get("userID") or "") == user_id), None)
+        self.app.call_from_thread(self._dm_found, room)
+
+    def _dm_found(self, room: Optional[dict]) -> None:
+        if room and room.get("roomID"):
+            self.app.open_in_section("rooms", str(room["roomID"]))  # type: ignore[attr-defined]
+            return
+        self.notify("No DM with %s yet — start it from their web profile." % (self._profile.get("displayName") or "this DCer"),
+                    timeout=6)
+        self.app.action_open_in_browser()  # type: ignore[attr-defined]
 
     @work(thread=True, exclusive=True, group="profile-follow", exit_on_error=False)
     def _toggle_follow(self) -> None:

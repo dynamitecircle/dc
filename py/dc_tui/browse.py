@@ -55,8 +55,8 @@ class BrowseScreen(ListDetailScreen):
     def detail_actions(self):
         item = self._detail_item or {}
         if item.get("roomID") in self._mine:
-            return [("Open in Inbox", "open_in_inbox"), ("Unsubscribe", "unsubscribe"), ("Open in app", "app.open_in_browser")]
-        return [("Subscribe", "subscribe"), ("Open in app", "app.open_in_browser")]
+            return [("Open in Inbox", "open_in_inbox"), ("Unsubscribe", "unsubscribe"), ("Open on web", "app.open_in_browser")]
+        return [("Subscribe", "subscribe"), ("Open on web", "app.open_in_browser")]
 
     def detail_title(self, item: dict) -> str:
         return "%s  [dim]%s%s[/dim]" % (esc(item.get("name")), room_type_label(item.get("type")), " · DC BLACK" if item.get("scope") == "dcb" else "")

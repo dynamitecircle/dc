@@ -146,7 +146,7 @@ class RoomsScreen(ListDetailScreen):
             acts.append((label, "room('%s', '%s')" % (command, done)))
         if item.get("type") not in ("dm", "group"):
             acts.append(("Unsubscribe", "room('room-unsubscribe', 'unsubscribed')"))
-        acts.append(("Open in app", "app.open_in_browser"))
+        acts.append(("Open on web", "app.open_in_browser"))
         return acts
 
     def detail_title(self, item: dict) -> str:
@@ -206,7 +206,7 @@ class RoomsScreen(ListDetailScreen):
         if f.error:
             lines.append("[$warning]%s[/]" % esc(f.error))
         lines.append("")
-        lines.append("[dim]Enter or → opens the messages · Open in app to reply[/dim]")
+        lines.append("[dim]Enter or → opens the messages · Open on web to reply[/dim]")
         return lines
 
     def _render_summary(self, room: dict, f: Fetched) -> List[str]:
@@ -286,7 +286,7 @@ class RoomsScreen(ListDetailScreen):
             lines.append("")
         if not messages and not data["messages"].error:
             lines.append("[dim]no messages yet[/dim]")
-        lines.append("[dim]read-only — Open in app to reply[/dim]")
+        lines.append("[dim]read-only — Open on web to reply[/dim]")
         return lines
 
     # ── actions ───────────────────────────────────────────────────────

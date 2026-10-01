@@ -23,7 +23,7 @@ COMMANDS = ("profile", "membership", "notifications", "alerts", "interests", "ca
 class MeScreen(DCScreen):
     SECTION = "me"
     TITLE_TEXT = "Me"
-    HINT = "r refresh · o open your profile in the app"
+    HINT = "r refresh · o open your profile on the web"
     URL = WEB_APP + "/profile"
     HAS_DETAIL = False
 
@@ -36,7 +36,7 @@ class MeScreen(DCScreen):
     """
 
     def populate(self) -> None:
-        self.set_main(Horizontal(Button("Refresh", id="me-refresh"), Button("Open profile in app", id="me-open"), id="me-actions"),
+        self.set_main(Horizontal(Button("Refresh", id="me-refresh"), Button("Open profile on web", id="me-open"), id="me-actions"),
                       Panel("Profile", id="me-profile"), Panel("Membership", id="me-membership"),
                       Panel("Notifications", id="me-notifications"), Panel("Alerts", id="me-alerts"),
                       Panel("Interests", id="me-interests"), Panel("Calendar feed", id="me-calendar"),

@@ -57,7 +57,7 @@ inside the detail of the thing they act on — never a key on a list.
 
 Data is cached on disk and refreshed on a timer paced by your API budget (status
 bar). Nothing is sent as a message from here — conversations happen in the web
-app, one click away ("Open in app").
+app, one click away ("Open on web").
 """
 
 
@@ -115,7 +115,7 @@ class DCApp(App):
         Binding("tab", "noop", "Next", show=True, key_display="Tab"),
         Binding("slash", "command_palette", "Commands", key_display="/"),
         Binding("r", "refresh_screen", "Refresh", show=False),
-        Binding("o", "open_in_browser", "Open in app", show=False),
+        Binding("o", "open_in_browser", "Open on web", show=False),
         Binding("question_mark", "show_help", "Help", key_display="?"),
         Binding("q", "quit", "Quit"),
     ]
@@ -263,7 +263,7 @@ class DCApp(App):
                              (lambda sid=section.id: self.action_goto_section(sid))))
         commands.extend([
             ("Refresh", "Re-fetch this screen, bypassing the cache", self.action_refresh_screen),
-            ("Open in browser", "Open the current item in the DC web app", self.action_open_in_browser),
+            ("Open on web", "Open the current item on the DC website", self.action_open_in_browser),
             ("Help", "Keyboard reference", self.action_show_help),
             ("Quit", "Exit dc tui", self.action_quit),
         ])

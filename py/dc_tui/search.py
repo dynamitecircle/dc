@@ -106,7 +106,7 @@ class SearchScreen(ListDetailScreen):
 
     # ── detail ────────────────────────────────────────────────────────
     def detail_actions(self):
-        return [("Open", "open_hit"), ("Open in app", "app.open_in_browser")]
+        return [("Open", "open_hit"), ("Open on web", "app.open_in_browser")]
 
     def detail_title(self, item: dict) -> str:
         return "%s  [dim]%s[/dim]" % (esc(_title(item, self._me())), _kind_label(item.get("_kind")))

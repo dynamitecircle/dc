@@ -39,7 +39,7 @@ class FollowingScreen(ListDetailScreen):
     LIST_TABS = (("people", "DCers"), ("chapters", "Chapters"))
     COLUMNS = ("Name",)
     COLUMN_WIDTHS = {"Handle": 24, "Country": 16}
-    EMPTY_TEXT = "you don't follow anyone here yet — follow DCers from their profile (Profiles) and chapters in the app"
+    EMPTY_TEXT = "you don't follow anyone here yet — follow DCers from their profile (Profiles) and chapters on the web"
 
     def base_columns(self):
         return ("Chapter", "Country") if self.list_tab == "chapters" else ("Name",)
@@ -93,8 +93,8 @@ class FollowingScreen(ListDetailScreen):
 
     def detail_actions(self):
         if self.list_tab == "chapters":
-            return [("Unfollow", "unfollow"), ("Open in app", "app.open_in_browser")]
-        return [("View profile", "view_person"), ("Unfollow", "unfollow"), ("Open in app", "app.open_in_browser")]
+            return [("Unfollow", "unfollow"), ("Open on web", "app.open_in_browser")]
+        return [("View profile", "view_person"), ("Unfollow", "unfollow"), ("Open on web", "app.open_in_browser")]
 
     def fetch_detail(self, item: dict, force: bool) -> Any:
         data = self.app.data  # type: ignore[attr-defined]
@@ -212,7 +212,7 @@ class NewTripsScreen(ListDetailScreen):
         return "%s  [dim]%s[/dim]" % (esc(m.get("displayName") or "DCer"), esc(self._where(item)))
 
     def detail_actions(self):
-        return [("View profile", "view_person"), ("Open in app", "app.open_in_browser")]
+        return [("View profile", "view_person"), ("Open on web", "app.open_in_browser")]
 
     def fetch_detail(self, item: dict, force: bool) -> Any:
         return None

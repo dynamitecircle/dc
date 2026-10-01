@@ -382,7 +382,7 @@ def test_date_cells_right_align_in_every_format_but_names_do_not():
 def test_button_rows_wrap_to_width():
     pytest.importorskip("textual")
     from dc_tui.listing import _wrap_buttons
-    labels = ["Mark read", "Mute", "Pin", "Archive", "Unsubscribe", "Open in app"]
+    labels = ["Mark read", "Mute", "Pin", "Archive", "Unsubscribe", "Open on web"]
     rows = _wrap_buttons(labels, 50)
     assert sum(len(r) for r in rows) == len(labels) and len(rows) == 2
     assert _wrap_buttons(labels, 200) == [list(range(6))]
