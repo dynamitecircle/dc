@@ -443,6 +443,7 @@ class RoomsScreen(ListDetailScreen):
             seen = dict_of(fetched.data).get("seen")
             if isinstance(seen, dict):
                 self._toggled.setdefault(room_id, {}).update({k: bool(v) for k, v in seen.items() if k in _FLAG_KEYS})
+            self._sync_actions()                 # Mute → Unmute right away
         if fetched.ok:
             self.refresh_data(force=True)
 

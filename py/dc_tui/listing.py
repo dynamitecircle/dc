@@ -397,8 +397,29 @@ class ListDetailScreen(DCScreen):
         self._cycle_detail_tab(-1)
 
     # ── data ──────────────────────────────────────────────────────────
+    SKELETON_ROWS = 5
+
+    def _show_skeleton(self) -> None:
+        """Placeholder rows while the first load runs — never a bare header."""
+        try:
+            table = self.query_one("#list", DataTable)
+        except Exception:  # noqa: BLE001
+            return
+        if self.items or table.row_count:
+            return
+        if not table.columns:
+            self._setup_columns()
+        widths = [c.width for c in table.columns.values()]
+        if not widths:
+            return
+        for i in range(self.SKELETON_ROWS):
+            span = [max(3, int(w * f)) for w, f in zip(widths, (0.55, 0.6, 0.4, 0.7, 0.5)[i:] + (0.5,) * 5)]
+            table.add_row(*[Text("━" * n, style="#30333D") for n in span], key="skeleton-%d" % i)
+        table.display = True
+
     def refresh_data(self, force: bool = False) -> None:
         self.set_hint("loading…")
+        self._show_skeleton()
         self._load_gen = getattr(self, "_load_gen", 0) + 1
         self._load_rows(force, self._load_gen)
 
@@ -439,6 +460,15 @@ class ListDetailScreen(DCScreen):
         self._fill_table()
         # no rows → no bare header row; the hint line says why it is empty
         self.query_one("#list", DataTable).display = bool(rows)
+        # the open item follows its fresh row (state changed by a button, a refresh)
+        if self._detail_item is not None and rows:
+            old_key = self.row_key(self._detail_item, -1)
+            fresh = next((r for i, r in enumerate(rows) if self.row_key(r, i) == old_key), None)
+            if fresh is not None and fresh is not self._detail_item:
+                changed = fresh != self._detail_item
+                self._detail_item = fresh
+                if changed:
+                    self.load_detail(fresh)
         pending = getattr(self, "_pending_key", None)
         if pending and rows:
             self._pending_key = None
@@ -496,11 +526,9 @@ class ListDetailScreen(DCScreen):
 
     # ── detail ────────────────────────────────────────────────────────
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
-        if event.data_table.id != "list":
-            return
-        item = self._keys.get(str(event.row_key.value)) if event.row_key is not None else None
-        if item is not None and self.two_pane:
-            self._queue_detail(item)
+        """Moving the highlight (mouse hover, ↑↓) never changes the detail pane —
+        only an explicit open does: click, Enter or →."""
+        return
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         if event.data_table.id == "list":
