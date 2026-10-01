@@ -214,7 +214,11 @@ class FakeDC:
 
     def search_messages(self, q, **kw):
         if kw.get("user_id"):
-            return {"hits": [{"messageID": "pm1", "roomID": "r2", "roomName": "SaaS", "body": "<p>Hello from the profile</p>", "sentAt": "2026-09-20"}]}
+            if kw.get("page", 1) > 1:
+                return {"hits": [{"messageID": "pm2", "roomID": "r2", "roomName": "SaaS", "body": "<p>An older one</p>", "sentAt": "2026-01-02"}],
+                        "hasMore": False}
+            return {"hits": [{"messageID": "pm1", "roomID": "r2", "roomName": "SaaS", "body": "<p>Hello from the profile</p>", "sentAt": "2026-09-20"}],
+                    "hasMore": True}
         return {"hits": []}
 
     def search_events(self, q, **kw):

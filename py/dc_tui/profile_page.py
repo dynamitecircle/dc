@@ -15,7 +15,7 @@ from .data import Fetched
 from .events import event_flag
 from .format import align_row, event_dates, fmt_date, guard_flags
 from .labels import event_type_label, room_icon, room_title, room_type_label
-from .listing import dict_of, esc, items_of
+from .listing import dict_of, esc, items_of, next_page
 from .profile import SECTIONS, _val
 from .screens import DCScreen, WEB_APP
 from .widgets import Panel
@@ -170,15 +170,25 @@ class ProfileScreen(DCScreen):
     _SEARCH = {"messages": "search-messages", "threads": "search-rooms"}
 
     @work(thread=True, exclusive=True, group="profile-tab", exit_on_error=False)
-    def _load_tab(self, tab: str, user_id: str) -> None:
+    def _load_tab(self, tab: str, user_id: str, page: int = 1) -> None:
         data = self.app.data  # type: ignore[attr-defined]
         if tab == "events":
             fetched = data.fetch("dcer-events", user_id)          # what they attend, as the web's Events tab
         else:
-            fetched = data.fetch(self._SEARCH[tab], "", user_id=user_id, limit=100)
-        self.app.call_from_thread(self._tab_loaded, tab, user_id, fetched)
+            fetched = data.fetch(self._SEARCH[tab], "", user_id=user_id, limit=100, page=page)
+        self.app.call_from_thread(self._tab_loaded, tab, user_id, fetched, page)
 
-    def _tab_loaded(self, tab: str, user_id: str, fetched: Fetched) -> None:
+    # Messages / Threads page like every list: highlighting the last row loads the next page
+    def on_option_list_option_highlighted(self, event: OptionList.OptionHighlighted) -> None:
+        if event.option_list.parent is None or getattr(event.option_list.parent, "id", "") != "pf-list":
+            return
+        if self._tab in self._SEARCH and getattr(self, "_next_page", None) and not getattr(self, "_paging", False) \
+                and event.option_index >= event.option_list.option_count - 2:   # the last row above "more…"
+            self._paging = True
+            self._load_tab(self._tab, str(self._member.get("userID")), self._next_page)
+
+    def _tab_loaded(self, tab: str, user_id: str, fetched: Fetched, page: int = 1) -> None:
+        self._paging = False
         if tab != self._tab or user_id != str(self._member.get("userID")):
             return
         try:
@@ -194,9 +204,18 @@ class ProfileScreen(DCScreen):
             self._events_loaded(lst, dict_of(fetched), width, name)
             return
         hits = [h for h in (dict_of(fetched).get("hits") or []) if isinstance(h, dict)]
-        rows = [self._row(tab, h, width) for h in hits]
+        if page == 1:
+            self._hits = []
+        self._hits = getattr(self, "_hits", []) + hits
+        self._next_page = next_page(fetched, page)
+        rows = [self._row(tab, h, width) for h in self._hits]
         empty = {"messages": "No messages from %s you can see.", "threads": "%s has not started a thread you can see."}[tab] % name
-        lst.set_rows(rows or [("[dim]%s[/dim]" % esc(empty), None)], subtitle="%d" % len(rows) if rows else "")
+        if rows and self._next_page:
+            rows.append(("[dim]↓ more…[/dim]", None))           # reaching it loads the next page
+        keep = lst.list.highlighted if page > 1 else None
+        lst.set_rows(rows or [("[dim]%s[/dim]" % esc(empty), None)], subtitle="%d" % len(self._hits) if self._hits else "")
+        if keep is not None:
+            lst.list.highlighted = min(keep, lst.list.option_count - 1)
 
     def _events_loaded(self, lst: Panel, body: dict, width: int, name: str) -> None:
         """ProfileEventsTab.vue: attending, past global events, past local meetups, also attended."""

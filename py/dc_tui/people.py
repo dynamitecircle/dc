@@ -12,7 +12,7 @@ from textual.widgets import Input
 from .data import Fetched
 from .format import flag, plural, trunc
 from .profile import profile_lines
-from .listing import ListDetailScreen, dict_of, esc, items_of, plain, name_and_headline
+from .listing import ListDetailScreen, dict_of, esc, items_of, plain, name_and_headline, next_page
 from .screens import WEB_APP
 
 MODES = ("follows", "search", "match")
@@ -77,6 +77,7 @@ class PeopleScreen(ListDetailScreen):
             fetched = data.fetch("search-profiles", self.query_text, limit=50)
             hits = dict_of(fetched).get("hits") or dict_of(fetched).get("items") or []
             rows = [_flatten(h) for h in hits if isinstance(h, dict)]
+            self._next_cursor = next_page(fetched, 1)
         elif self.mode == "match":
             fetched = data.fetch("profile-match", query=self.query_text or None, limit=50)
             results = dict_of(fetched).get("results") or dict_of(fetched).get("items") or []
@@ -93,6 +94,15 @@ class PeopleScreen(ListDetailScreen):
         if fetched.error and fetched.data is None:
             raise RuntimeError(fetched.error)
         return rows
+
+    def fetch_more(self, page):
+        if self.mode != "search" or not self.query_text:
+            return [], None
+        fetched = self.app.data.fetch("search-profiles", self.query_text, limit=50, page=page)  # type: ignore[attr-defined]
+        if fetched.error and fetched.data is None:
+            raise RuntimeError(fetched.error)
+        hits = dict_of(fetched).get("hits") or dict_of(fetched).get("items") or []
+        return [_flatten(h) for h in hits if isinstance(h, dict)], next_page(fetched, page)
 
     def row_key(self, item: dict, index: int) -> str:
         return str(item.get("userID") or index)

@@ -256,6 +256,9 @@ def test_locator_page_matches_the_web_digest(tmp_path):
             lst = app.screen.query_one("#pf-list", Panel)
             assert lst.display and not app.screen.query_one("#pf-0", Panel).display
             assert any("Hello from the profile" in str(o.prompt) for o in lst.list._options)
+            lst.list.focus(); lst.list.highlighted = 0; await settle(pilot, 1.5)        # the last row → the next page
+            assert any("An older one" in str(o.prompt) for o in lst.list._options)
+            assert not any("more…" in str(o.prompt) for o in lst.list._options)
             await shot(app, "profile-messages")
             app.screen.query_one("#profile-tabs").active = "pt-events"; await settle(pilot, 1.5)
             prompts = [str(o.prompt) for o in lst.list._options]
