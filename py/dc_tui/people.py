@@ -74,11 +74,11 @@ class PeopleScreen(ListDetailScreen):
             fetched = follows
             rows = [person]
         elif self.mode == "search" and self.query_text:
-            fetched = data.fetch("search-profiles", self.query_text, limit=30)
+            fetched = data.fetch("search-profiles", self.query_text, limit=50)
             hits = dict_of(fetched).get("hits") or dict_of(fetched).get("items") or []
             rows = [_flatten(h) for h in hits if isinstance(h, dict)]
         elif self.mode == "match":
-            fetched = data.fetch("profile-match", query=self.query_text or None, limit=30)
+            fetched = data.fetch("profile-match", query=self.query_text or None, limit=50)
             results = dict_of(fetched).get("results") or dict_of(fetched).get("items") or []
             rows = []
             for r in results:

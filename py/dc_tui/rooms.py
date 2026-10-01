@@ -80,7 +80,7 @@ class RoomsScreen(ListDetailScreen):
             # a page holds the most recent rooms only; the web lists every pinned room on
             # top, so fetch the pinned set too and add the ones older than this page
             args = (self.room_type,) if self.room_type else ()
-            pinned = data.fetch("rooms", *args, force=force, filter="pinned")
+            pinned = data.fetch("rooms", *args, force=force, filter="pinned", limit=100)
             have = {r.get("roomID") for r in rooms}
             rooms += [r for r in items_of(pinned) if r.get("roomID") not in have and self._flags(r).get("isPinned")]
         if seen_filter:                  # older servers ignore ?filter — apply it here too when flags are present
@@ -137,63 +137,23 @@ class RoomsScreen(ListDetailScreen):
         if not self.items:
             return self.EMPTY_TEXT
         total = sum(self._unread.values())
-        more = " · scroll for older" if getattr(self, "_next_cursor", None) else ""
-        return "%s%s · %s  [dim]%s[/dim]" % (plural(len(self.items), "room"), more, plural(total, "unread"), self.HINT)
+        return "%s · %s  [dim]%s[/dim]" % (plural(len(self.items), "room"), plural(total, "unread"), self.HINT)
 
-    # ── older rooms: the next page loads when the list reaches its end ──
+    # ── older rooms: the shared paging (listing.py) calls these ──
     PAGE = 100
-    def on_data_table_row_highlighted(self, event) -> None:
-        table = event.data_table
-        if table.id == "list" and table.row_count and event.cursor_row >= table.row_count - 1:
-            self.load_more_rooms()
 
-    def on_mouse_scroll_down(self, event) -> None:
-        # the table swallows the wheel while it can still scroll; one that reaches
-        # the screen means the list is already at its end
-        try:
-            table = self.query_one("#list", DataTable)
-        except Exception:  # noqa: BLE001
-            return
-        if table.region.contains(event.screen_x, event.screen_y) and table.scroll_y >= table.max_scroll_y:
-            self.load_more_rooms()
-
-    def load_more_rooms(self) -> None:
-        if not getattr(self, "_next_cursor", None) or getattr(self, "_loading_more", False):
-            return
-        self._loading_more = True
-        self.set_hint(self.hint_text().replace("scroll for older", "loading older…", 1))
-        self._fetch_more(self._next_cursor, self._page_args, getattr(self, "_load_gen", 0))
-
-    @work(thread=True, exclusive=True, group="rooms-more", exit_on_error=False)
-    def _fetch_more(self, cursor: str, page_args: tuple, gen: int) -> None:
-        room_type, seen_filter = page_args
+    def fetch_more(self, cursor):
+        room_type, seen_filter = self._page_args
         kwargs = {"filter": seen_filter} if seen_filter else {}
         args = (room_type,) if room_type else ()
         fetched = self.app.data.fetch("rooms", *args, cursor=cursor, limit=self.PAGE, **kwargs)  # type: ignore[attr-defined]
-        self.app.call_from_thread(self._more_arrived, gen, page_args, fetched)
-
-    def _more_arrived(self, gen: int, page_args: tuple, fetched) -> None:
-        self._loading_more = False
-        if gen != getattr(self, "_load_gen", 0) or page_args != self._page_args:
-            return                                   # the tab or filter changed meanwhile
         if fetched.error and fetched.data is None:
-            self.notify(fetched.error, severity="warning", timeout=5)
-            self.set_hint(self.hint_text())
-            return
+            raise RuntimeError(fetched.error)
         body = dict_of(fetched)
-        self._next_cursor = body.get("cursor") if body.get("has_more") else None
-        have = {r.get("roomID") for r in self.items}
-        fresh = [r for r in items_of(fetched) if r.get("roomID") not in have]
-        table = self.query_one("#list", DataTable)
-        keep = self.selected()
-        row, scroll = table.cursor_row, table.scroll_y
-        self.items = self._ordered(self.items + fresh)
-        self._fill_table()
-        if keep is not None:                         # stay on the same room, where it was
-            index = next((i for i, r in enumerate(self.items) if r is keep), row)
-            table.move_cursor(row=index, animate=False)
-            table.scroll_y = scroll
-        self.set_hint(self.hint_text())
+        return items_of(fetched), (body.get("cursor") if body.get("has_more") else None)
+
+    def order_rows(self, rows):
+        return self._ordered(rows)
 
     # ── detail ────────────────────────────────────────────────────────
     def _flags(self, item: dict) -> dict:
@@ -238,7 +198,7 @@ class RoomsScreen(ListDetailScreen):
             out["person"] = data.fetch("dcer", person.get("userID"), force=force)
         if (self.detail_tab or "messages") == "messages":
             self._opened.add(room_id)                    # the Messages tab itself is an explicit open
-            out["messages"] = data.fetch("room-messages", room_id, limit=25, force=force)
+            out["messages"] = data.fetch("room-messages", room_id, limit=50, force=force)
             if force:
                 self._older.pop(str(room_id), None)      # a refresh starts from the newest page again
         return out
@@ -437,7 +397,7 @@ class RoomsScreen(ListDetailScreen):
 
     @work(thread=True, exclusive=True, group="older", exit_on_error=False)
     def _fetch_older(self, room_id: str, cursor: str) -> None:
-        fetched = self.app.data.fetch("room-messages", room_id, limit=25, before=cursor)  # type: ignore[attr-defined]
+        fetched = self.app.data.fetch("room-messages", room_id, limit=50, before=cursor)  # type: ignore[attr-defined]
         self.app.call_from_thread(self._older_arrived, room_id, fetched)
 
     def _older_arrived(self, room_id: str, fetched: Fetched) -> None:

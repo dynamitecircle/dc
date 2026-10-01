@@ -12,6 +12,7 @@ from textual.containers import Horizontal
 from textual.widgets import Button, OptionList, Static, Tab, Tabs
 
 from .data import Fetched
+from .events import event_flag
 from .format import align_row, event_dates, fmt_date, guard_flags
 from .labels import event_type_label, room_icon, room_title, room_type_label
 from .listing import dict_of, esc, items_of
@@ -217,7 +218,7 @@ class ProfileScreen(DCScreen):
                 count += 1
                 where = (e.get("city") or {}).get("name") if isinstance(e.get("city"), dict) else ""
                 right = " · ".join(x for x in (where or "", event_dates(e)) if x)
-                rows.append((align_row(width, e.get("name") or "Event", right, prefix="📅 ", name_markup="%s"),
+                rows.append((align_row(width, e.get("name") or "Event", right, prefix=event_flag(e) + " ", name_markup="%s"),
                              ("events", str(e["eventID"])) if e.get("eventID") else None))
         also = [str(x) for x in (body.get("alsoAttended") or []) if x]
         if also:
@@ -264,7 +265,7 @@ class ProfileScreen(DCScreen):
         """As the web's Send DM: open the existing direct message with this DCer.
         The Member API cannot start a new DM, so without one the web profile opens."""
         user_id = str(self._member.get("userID") or "")
-        fetched = self.app.data.fetch("rooms", "dm", limit=500)  # type: ignore[attr-defined]
+        fetched = self.app.data.fetch("rooms", "dm", limit=100)  # type: ignore[attr-defined]
         room = next((r for r in items_of(fetched) if isinstance(r, dict) and str((r.get("participant") or {}).get("userID") or "") == user_id), None)
         self.app.call_from_thread(self._dm_found, room)
 

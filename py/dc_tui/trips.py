@@ -9,7 +9,7 @@ from textual.binding import Binding
 from .data import Fetched
 from .format import date_range, plural, trunc
 from .forms import ConfirmModal, TripForm
-from .listing import ListDetailScreen, dict_of, esc, items_of, plain
+from .listing import ListDetailScreen, dict_of, esc, items_of, next_cursor, plain
 from .screens import WEB_APP
 
 
@@ -39,12 +39,20 @@ class TripsScreen(ListDetailScreen):
     ]
 
     def fetch_rows(self, force: bool) -> List[dict]:
-        fetched = self.app.data.fetch("trips", force=force)  # type: ignore[attr-defined]
+        fetched = self.app.data.fetch("trips", limit=100, force=force)  # type: ignore[attr-defined]
         if fetched.error and fetched.data is None:
             raise RuntimeError(fetched.error)
-        trips = items_of(fetched)
-        trips.sort(key=lambda t: str(t.get("startDate") or ""))
-        return trips
+        self._next_cursor = next_cursor(fetched)
+        return self.order_rows(items_of(fetched))
+
+    def order_rows(self, rows: List[dict]) -> List[dict]:
+        return sorted(rows, key=lambda t: str(t.get("startDate") or ""))
+
+    def fetch_more(self, cursor):
+        fetched = self.app.data.fetch("trips", limit=100, cursor=cursor)  # type: ignore[attr-defined]
+        if fetched.error and fetched.data is None:
+            raise RuntimeError(fetched.error)
+        return items_of(fetched), next_cursor(fetched)
 
     def row_key(self, item: dict, index: int) -> str:
         return str(item.get("tripID") or index)

@@ -7,7 +7,7 @@ from typing import Any, List, Tuple
 from .data import Fetched
 from .format import fmt_date, plural
 from .labels import room_icon, room_type_label
-from .listing import ListDetailScreen, dict_of, esc, items_of, plain
+from .listing import ListDetailScreen, dict_of, esc, items_of, next_cursor, plain
 from .screens import WEB_APP
 
 
@@ -28,14 +28,22 @@ class BrowseScreen(ListDetailScreen):
 
     def fetch_rows(self, force: bool) -> List[dict]:
         data = self.app.data  # type: ignore[attr-defined]
-        mine = data.fetch("rooms", force=force)
+        mine = data.fetch("rooms", limit=100, force=force)
         self._mine = {r.get("roomID") for r in items_of(mine)}
-        fetched = data.fetch("browse-rooms", self.list_tab, limit=50, force=force)
+        fetched = data.fetch("browse-rooms", self.list_tab, limit=50, force=force)     # the API's max here
         if fetched.error and fetched.data is None:
             raise RuntimeError(fetched.error)
-        rooms = items_of(fetched)
-        rooms.sort(key=lambda r: str(r.get("lastActivityAt") or ""), reverse=True)
-        return rooms
+        self._next_cursor = next_cursor(fetched)
+        return self.order_rows(items_of(fetched))
+
+    def order_rows(self, rows: List[dict]) -> List[dict]:
+        return sorted(rows, key=lambda r: str(r.get("lastActivityAt") or ""), reverse=True)
+
+    def fetch_more(self, cursor):
+        fetched = self.app.data.fetch("browse-rooms", self.list_tab, limit=50, cursor=cursor)  # type: ignore[attr-defined]
+        if fetched.error and fetched.data is None:
+            raise RuntimeError(fetched.error)
+        return items_of(fetched), next_cursor(fetched)
 
     def row_key(self, item: dict, index: int) -> str:
         return str(item.get("roomID") or index)

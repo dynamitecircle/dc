@@ -92,7 +92,7 @@ class LocatorScreen(DCScreen):
         fetched = self.app.data.fetch("locator", force=force)  # type: ignore[attr-defined]
         # The digest's event and ticket dates carry no isDateConfirmed, and ticket
         # dates are a copy taken at purchase. The events list is the truth for both.
-        events = self.app.data.fetch("events", limit=50)  # type: ignore[attr-defined]
+        events = self.app.data.fetch("events", limit=100)  # type: ignore[attr-defined]
         _EVENTS.clear()
         _EVENTS.update({str(e.get("eventID")): e for e in _list(dict_of_items(events)) if e.get("eventID")})
         self.app.call_from_thread(self._render_digest, fetched)

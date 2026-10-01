@@ -12,7 +12,7 @@ from typing import Any, List, Tuple
 
 from .data import Fetched
 from .format import date_range, flag, plural
-from .listing import ListDetailScreen, dict_of, esc, items_of, name_and_headline
+from .listing import ListDetailScreen, dict_of, esc, items_of, name_and_headline, next_cursor
 from .profile import profile_lines
 from .screens import WEB_APP
 
@@ -168,6 +168,7 @@ class NewTripsScreen(ListDetailScreen):
             fetched = data.fetch("trips-recent", limit=100, force=force)
             if fetched.error and fetched.data is None:
                 raise RuntimeError(fetched.error)
+            self._next_cursor = next_cursor(fetched)
             self._new = set()
             return [t for t in items_of(fetched) if isinstance(t, dict)]      # newest first, as the web
         fetched = data.fetch("locator", force=force)
@@ -184,6 +185,14 @@ class NewTripsScreen(ListDetailScreen):
         trips.sort(key=lambda t: (t.get("tripID") not in new_ids, str(t.get("startDate") or "")))
         self._new = new_ids
         return trips
+
+    def fetch_more(self, cursor):
+        if self.list_tab != "all":
+            return [], None
+        fetched = self.app.data.fetch("trips-recent", limit=100, cursor=cursor)  # type: ignore[attr-defined]
+        if fetched.error and fetched.data is None:
+            raise RuntimeError(fetched.error)
+        return [t for t in items_of(fetched) if isinstance(t, dict)], next_cursor(fetched)
 
     def row_key(self, item: dict, index: int) -> str:
         return str(item.get("tripID") or index)

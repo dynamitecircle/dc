@@ -228,7 +228,18 @@ class ListDetailScreen(DCScreen):
         except Exception:  # noqa: BLE001
             pass
         self._detail_item = None
+        self._clear_rows()
         self.refresh_data(force=False)
+
+    def _clear_rows(self) -> None:
+        """A new tab or filter: the old rows go at once, so the skeleton shows while
+        the new ones load (never the previous tab's rows under the new tab)."""
+        self.items = []
+        self._next_cursor = None
+        try:
+            self.query_one("#list", DataTable).clear()
+        except Exception:  # noqa: BLE001
+            pass
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = str(event.button.id or "")
@@ -335,6 +346,7 @@ class ListDetailScreen(DCScreen):
             if tid != self.list_tab:
                 self.list_tab = tid
                 self._detail_item = None
+                self._clear_rows()
                 self._setup_columns()
                 self.refresh_data(force=False)
         elif str(event.tabs.id or "").startswith("detail-tabs-"):
@@ -421,6 +433,7 @@ class ListDetailScreen(DCScreen):
         table.display = True
 
     def refresh_data(self, force: bool = False) -> None:
+        self._next_cursor = None
         self.set_hint("loading…")
         self._show_skeleton()
         self._load_gen = getattr(self, "_load_gen", 0) + 1
@@ -486,12 +499,80 @@ class ListDetailScreen(DCScreen):
         if error:
             self.set_hint("[$warning]%s[/]" % esc(error))
         else:
-            self.set_hint(self.hint_text())
+            self.set_hint(self._hint())
         if rows and self.two_pane and self._detail_item is None:
             self._select_row(0)
 
     def hint_text(self) -> str:
         return "%d · %s" % (len(self.items), self.HINT) if self.items else self.EMPTY_TEXT
+
+    def _hint(self) -> str:
+        more = "  [dim]· scroll for more[/dim]" if self.items and self._next_cursor else ""
+        return self.hint_text() + more
+
+    # ── paging: every list loads the API's largest page, and the next one when the
+    # list reaches its end (↓ onto the last row, or the wheel past the bottom).
+    # `fetch_rows` sets `self._next_cursor` (an API cursor, or a page number for
+    # search); `fetch_more(cursor)` returns (rows, next cursor or None).
+    _next_cursor: Any = None
+
+    def fetch_more(self, cursor: Any) -> Tuple[List[dict], Any]:
+        return [], None
+
+    def order_rows(self, rows: List[dict]) -> List[dict]:
+        """The list's order, re-applied after a page is appended."""
+        return rows
+
+    def _page_key(self) -> tuple:
+        return (self.list_tab, self.list_filter, getattr(self, "query_text", ""), getattr(self, "_load_gen", 0))
+
+    def on_mouse_scroll_down(self, event) -> None:
+        # the table swallows the wheel while it can still scroll; one that reaches
+        # the screen over the list means the list is already at its end
+        try:
+            table = self.query_one("#list", DataTable)
+        except Exception:  # noqa: BLE001
+            return
+        if table.display and table.region.contains(event.screen_x, event.screen_y) and table.scroll_y >= table.max_scroll_y:
+            self.load_more()
+
+    def load_more(self) -> None:
+        if not self._next_cursor or getattr(self, "_loading_more", False) or not self.items:
+            return
+        self._loading_more = True
+        self.set_hint(self.hint_text() + "  [dim]· loading more…[/dim]")
+        self._fetch_more(self._next_cursor, self._page_key())
+
+    @work(thread=True, exclusive=True, group="rows-more", exit_on_error=False)
+    def _fetch_more(self, cursor: Any, page_key: tuple) -> None:
+        try:
+            rows, nxt = self.fetch_more(cursor)
+            error = ""
+        except Exception as exc:  # noqa: BLE001
+            rows, nxt, error = [], cursor, str(exc)
+        self.app.call_from_thread(self._more_arrived, page_key, rows, nxt, error)
+
+    def _more_arrived(self, page_key: tuple, rows: List[dict], nxt: Any, error: str) -> None:
+        self._loading_more = False
+        if page_key != self._page_key():
+            return                                   # the tab, filter or query changed meanwhile
+        if error:
+            self.notify(error, severity="warning", timeout=5)
+            self.set_hint(self._hint())
+            return
+        self._next_cursor = nxt
+        have = {self.row_key(r, i) for i, r in enumerate(self.items)}
+        fresh = [r for i, r in enumerate(rows) if self.row_key(r, len(self.items) + i) not in have]
+        table = self.query_one("#list", DataTable)
+        keep = self.selected()
+        row, scroll = table.cursor_row, table.scroll_y
+        self.items = self.order_rows(self.items + fresh)
+        self._fill_table()
+        if keep is not None:                         # stay on the same row, where it was
+            index = next((i for i, r in enumerate(self.items) if r is keep), row)
+            table.move_cursor(row=index, animate=False)
+            table.scroll_y = scroll
+        self.set_hint(self._hint())
 
     def _fill_table(self) -> None:
         table = self.query_one("#list", DataTable)
@@ -534,8 +615,11 @@ class ListDetailScreen(DCScreen):
     # ── detail ────────────────────────────────────────────────────────
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         """Moving the highlight (mouse hover, ↑↓) never changes the detail pane —
-        only an explicit open does: click, Enter or →."""
-        return
+        only an explicit open does: click, Enter or →. Reaching the last row loads
+        the next page."""
+        table = event.data_table
+        if table.id == "list" and table.row_count and event.cursor_row >= table.row_count - 1:
+            self.load_more()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         if event.data_table.id == "list":
@@ -1044,6 +1128,20 @@ def _header(col: str) -> Any:
     if col in _ICON_COLUMNS:
         return ""                                    # an icon-only column (the ticket mark) has no header
     return Text(col, justify="right") if col in _DATE_HEADERS else col
+
+
+def next_cursor(fetched: Fetched) -> Any:
+    """The cursor for the next page of a list envelope, or None at the end."""
+    data = fetched.data
+    if isinstance(data, dict) and data.get("has_more"):
+        return data.get("cursor") or None
+    return None
+
+
+def next_page(fetched: Fetched, page: int) -> Any:
+    """Search pages are numbered: the next page number while the API has more."""
+    data = fetched.data
+    return page + 1 if isinstance(data, dict) and (data.get("hasMore") or data.get("has_more")) else None
 
 
 def items_of(fetched: Fetched) -> List[dict]:

@@ -10,7 +10,7 @@ from textual.widgets import Input
 from .format import event_dates, flag, fmt_date, plural, strip_markdown, trunc
 from .labels import event_type_label, room_icon, room_title, room_type_label
 from .profile import profile_lines
-from .listing import ListDetailScreen, dict_of, esc, items_of, plain
+from .listing import ListDetailScreen, dict_of, esc, items_of, next_cursor, next_page, plain
 from .screens import WEB_APP
 
 KINDS = ("profiles", "rooms", "messages", "events", "chapters")
@@ -74,7 +74,7 @@ class SearchScreen(ListDetailScreen):
         q = self.query_text
         rows: List[dict] = []
         if self.list_tab == "all":
-            fetched = data.fetch("search", q, limit=8, force=force)
+            fetched = data.fetch("search", q, limit=25, force=force)       # the omni search's max per kind
             if fetched.error and fetched.data is None:
                 raise RuntimeError(fetched.error)
             body = dict_of(fetched)
@@ -85,12 +85,27 @@ class SearchScreen(ListDetailScreen):
                     if isinstance(h, dict):
                         rows.append(_tag(h, kind))
             return rows
-        fetched = data.fetch("search-" + self.list_tab, q, limit=30, force=force)
+        fetched = data.fetch("search-" + self.list_tab, q, limit=self._page_size(), force=force)
         if fetched.error and fetched.data is None:
             raise RuntimeError(fetched.error)
+        self._next_cursor = next_page(fetched, 1)
+        return self._hits(fetched)
+
+    def _page_size(self) -> int:
+        return 50 if self.list_tab == "profiles" else 100     # the API's max per search page
+
+    def _hits(self, fetched) -> List[dict]:
         body = dict_of(fetched)
         hits = body.get("hits") if isinstance(body.get("hits"), list) else items_of(fetched)
         return [_tag(h, self.list_tab) for h in hits if isinstance(h, dict)]
+
+    def fetch_more(self, page):
+        if self.list_tab == "all":
+            return [], None
+        fetched = self.app.data.fetch("search-" + self.list_tab, self.query_text, limit=self._page_size(), page=page)  # type: ignore[attr-defined]
+        if fetched.error and fetched.data is None:
+            raise RuntimeError(fetched.error)
+        return self._hits(fetched), next_page(fetched, page)
 
     def row_key(self, item: dict, index: int) -> str:
         return "%s:%s" % (item.get("_kind"), _id(item) or index)

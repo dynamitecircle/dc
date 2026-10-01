@@ -13,9 +13,9 @@ from textual.binding import Binding
 from .data import Fetched
 from datetime import datetime, timezone as _tz
 
-from .format import date_range, event_dates, fmt_date, plural, strip_markdown, trunc
+from .format import date_range, event_dates, flag, fmt_date, plural, strip_markdown, trunc
 from .labels import call_kind_label, event_type_label, is_global_event
-from .listing import ListDetailScreen, Table, dict_of, esc, items_of, plain
+from .listing import ListDetailScreen, Table, dict_of, esc, items_of, plain, next_cursor
 from .screens import WEB_APP
 
 def _hhmm(value: Any) -> str:
@@ -45,6 +45,13 @@ def _city(event: dict) -> str:
     city = event.get("city") if isinstance(event.get("city"), dict) else {}
     venue = event.get("venue") if isinstance(event.get("venue"), dict) else {}
     return str(city.get("name") or venue.get("city") or city.get("country") or "")
+
+
+def event_flag(event: dict) -> str:
+    """The event's country flag (two cells), or 📅 when it has no country."""
+    city = event.get("city") if isinstance(event.get("city"), dict) else {}
+    venue = event.get("venue") if isinstance(event.get("venue"), dict) else {}
+    return flag(city.get("countryCode") or venue.get("countryCode")) or "📅"
 
 
 def _is_global(event: dict) -> bool:
@@ -144,21 +151,38 @@ class EventsScreen(ListDetailScreen):
     def fetch_rows(self, force: bool) -> List[dict]:
         data = self.app.data  # type: ignore[attr-defined]
         if self.list_tab == "calls":
-            fetched = data.fetch("virtual-events", force=force)
+            fetched = data.fetch("virtual-events", limit=100, force=force)
             if fetched.error and fetched.data is None:
                 raise RuntimeError(fetched.error)
-            calls = items_of(fetched)
-            calls.sort(key=lambda c: str(c.get("scheduledAt") or ""))
-            return calls
-        tickets = data.fetch("tickets", force=force)
+            self._next_cursor = next_cursor(fetched)
+            return self.order_rows(items_of(fetched))
+        tickets = data.fetch("tickets", limit=100, force=force)
         self._tickets = {t.get("eventID"): t.get("ticketName") or "ticket" for t in items_of(tickets)
                          if t.get("status") in ("valid", "maybe")}
-        fetched = data.fetch("events", limit=50, force=force)
+        fetched = data.fetch("events", limit=100, force=force)
         if fetched.error and fetched.data is None:
             raise RuntimeError(fetched.error)
-        events = [e for e in items_of(fetched) if _is_global(e) == (self.list_tab == "global")]
-        events.sort(key=lambda e: str(e.get("startDate") or ""))
-        return events
+        self._next_cursor = next_cursor(fetched)
+        return self.order_rows(self._this_tab(items_of(fetched)))
+
+    def _this_tab(self, events: List[dict]) -> List[dict]:
+        return [e for e in events if _is_global(e) == (self.list_tab == "global")]
+
+    def order_rows(self, rows: List[dict]) -> List[dict]:
+        key = "scheduledAt" if self.list_tab == "calls" else "startDate"
+        return sorted(rows, key=lambda r: str(r.get(key) or ""))
+
+    def fetch_more(self, cursor):
+        data = self.app.data  # type: ignore[attr-defined]
+        if self.list_tab == "calls":
+            fetched = data.fetch("virtual-events", limit=100, cursor=cursor)
+            rows = items_of(fetched)
+        else:
+            fetched = data.fetch("events", limit=100, cursor=cursor)
+            rows = self._this_tab(items_of(fetched))
+        if fetched.error and fetched.data is None:
+            raise RuntimeError(fetched.error)
+        return rows, next_cursor(fetched)
 
     def row_key(self, item: dict, index: int) -> str:
         return str(item.get("eventID") or item.get("sessionID") or index)
@@ -174,7 +198,7 @@ class EventsScreen(ListDetailScreen):
             }
         else:
             cells = {
-                "Event": str(item.get("name") or ""),
+                "Event": event_flag(item) + " " + str(item.get("name") or ""),
                 "Dates": event_dates(item),
                 "City":  _city(item),
                 "Type":  event_type_label(item.get("eventType")),
