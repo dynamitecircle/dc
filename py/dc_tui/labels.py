@@ -43,6 +43,33 @@ def is_global_event(event: dict) -> bool:
     return str(event.get("eventType") or "").lower() in GLOBAL_EVENT_TYPES
 
 
+# Room glyphs — dc-mobile room_helper.dart. A themed room (one attached to a live
+# call, trip, meetup, event or chapter) is drawn by what it is, whatever its type;
+# otherwise by type. Every glyph is two cells wide (an emoji, or "#" padded) so the
+# names after it line up. Emoji only, no VS16 sequences: those render 1 or 2 wide.
+_THEMED_ICONS = (("sessionID", "🎥"), ("tripID", "🛫"), ("meetupID", "📆"), ("eventID", "📅"), ("cityID", "🏢"))
+_TYPE_ICONS = {"channel": "# ", "group": "👥", "dm": "👤", "direct": "👤", "discussion": "💬",
+               "quick-question": "⚡", "activity": "⚡", "event": "📅", "city": "🏢", "country": "🌐",
+               "mastermind": "🧠"}
+
+
+def room_icon(room: dict) -> str:
+    """The two-cell glyph the apps draw a room with (themedRoomIcon → roomTypeGlyph)."""
+    if not isinstance(room, dict):
+        return "💬"
+    for key, glyph in _THEMED_ICONS:
+        if room.get(key):
+            return glyph
+    room_id = str(room.get("roomID") or "")
+    if room_id.startswith("call_"):                 # themedRoomKindFromRoomID: the ID says it
+        return "🎥"
+    if room_id.startswith("trip_"):
+        return "🛫"
+    if room_id.startswith("dm_"):
+        return "👤"
+    return _TYPE_ICONS.get(str(room.get("type") or room.get("roomType") or "").lower(), "💬")
+
+
 def room_title(room: dict, me: str = "") -> str:
     """The title the app shows for a room.
 

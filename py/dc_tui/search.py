@@ -8,7 +8,7 @@ from typing import Any, List, Sequence, Tuple
 from textual.widgets import Input
 
 from .format import event_dates, flag, fmt_date, plural, strip_markdown, trunc
-from .labels import event_type_label, room_title, room_type_label
+from .labels import event_type_label, room_icon, room_title, room_type_label
 from .profile import profile_lines
 from .listing import ListDetailScreen, dict_of, esc, items_of, plain
 from .screens import WEB_APP
@@ -96,8 +96,7 @@ class SearchScreen(ListDetailScreen):
         return "%s:%s" % (item.get("_kind"), _id(item) or index)
 
     def row_cells(self, item: dict) -> Tuple[str, ...]:
-        room_icon = {"dm": "👤 ", "group": "👥 "}.get(str(item.get("type") or ""), "# ")
-        icon = {"profiles": "👤 ", "events": "📅 ", "rooms": room_icon, "messages": "💬 ",
+        icon = {"profiles": "👤 ", "events": "📅 ", "rooms": room_icon(item) + " ", "messages": room_icon(item) + " ",
                 "chapters": (flag(item.get("countryCode")) or "📍") + " "}.get(str(item.get("_kind")), "")
         me = self._me()
         kind = room_type_label(item.get("type")) if item.get("_kind") == "rooms" else _kind_label(item.get("_kind"))

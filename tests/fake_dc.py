@@ -85,6 +85,11 @@ class FakeDC:
         return _env([{"tripID": "rt1", "location": _LOC("Porto", "PT"), "startDate": "2026-11-20", "endDate": "2026-11-24",
                       "member": _M("7", "Nathan Rose")}])
 
+    def dcer_events(self, user_id):
+        return {"upcoming": [{"eventID": "e9", "name": "DCBKK 2027", "startDate": "2027-03-01", "endDate": "2027-03-04",
+                              "isDateConfirmed": True, "city": {"name": "Bangkok"}}],
+                "pastEvents": [], "pastMeetups": [], "alsoAttended": ["DCBKK 2014"]}
+
     def dcer(self, user_id):
         return {"profile": {"userID": user_id, "displayName": "Alex Harling", "userName": "AlexHarling", "headline": "Community",
                             "businessName": "Dynamite Circle"}}

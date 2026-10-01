@@ -2194,6 +2194,11 @@ class _DCCore:
             raise UsageError("dcer requires a userID")
         return self._get(f"/profiles/{user_id}")
 
+    def dcer_events(self, user_id):
+        if not user_id:
+            raise UsageError("dcer-events requires a userID")
+        return self._get(f"/profiles/{user_id}/events")
+
     def trip(self, trip_id):
         """Get a single trip — points + enriched discovery block (top-10
         picks with mini profile + score, fullPool, whyToMeet AI paragraphs,
@@ -2928,6 +2933,13 @@ class DC(Runtime):
     @skill_command(name="dcer", help="One DCer's profile by userID (what the app shows on their profile)", args={})
     def dcer(self, user_id):
         return self._core.dcer(user_id)
+
+    @skill_command(name="dcer-events",
+                   help="Events one DCer is attending or has attended (their profile's Events tab): "
+                        "upcoming, pastEvents, pastMeetups, alsoAttended",
+                   args={})
+    def dcer_events(self, user_id):
+        return self._core.dcer_events(user_id)
 
     @skill_command(name="trips", help="List your trips [--past] [--limit N] [--cursor TOKEN]",
                    parser=_DCCore._parse_list_args,

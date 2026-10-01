@@ -26,7 +26,7 @@ from textual.containers import Vertical
 
 from .data import Fetched
 from .format import align_row, date_range, event_dates, flag, fmt_date, guard_flags, pad, plural, rpad, strip_markdown, trunc
-from .labels import room_title, room_type_label
+from .labels import room_icon, room_title, room_type_label
 from .layout import MODES, layout_mode
 from .theme import GREY_700
 from .widgets import Panel
@@ -630,7 +630,7 @@ class HomeScreen(DCScreen):
         me = self.app.data.cached("profile")  # type: ignore[attr-defined]
         me_name = str(_dict(me).get("displayName") or "") if me is not None else ""
         rows = [(align_row(width, room_title(r, me_name),
-                           "%d new" % int(r.get("badgeCount") or 0), room_type_label(r.get("roomType"))),
+                           "%d new" % int(r.get("badgeCount") or 0), room_type_label(r.get("roomType")), prefix=room_icon(r) + " "),
                  ("rooms", r.get("roomID")))
                 for r in rooms[:8]]
         return rows or [("all caught up [dim]— Enter opens your inbox[/dim]", ("rooms", None))], _subtitle(plural(int(total), "unread"), f)

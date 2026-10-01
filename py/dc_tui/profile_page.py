@@ -13,7 +13,7 @@ from textual.widgets import Button, OptionList, Static, Tab, Tabs
 
 from .data import Fetched
 from .format import align_row, event_dates, fmt_date, guard_flags
-from .labels import event_type_label, room_title, room_type_label
+from .labels import event_type_label, room_icon, room_title, room_type_label
 from .listing import dict_of, esc, items_of
 from .profile import SECTIONS, _val
 from .screens import DCScreen, WEB_APP
@@ -36,7 +36,7 @@ class ProfileScreen(DCScreen):
     ProfileScreen #profile-tabs { height: 2; margin: 0 0 1 0; }
     ProfileScreen #profile-name { height: auto; padding: 0 1; margin: 0 0 1 0; }
     ProfileScreen #profile-actions { height: 1; margin: 0 0 1 0; }
-    ProfileScreen #profile-actions Button { height: 1; min-width: 0; border: none; padding: 0 1; margin: 0 1 0 0;
+    ProfileScreen #profile-actions Button { height: 1; width: auto; min-width: 0; border: none; padding: 0 1; margin: 0 1 0 0;
                                             background: $panel; color: $text; text-style: none; }
     ProfileScreen #profile-actions Button.back { background: $surface; color: $primary; }
     ProfileScreen #profile-actions Button:hover, ProfileScreen #profile-actions Button:focus {
@@ -166,11 +166,15 @@ class ProfileScreen(DCScreen):
         if self._member.get("userID"):
             self._load_tab(self._tab, str(self._member.get("userID")))
 
-    _SEARCH = {"messages": "search-messages", "threads": "search-rooms", "events": "search-events"}
+    _SEARCH = {"messages": "search-messages", "threads": "search-rooms"}
 
     @work(thread=True, exclusive=True, group="profile-tab", exit_on_error=False)
     def _load_tab(self, tab: str, user_id: str) -> None:
-        fetched = self.app.data.fetch(self._SEARCH[tab], "", user_id=user_id, limit=50)  # type: ignore[attr-defined]
+        data = self.app.data  # type: ignore[attr-defined]
+        if tab == "events":
+            fetched = data.fetch("dcer-events", user_id)          # what they attend, as the web's Events tab
+        else:
+            fetched = data.fetch(self._SEARCH[tab], "", user_id=user_id, limit=100)
         self.app.call_from_thread(self._tab_loaded, tab, user_id, fetched)
 
     def _tab_loaded(self, tab: str, user_id: str, fetched: Fetched) -> None:
@@ -183,13 +187,44 @@ class ProfileScreen(DCScreen):
         if fetched.error and fetched.data is None:
             lst.set_lines(["[$warning]%s[/]" % esc(fetched.error)])
             return
-        hits = [h for h in (dict_of(fetched).get("hits") or []) if isinstance(h, dict)]
         width = lst.row_width() or max(30, self.app.size.width - 8)
         name = self._profile.get("displayName") or "this DCer"
+        if tab == "events":
+            self._events_loaded(lst, dict_of(fetched), width, name)
+            return
+        hits = [h for h in (dict_of(fetched).get("hits") or []) if isinstance(h, dict)]
         rows = [self._row(tab, h, width) for h in hits]
-        empty = {"messages": "No messages from %s you can see.", "threads": "%s has not started a discussion or question.",
-                 "events": "%s has not created an event."}[tab] % name
+        empty = {"messages": "No messages from %s you can see.", "threads": "%s has not started a thread you can see."}[tab] % name
         lst.set_rows(rows or [("[dim]%s[/dim]" % esc(empty), None)], subtitle="%d" % len(rows) if rows else "")
+
+    def _events_loaded(self, lst: Panel, body: dict, width: int, name: str) -> None:
+        """ProfileEventsTab.vue: attending, past global events, past local meetups, also attended."""
+        rows: List[tuple] = []
+        groups = (("Attending", body.get("upcoming"), "No upcoming events."),
+                  ("Past global events attended", body.get("pastEvents"), ""),
+                  ("Past local meetups attended", body.get("pastMeetups"), ""))
+        count = 0
+        for title, events, empty in groups:
+            events = [e for e in (events or []) if isinstance(e, dict)]
+            if not events and not empty:
+                continue
+            if rows:
+                rows.append(("", None))
+            rows.append(("[b]%s[/b]" % title, None))
+            if not events:
+                rows.append(("[dim]%s[/dim]" % empty, None))
+            for e in events:
+                count += 1
+                where = (e.get("city") or {}).get("name") if isinstance(e.get("city"), dict) else ""
+                right = " · ".join(x for x in (where or "", event_dates(e)) if x)
+                rows.append((align_row(width, e.get("name") or "Event", right, prefix="📅 ", name_markup="%s"),
+                             ("events", str(e["eventID"])) if e.get("eventID") else None))
+        also = [str(x) for x in (body.get("alsoAttended") or []) if x]
+        if also:
+            rows += [("", None), ("[b]Also attended[/b]", None), (esc(", ".join(also)), None)]
+        if not rows:
+            rows = [("[dim]%s has no events yet.[/dim]" % esc(name), None)]
+        lst.set_rows(rows, subtitle="%d" % count if count else "")
 
     def _row(self, tab: str, h: dict, width: int):
         if tab == "messages":
@@ -198,16 +233,13 @@ class ProfileScreen(DCScreen):
             when = fmt_date(h.get("sentAt") or h.get("createdAt"))
             target = ("rooms", str(h["roomID"])) if h.get("roomID") else None
             right = "%s · %s" % (where, when) if where and when else (where or when)   # the room sits with the date
-            return (align_row(width, _title({**h, "_kind": "messages"}), right, prefix="💬 ", name_markup="%s"), target)
+            return (align_row(width, _title({**h, "_kind": "messages"}), right, prefix=room_icon(h) + " ", name_markup="%s"), target)
         if tab == "threads":
             when = fmt_date(h.get("lastActivityAt") or h.get("createdAt"))
+            right = " · ".join(x for x in (room_type_label(h.get("type")), when) if x)   # the type sits with the date
             target = ("rooms", str(h["roomID"])) if h.get("roomID") else None
-            return (align_row(width, room_title(h) or "Untitled", when, room_type_label(h.get("type")), prefix="# ", name_markup="%s"), target)
-        dates = event_dates({"startDate": h.get("startDate") or h.get("startAt"), "endDate": h.get("endDate") or h.get("endAt"),
-                             "isDateConfirmed": h.get("isDateConfirmed")})
-        target = ("events", str(h["eventID"])) if h.get("eventID") else None
-        return (align_row(width, h.get("name") or h.get("title") or "Event", dates, event_type_label(h.get("eventType")),
-                          prefix="📅 ", name_markup="%s"), target)
+            return (align_row(width, room_title(h) or "Untitled", right, prefix=room_icon(h) + " ", name_markup="%s"), target)
+        return ("", None)
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         card = event.option_list.parent

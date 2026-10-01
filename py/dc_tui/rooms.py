@@ -11,7 +11,7 @@ from .data import Fetched
 import re
 
 from .format import fmt_date, pad, plural, trunc, display_width
-from .labels import room_title, room_type_label
+from .labels import room_icon, room_title, room_type_label
 from .profile import profile_lines
 from .listing import ListDetailScreen, dict_of, esc, items_of, plain
 from .screens import SECTIONS, WEB_APP
@@ -111,7 +111,7 @@ class RoomsScreen(ListDetailScreen):
     def row_cells(self, item: dict) -> Tuple[str, ...]:
         unread = self._unread.get(item.get("roomID"), 0)
         cells = {
-            "Room":     self._marks(item) + self.title_of(item),
+            "Room":     room_icon(item) + " " + self._marks(item) + self.title_of(item),
             "Type":     room_type_label(item.get("type")),
             "Unread":   str(unread) if unread else "",
             "Activity": fmt_date(item.get("lastActivityAt")),

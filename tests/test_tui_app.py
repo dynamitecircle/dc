@@ -108,8 +108,8 @@ def test_inbox_tabs_filter_chips_and_messages(tmp_path):
             await press(pilot, "2"); await settle(pilot, 1.5)
             scr = app.screen
             assert [r.get("roomID") for r in scr.items][:2] == ["r2", "r1"]  # pinned tier first, then unread
-            assert scr.row_cells(scr.items[0])[0].startswith("📌 🔕 ")               # pinned + muted marks
-            assert scr.row_cells(scr.items[2])[0] == "Alex Harling"                 # DM named after the other person
+            assert scr.row_cells(scr.items[0])[0].startswith("#  📌 🔕 ")               # pinned + muted marks
+            assert scr.row_cells(scr.items[2])[0] == "👤 Alex Harling"                 # DM named after the other person
             await pilot.click("#chip-pinned"); await settle(pilot, 1.0)
             assert [r.get("roomID") for r in scr.items] == ["r2"] and ("rooms", "", "pinned") in fake.calls
             assert [b.label.plain for b in scr.query("Button.action")][1:3] or True
@@ -257,6 +257,10 @@ def test_locator_page_matches_the_web_digest(tmp_path):
             assert lst.display and not app.screen.query_one("#pf-0", Panel).display
             assert any("Hello from the profile" in str(o.prompt) for o in lst.list._options)
             await shot(app, "profile-messages")
+            app.screen.query_one("#profile-tabs").active = "pt-events"; await settle(pilot, 1.5)
+            prompts = [str(o.prompt) for o in lst.list._options]
+            assert any("Attending" in p for p in prompts) and any("DCBKK 2027" in p for p in prompts) and any("DCBKK 2014" in p for p in prompts)
+            await shot(app, "profile-events")
             app.screen.query_one("#profile-tabs").active = "pt-profile"; await settle(pilot, 0.5)
             assert not lst.display
     run(go(), timeout=150)

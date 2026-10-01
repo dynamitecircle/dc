@@ -6,7 +6,7 @@ from typing import Any, List, Tuple
 
 from .data import Fetched
 from .format import fmt_date, plural
-from .labels import room_type_label
+from .labels import room_icon, room_type_label
 from .listing import ListDetailScreen, dict_of, esc, items_of, plain
 from .screens import WEB_APP
 
@@ -42,9 +42,9 @@ class BrowseScreen(ListDetailScreen):
 
     def row_cells(self, item: dict) -> Tuple[str, ...]:
         stats = item.get("stats") if isinstance(item.get("stats"), dict) else {}
-        name = str(item.get("name") or item.get("roomID") or "")
+        name = room_icon(item) + " " + str(item.get("name") or item.get("roomID") or "")
         if item.get("roomID") in self._mine:
-            name = "✓ " + name
+            name += " ✓"
         cells = {"Room": name, "Members": str(stats.get("subscribers") or ""), "Activity": fmt_date(item.get("lastActivityAt"))}
         return tuple(cells[c] for c in self._columns())
 
