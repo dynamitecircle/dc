@@ -292,7 +292,7 @@ class EventsScreen(ListDetailScreen):
         rows = []
         for r in results:
             prof = r.get("profile") if isinstance(r.get("profile"), dict) else r
-            rows.append((str(prof.get("userID")), [prof.get("displayName") or prof.get("userName") or "",
+            rows.append((str(prof.get("userID")), ["👤 " + (prof.get("displayName") or prof.get("userName") or "DCer"),
                                                    plain(prof.get("headline") or ""), prof.get("businessIndustry") or ""]))
         title = "[b]Who to meet[/b]  [dim]attendees ranked against your profile · Enter opens a profile[/dim]"
         if fetched is not None and fetched.error:
@@ -369,7 +369,7 @@ class EventsScreen(ListDetailScreen):
         if more is not None:
             people = people + more["people"]
         cursor = more["cursor"] if more is not None else (next_cursor(fetched) if fetched is not None else None)
-        rows = [(str(a.get("userID")), [a.get("displayName") or a.get("userName") or "", plain(a.get("headline") or ""),
+        rows = [(str(a.get("userID")), ["👤 " + (a.get("displayName") or a.get("userName") or "DCer"), plain(a.get("headline") or ""),
                                         a.get("businessIndustry") or ""]) for a in people]
         total = body.get("total")
         title = "%s attending%s" % (plural(len(people), "DCer"), (" of %s" % total) if isinstance(total, int) and total > len(people) else "")
