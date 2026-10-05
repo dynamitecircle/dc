@@ -415,3 +415,20 @@ def test_search_match_tab_recommends_without_a_query(tmp_path):
             assert [r.get("displayName") for r in scr.items] == ["Ana Silva"]
             assert "recommended for you" in str(scr.query_one("#list-hint").render())
     run(go())
+
+
+def test_an_open_room_stays_open_when_fresh_rows_arrive(tmp_path):
+    """One pane: rows that land after a room was opened (cached first, then fresh)
+    must not pull the list back over the room."""
+    async def go():
+        app, _ = make_app(tmp_path)
+        async with app.run_test(size=(64, 31)) as pilot:
+            await settle(pilot, 1.0); await press(pilot, "2"); await settle(pilot, 1.5)
+            scr = app.screen
+            table = scr.query_one("#list", DataTable); table.focus()
+            await press(pilot, "enter"); await settle(pilot, 1.0)
+            assert scr._detail_open and not table.display
+            scr._rows_loaded(list(scr.items), "")                         # fresh rows arrive
+            await settle(pilot, 0.3)
+            assert not table.display and scr.query_one("#detail-inline").region.height > 5
+    run(go())

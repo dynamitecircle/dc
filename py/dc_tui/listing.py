@@ -132,6 +132,7 @@ class ListDetailScreen(DCScreen):
     ListDetailScreen .detail-table { height: 1fr; }
     ListDetailScreen .detail-table { height: auto; max-height: 100%; }
     ListDetailScreen .-hidden { display: none; }
+    ListDetailScreen #list.-empty { display: none; }
     """
 
     def __init__(self, *args, **kwargs) -> None:
@@ -430,7 +431,7 @@ class ListDetailScreen(DCScreen):
             table.add_row(*["" for _ in widths], key="skeleton-%d" % i)
         table.show_cursor = False
         table.add_class("-skeleton")
-        table.display = True
+        table.remove_class("-empty")
 
     def refresh_data(self, force: bool = False) -> None:
         self._next_cursor = None
@@ -498,7 +499,9 @@ class ListDetailScreen(DCScreen):
         self._setup_columns()
         self._fill_table()
         # no rows → no bare header row; the hint line says why it is empty
-        self.query_one("#list", DataTable).display = bool(rows)
+        # a class, never `display =`: an inline style would override `-hidden` and pull
+        # the list back over an open room when fresh rows land after the cached ones
+        self.query_one("#list", DataTable).set_class(not rows, "-empty")
         # the open item follows its fresh row (state changed by a button, a refresh)
         if self._detail_item is not None and rows:
             old_key = self.row_key(self._detail_item, -1)
