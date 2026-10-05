@@ -126,9 +126,10 @@ class EventsScreen(ListDetailScreen):
                 acts.append(("Open map", "open_map"))
             if item.get("chatRoomID") and item.get("chatEnabled") is not False:
                 acts.append(("Open chat", "open_chat"))
-        if self.detail_tab in ("schedule", "agenda"):
+        holder = item.get("eventID") in self._tickets       # bookmarking and joining need a ticket
+        if holder and self.detail_tab in ("schedule", "agenda"):
             acts.append(("Bookmark session", "bookmark"))
-        if self.detail_tab in ("schedule", "agenda", "meetups"):
+        if holder and self.detail_tab in ("schedule", "agenda", "meetups"):
             acts.append(("Join meetup", "join_meetup"))
         if item.get("rsvpEnabled"):
             acts += [("Going", "rsvp('yes')"), ("Not going", "rsvp('no')")]
@@ -487,7 +488,7 @@ class EventsScreen(ListDetailScreen):
         if agenda:
             bits.append("★ %d · ✓ %d" % (len(bookmarked), len(joined)))
         elif item.get("eventID") not in self._tickets:
-            bits.append("no ticket — read-only")
+            bits.append("[dim]get a ticket to bookmark sessions and join meetups[/dim]")
         for key in ("schedule", "meetups", "agenda"):
             f = data.get(key)
             if isinstance(f, Fetched) and f.error:

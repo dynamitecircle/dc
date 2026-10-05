@@ -701,7 +701,10 @@ class ListDetailScreen(DCScreen):
                 scroll.set_class(not rendered.title, "-hidden")
             table.remove_class("-hidden")
             table.clear(columns=True)
-            avail = max(30, (self.detail_pane().size.width if self.two_pane else self.main_pane().size.width) - 2)
+            # every column the table really has, so the last one ends at the edge
+            holder = table.parent
+            measured = holder.content_region.width if holder is not None else 0
+            avail = max(30, measured or ((self.detail_pane().size.width if self.two_pane else self.main_pane().size.width) - 2))
             fixed = sum(rendered.widths.get(c, 10) for c in rendered.columns[1:])
             flex = max(12, avail - fixed - 2 * len(rendered.columns))
             for i, col in enumerate(rendered.columns):
