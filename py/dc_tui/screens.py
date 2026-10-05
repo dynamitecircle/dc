@@ -101,6 +101,7 @@ class DCScreen(Screen):
     """Base screen: header, main + optional detail pane, status bar, footer."""
 
     AUTO_FOCUS = "#main"                  # page scroll with arrows; lists override with "#list"
+    CARDS = False                         # a page of framed cards (Home, Locator, Me, Profile)
     SECTION: str = "home"
     TITLE_TEXT: str = "DC"
     HINT: str = ""
@@ -178,6 +179,8 @@ class DCScreen(Screen):
         except Exception:  # noqa: BLE001
             pass
         self._sync_nav()
+        if self.CARDS:
+            self.add_class("cards")
         self.set_layout_mode(layout_mode(self.app.size.width))
         self.populate()
         self.app.refresh_status()  # type: ignore[attr-defined]
@@ -338,6 +341,7 @@ class PlaceholderScreen(DCScreen):
 
 
 class HomeScreen(DCScreen):
+    CARDS = True
     """The one-glance dashboard: unread rooms, latest announcements, tickets +
     upcoming events, trips, the locator digest, and you.
 

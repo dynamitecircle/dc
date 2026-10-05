@@ -240,7 +240,7 @@ class RateBudget:
             }
 
     def summary(self) -> str:
-        """Compact status-bar text, e.g. ``42/60 min · 2,801/3,000 day · DCB``."""
+        """Status-bar text, e.g. ``API 42/60 a min · 2,801/3,000 a day`` (requests left)."""
         now = self._clock()
         with self._lock:
             parts = []
@@ -250,7 +250,6 @@ class RateBudget:
                     continue
                 left = "?" if remaining is None else "{:,}".format(remaining)
                 cap = "?" if window.limit is None else "{:,}".format(window.limit)
-                parts.append("%s/%s %s" % (left, cap, label))
-            if self.tier:
-                parts.append(self.tier)
-            return " · ".join(parts) if parts else "budget: unknown"
+                parts.append("%s/%s a %s" % (left, cap, label))
+            # the API's rate tier (e.g. "dcb") is plumbing, not a membership — never shown
+            return ("API " + " · ".join(parts)) if parts else "API limits unknown"

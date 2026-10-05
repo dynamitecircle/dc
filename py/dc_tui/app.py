@@ -149,6 +149,14 @@ class DCApp(App):
     /* tab rows stack with no gap; the blank line comes after the LAST tab row */
     Screen.tabs-first #main { padding: 0 1 0 1; }
     Screen.compact #main { padding: 0; }
+    /* card screens (Home, Locator, Me, Profile): the frame takes the edge — no
+       column outside it; what is not a card keeps its one-column inset */
+    Screen.cards #main { padding-left: 0; padding-right: 0; }
+    Screen.cards #main > Tabs, Screen.cards #main > Horizontal, Screen.cards #main > Static { margin-left: 1; margin-right: 1; }
+    Screen.cards #main > #home-grid { margin-left: 0; margin-right: 0; }   /* the grid holds cards */
+    /* small terminals: no side frame at all, one column each side; the top rule
+       stays so every card keeps its title */
+    Screen.compact Panel { border: none; border-top: solid $panel; border-title-align: left; padding: 0 1; }
     #detail { width: 45%; height: 1fr; border-left: solid $panel-lighten-2; padding: 0 1; }
     Screen.wide #detail { width: 55%; }
     StatusBar { height: 1; background: $background; color: $text-muted; padding: 0 1; }
@@ -298,7 +306,6 @@ class DCApp(App):
             parts.append(label)
         elif unread is not None and unread.error:
             parts.append("inbox: %s" % unread.error)
-        parts.append(self.layout_mode_name)
         return " · ".join(parts)
 
     def refresh_status(self) -> None:

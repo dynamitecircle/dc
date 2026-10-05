@@ -21,6 +21,7 @@ COMMANDS = ("profile", "membership", "notifications", "alerts", "interests", "ca
 
 
 class MeScreen(DCScreen):
+    CARDS = True
     SECTION = "me"
     TITLE_TEXT = "Me"
     HINT = "r refresh · o open your profile on the web"

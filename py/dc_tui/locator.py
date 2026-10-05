@@ -46,6 +46,7 @@ def _person_target(m: dict):
 
 
 class LocatorScreen(DCScreen):
+    CARDS = True
     """The web Locator tab (LocatorDigest.vue), card per block in the web's order:
     your home chapter, each chapter you follow, DCers you follow, then one card
     per trip of yours. Titles use the web's SayCount wording ("Five new trips")."""

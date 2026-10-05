@@ -27,6 +27,7 @@ def _profiles(f: Optional[Fetched]) -> List[dict]:
 
 
 class ProfileScreen(DCScreen):
+    CARDS = True
     SECTION = "profile"
     TITLE_TEXT = "Profile"
     HINT = ""

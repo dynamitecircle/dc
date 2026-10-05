@@ -119,7 +119,7 @@ def test_budget_reads_headers_case_insensitively():
     snap = b.snapshot()
     assert snap["minute"]["limit"] == 60 and snap["minute"]["remaining"] == 12
     assert snap["day"]["remaining"] == 2500
-    assert "12/60 min" in b.summary()
+    assert "12/60 a min" in b.summary()
 
 
 def test_budget_reserve_blocks_background_not_foreground():
