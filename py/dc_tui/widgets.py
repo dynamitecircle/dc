@@ -62,7 +62,7 @@ class Panel(Vertical):
         border-title-color: $primary;
         border-title-style: bold;
         border-subtitle-color: $text-muted;
-        padding: 0 1;               /* one column inside the frame; none outside (see app.py) */
+        padding: 0;                 /* the one-column inset lives on each row, so a highlight fills the card */
         margin: 0 0 1 0;
         height: auto;
         min-height: 3;
@@ -72,6 +72,7 @@ class Panel(Vertical):
         height: auto; border: none; padding: 0; background: $background; scrollbar-size: 0 0;
     }
     Panel > OptionList:focus { border: none; }
+    Panel > OptionList > .option-list--option { padding: 0 1; }
     Panel > OptionList > .option-list--option-highlighted { background: $block-cursor-background; color: $block-cursor-foreground; text-style: bold; }
     Panel > OptionList:focus > .option-list--option-highlighted { background: $block-cursor-background; color: $block-cursor-foreground; text-style: bold; }
     Panel > OptionList > .option-list--option-hover { background: transparent; }
@@ -93,7 +94,7 @@ class Panel(Vertical):
         """Columns a row can use once laid out (0 before layout) — measured, not
         estimated, so the last item (the date) lands one space from the border."""
         try:
-            return int(self.list.content_region.width)
+            return max(0, int(self.list.content_region.width) - 2)      # minus the row inset
         except Exception:  # noqa: BLE001
             return 0
 

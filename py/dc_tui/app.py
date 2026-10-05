@@ -156,7 +156,7 @@ class DCApp(App):
     Screen.cards #main > #home-grid { margin-left: 0; margin-right: 0; }   /* the grid holds cards */
     /* small terminals: no side frame at all, one column each side; the top rule
        stays so every card keeps its title */
-    Screen.compact Panel { border: none; border-top: solid $panel; border-title-align: left; padding: 0 1; }
+    Screen.compact Panel { border: none; border-top: solid $panel; border-title-align: left; padding: 0; }
     #detail { width: 45%; height: 1fr; border-left: solid $panel-lighten-2; padding: 0 1; }
     Screen.wide #detail { width: 55%; }
     StatusBar { height: 1; background: $background; color: $text-muted; padding: 0 1; }
