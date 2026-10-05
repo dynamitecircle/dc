@@ -152,7 +152,9 @@ class DCApp(App):
     /* card screens (Home, Locator, Me, Profile): the frame takes the edge — no
        column outside it; what is not a card keeps its one-column inset */
     Screen.cards #main { padding-left: 0; padding-right: 0; }
-    Screen.cards #main > Tabs, Screen.cards #main > Horizontal, Screen.cards #main > Static { margin-left: 1; margin-right: 1; }
+    /* the full margin, not just left/right: a side-only rule here resets the bottom too,
+       and every one of these rows wants its blank line below */
+    Screen.cards #main > Tabs, Screen.cards #main > Horizontal, Screen.cards #main > Static { margin: 0 1 1 1; }
     Screen.cards #main > #home-grid { margin-left: 0; margin-right: 0; }   /* the grid holds cards */
     /* small terminals: no side frame at all, one column each side; the top rule
        stays so every card keeps its title */
