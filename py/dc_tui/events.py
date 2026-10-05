@@ -469,14 +469,16 @@ class EventsScreen(ListDetailScreen):
                 what = "%s%s" % (obj.get("title") or "", ("  · " + who) if who else "")
                 place = obj.get("place") if isinstance(obj.get("place"), dict) else {}
                 where = obj.get("locationNote") or place.get("name") or ""
-                rows.append(("session:" + ident, [what, time, Text(mark, style="bold #FF4921"), "%s %s" % (str(obj.get("type") or "").title(), where)]))
+                rows.append(("session:" + ident, [what, Text(mark, style="bold #FF4921"), where, time]))
             else:
                 mark = "✓" if ident in joined else ""
                 time = "%s–%s" % (_hhmm(obj.get("startTime")), _hhmm(obj.get("endTime")))
                 host = obj.get("host") if isinstance(obj.get("host"), dict) else {}
                 seats = "%s/%s" % (obj.get("rsvpCount", "?"), obj.get("maxSeats", "?"))
-                what = "%s  · %s" % (obj.get("title") or "", host.get("displayName") or "meetup")
-                rows.append(("meetup:" + ident, [what, time, Text(mark, style="bold #80B088"), "meetup %s" % seats]))
+                what = "%s  · %s · %s" % (obj.get("title") or "", host.get("displayName") or "meetup", seats)
+                venue = obj.get("venue") if isinstance(obj.get("venue"), dict) else {}
+                where = venue.get("name") or plain(obj.get("venueDetails") or "") or ""
+                rows.append(("meetup:" + ident, [what, Text(mark, style="bold #80B088"), where, time]))
             self._rows_by_key[rows[-1][0]] = obj
         bits = []
         if tab != "meetups":
@@ -497,7 +499,13 @@ class EventsScreen(ListDetailScreen):
         if not rows:
             return [title, "", "[dim]%s[/dim]" % ("nothing on your agenda yet — bookmark sessions in the Schedule tab"
                                                   if tab == "agenda" else "nothing published yet")]
-        return Table(("What", "Time", "", "Where"), rows, title=title, widths={"Time": 11, "": 1, "Where": 22})
+        # full width: the title takes what is left; the place sits right-aligned just
+        # before the time, which is always last
+        places = [str(cells[2]) for key, cells in rows if not key.startswith("day:")]
+        room = max(8, (self.detail_width() - 11 - 1 - 8) // 3)        # the place gets at most a third
+        where_w = min(24, room, max([len(p) for p in places] + [5]))
+        rows = [(key, cells[:2] + [Text(str(cells[2]), justify="right"), cells[3]]) for key, cells in rows]
+        return Table(("What", "", "Where", "Time"), rows, title=title, widths={"": 1, "Where": where_w, "Time": 11}, right=("Where",))
 
     def _render_call(self, item: dict, fetched: Optional[Fetched]) -> List[str]:
         ev = dict_of(fetched).get("event") if fetched is not None else None

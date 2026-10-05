@@ -56,11 +56,12 @@ class Table:
     """A detail rendered as a DataTable (e.g. an event schedule)."""
 
     def __init__(self, columns: Sequence[str], rows: Sequence[Tuple[str, Sequence[str]]], *,
-                 title: str = "", widths: Optional[Dict[str, int]] = None):
+                 title: str = "", widths: Optional[Dict[str, int]] = None, right: Sequence[str] = ()):
         self.columns = list(columns)
         self.rows = list(rows)          # (row key, cells)
         self.title = title
         self.widths = dict(widths or {})
+        self.right = set(right)          # columns whose header is right-aligned
 
 
 class ListDetailScreen(DCScreen):
@@ -704,7 +705,8 @@ class ListDetailScreen(DCScreen):
             fixed = sum(rendered.widths.get(c, 10) for c in rendered.columns[1:])
             flex = max(12, avail - fixed - 2 * len(rendered.columns))
             for i, col in enumerate(rendered.columns):
-                table.add_column(_header(col), key=col, width=flex if i == 0 else rendered.widths.get(col, 10))
+                label = Text(col, justify="right") if col in rendered.right else _header(col)
+                table.add_column(label, key=col, width=flex if i == 0 else rendered.widths.get(col, 10))
             for key, cells in rendered.rows:
                 fitted = [_fit(c, flex if i == 0 else rendered.widths.get(rendered.columns[i], 10))
                           if i < len(rendered.columns) else _fit(c, 10) for i, c in enumerate(cells)]

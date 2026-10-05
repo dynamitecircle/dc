@@ -62,7 +62,7 @@ class Panel(Vertical):
         border-title-color: $primary;
         border-title-style: bold;
         border-subtitle-color: $text-muted;
-        padding: 0 1;
+        padding: 0;                 /* rows run border to border: no wasted columns */
         margin: 0 0 1 0;
         height: auto;
         min-height: 3;
