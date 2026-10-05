@@ -228,6 +228,12 @@ class FakeDC:
     def search_chapters(self, q, **kw):
         return {"hits": [{"cityID": "tokyo", "name": "Tokyo", "memberCount": 40}]}
 
+    def session_attendees(self, event_id, session_id):
+        return {"attendees": [{"userID": "1", "displayName": "Alex Harling"}]}
+
+    def meetup_attendees(self, event_id, meetup_id):
+        return {"attendees": [{"userID": "3", "displayName": "Ana Silva"}]}
+
     def event_sponsors(self, event_id):
         return {"sponsors": [{"sponsorID": "sp1", "name": "Acme Payroll", "websiteURL": "https://acme.example", "description": "Payroll for remote teams"}]}
 

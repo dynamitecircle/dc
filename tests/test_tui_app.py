@@ -172,6 +172,14 @@ def test_events_tabs_detail_tabs_and_bookmark(tmp_path):
             table.move_cursor(row=table.get_row_index("session:s1")); await settle(pilot, 0.3)
             await press(pilot, "b"); await settle(pilot, 1.0)
             assert any(c[0] == "session-bookmark" and c[2] == "s1" for c in fake.calls)
+            table = scr.detail_table(); table.focus()
+            table.move_cursor(row=table.get_row_index("session:s1")); await settle(pilot, 0.3)
+            await press(pilot, "enter"); await settle(pilot, 1.5)                      # the session in full
+            assert type(app.screen).__name__ == "ScheduleItemModal"
+            assert "Alex Harling" in str(app.screen.query_one("#item-going").render())
+            await shot(app, "schedule-item")
+            await press(pilot, "escape"); await settle(pilot, 0.5)
+            assert type(app.screen).__name__ == "EventsScreen"
             scr.query_one("#list-tabs", Tabs).active = "calls"; await settle(pilot, 1.0)
             assert "Community Welcome Call" in scr.detail_title(scr.items[0])
             scr.query_one("#list", DataTable).focus(); await press(pilot, "enter"); await settle(pilot, 1.0)

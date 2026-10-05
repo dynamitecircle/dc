@@ -108,13 +108,14 @@ def _payload(value: Any) -> Any:
     return value
 
 
-def _has_data(value: Any) -> bool:
+def _all_data(value: Any) -> bool:
+    """Every Fetched inside holds data (none is a cache miss)."""
     if isinstance(value, Fetched):
         return value.data is not None
     if isinstance(value, dict):
-        return any(_has_data(v) for v in value.values())
+        return bool(value) and all(_all_data(v) for v in value.values())
     if isinstance(value, (list, tuple)):
-        return any(_has_data(v) for v in value)
+        return bool(value) and all(_all_data(v) for v in value)
     return value is not None
 
 
@@ -324,7 +325,8 @@ class DCScreen(Screen):
                     cached = fetch(False)
             except Exception:  # noqa: BLE001 — nothing cached yet
                 cached = None
-            if cached is not None and _has_data(cached):
+            # only a complete copy: a part with nothing cached would show as an error
+            if cached is not None and _all_data(cached):
                 self.app.call_from_thread(paint, cached)
             else:
                 cached = None

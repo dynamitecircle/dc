@@ -381,7 +381,9 @@ def _people_rows(people: dict, width: int, exp: Set[str]) -> List[Tuple[str, Any
                                   people.get("comingTripsGrouped"), people.get("comingTrips"), width, "people:coming", exp)
     rows += _event_group_section(_say(len(_list(people.get("purchased"))), "ticket", "tickets", "just purchased"),
                                  people.get("purchasedByEvent"), people.get("purchased"), "got a ticket to", "bought tickets to", width, icon="🎫 ")
-    rows += _event_group_section(_say(len(_list(people.get("attending"))), "event", "events", "your follows are attending"),
+    # count EVENTS: the flat list has one entry per (DCer, event) pair — 25 pairs can be 8 events
+    attending = _list(people.get("attendingByEvent")) or _group_by_event(_list(people.get("attending")))
+    rows += _event_group_section(_say(len(attending), "event", "events", "your follows are attending"),
                                  people.get("attendingByEvent"), people.get("attending"), "is attending", "are attending", width)
     return rows or [("[dim]Nothing here yet.[/dim]", None)]
 

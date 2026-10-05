@@ -21,6 +21,115 @@ from .labels import call_kind_label, event_type_label, is_global_event
 from .listing import ListDetailScreen, Table, dict_of, esc, items_of, plain, next_cursor
 from .screens import WEB_APP
 
+from textual.app import ComposeResult
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.screen import ModalScreen
+from textual.widgets import Button, Static
+
+
+class ScheduleItemModal(ModalScreen[Optional[str]]):
+    """One session or meetup, in full: when, where, who hosts, the whole
+    description, who is going (a name opens the profile) and, with a ticket,
+    Bookmark / Join. Dismisses with "bookmark", "join", "person:<userID>" or None."""
+
+    BINDINGS = [Binding("escape,q", "close", "Close", show=False)]
+    DEFAULT_CSS = """
+    ScheduleItemModal { align: center middle; }
+    #item-box { width: 90; max-width: 100%; height: auto; max-height: 92%; border: round $primary;
+                background: $background; padding: 0 1; }
+    #item-actions { height: 1; margin: 1 0; }
+    #item-actions Button { height: 1; width: auto; min-width: 0; border: none; padding: 0 1; margin: 0 1 0 0;
+                           background: $panel; color: $text; text-style: none; }
+    #item-actions Button.back { background: $surface; color: $primary; }
+    #item-actions Button:hover, #item-actions Button:focus { background: $block-cursor-background; color: $block-cursor-foreground; }
+    #item-scroll { height: auto; max-height: 30; }
+    """
+
+    def __init__(self, kind: str, event_id: str, obj: dict, *, holder: bool, active: bool, tz: str = "") -> None:
+        super().__init__()
+        self._kind, self._event_id, self._obj, self._holder, self._active, self._tz = kind, event_id, obj, holder, active, tz
+
+    def compose(self) -> ComposeResult:
+        buttons = [Button("← Back", id="item-back", classes="back")]
+        if self._holder:
+            if self._kind == "session":
+                buttons.append(Button("Remove bookmark" if self._active else "Bookmark", id="item-bookmark"))
+            else:
+                buttons.append(Button("Leave meetup" if self._active else "Join meetup", id="item-join"))
+        with Vertical(id="item-box"):
+            yield Horizontal(*buttons, id="item-actions")
+            with VerticalScroll(id="item-scroll"):
+                yield Static(self._text(), id="item-body")
+                yield Static("[dim]loading who's going…[/dim]", id="item-going")
+
+    def _text(self) -> str:
+        o = self._obj
+        lines = ["[b $primary]%s[/]" % esc(o.get("title") or "Untitled")]
+        if self._kind == "session":
+            when = "%s  %s–%s" % (_day_label(str(o.get("startAt") or "")[:10]), _hhmm(o.get("startAt")), _hhmm(o.get("endAt")))
+            place = o.get("place") if isinstance(o.get("place"), dict) else {}
+            where = o.get("locationNote") or place.get("name") or ""
+            people = ", ".join(sp.get("displayName") or sp.get("name") or "" for sp in o.get("speakers") or [] if isinstance(sp, dict))
+            who = ("🎤 " + people) if people else ""
+            kind = str(o.get("type") or "").title()
+        else:
+            when = "%s  %s–%s" % (_day_label(str(o.get("date") or "")), _hhmm(o.get("startTime")), _hhmm(o.get("endTime")))
+            venue = o.get("venue") if isinstance(o.get("venue"), dict) else {}
+            where = ", ".join(x for x in (venue.get("name"), venue.get("address")) if x) or plain(o.get("venueDetails") or "")
+            host = o.get("host") if isinstance(o.get("host"), dict) else {}
+            who = ("👤 hosted by %s" % host.get("displayName")) if host.get("displayName") else ""
+            kind = "Meetup · %s/%s seats" % (o.get("rsvpCount", "?"), o.get("maxSeats", "?"))
+        lines.append("🕒 %s%s" % (when, ("  [dim]%s[/dim]" % esc(self._tz)) if self._tz else ""))
+        if where:
+            lines.append("📍 %s" % esc(where))
+        if who:
+            lines.append(esc(who))
+        if kind:
+            lines.append("[dim]%s[/dim]" % esc(kind))
+        desc = strip_markdown(plain(o.get("description") or o.get("shortDescription") or ""))
+        if desc:
+            lines += ["", esc(desc)]
+        return "\n".join(lines)
+
+    def on_mount(self) -> None:
+        self._load_going()
+
+    @work(thread=True, exclusive=True, group="item-going", exit_on_error=False)
+    def _load_going(self) -> None:
+        data = self.app.data  # type: ignore[attr-defined]
+        if self._kind == "session":
+            fetched = data.fetch("session-attendees", self._event_id, self._obj.get("sessionID"))
+        else:
+            fetched = data.fetch("meetup-attendees", self._event_id, self._obj.get("meetupID"))
+        self.app.call_from_thread(self._show_going, fetched)
+
+    def _show_going(self, fetched: Fetched) -> None:
+        body = dict_of(fetched)
+        people = [a for a in (body.get("attendees") or items_of(fetched)) if isinstance(a, dict)]
+        if fetched.error and fetched.data is None:
+            text = "[dim]who's going: %s[/dim]" % esc(fetched.error)
+        elif not people:
+            text = "[dim]nobody has %s yet[/dim]" % ("bookmarked it" if self._kind == "session" else "joined")
+        else:
+            names = ["[@click=screen.person(%r)]👤 %s[/]" % (str(a.get("userID")), esc(a.get("displayName") or a.get("userName") or "DCer"))
+                     for a in people]
+            text = "\n[b]%s[/b]\n%s" % (plural(len(people), "DCer") + (" bookmarked" if self._kind == "session" else " going"),
+                                         "\n".join(names))
+        try:
+            self.query_one("#item-going", Static).update(text)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def action_person(self, user_id: str) -> None:
+        self.dismiss("person:" + user_id)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        bid = event.button.id
+        self.dismiss({"item-bookmark": "bookmark", "item-join": "join"}.get(bid or ""))
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
 def _hhmm(value: Any) -> str:
     s = str(value or "")
     if "T" in s and len(s) >= 16:
@@ -395,7 +504,38 @@ class EventsScreen(ListDetailScreen):
             if user_id:
                 self.app.open_person({"userID": user_id})  # type: ignore[attr-defined]
             return
+        if str(event.data_table.id or "").startswith("detail-table") and self.detail_tab in ("schedule", "agenda", "meetups"):
+            self._open_schedule_item(str(event.row_key.value or ""))
+            return
         super().on_data_table_row_selected(event)
+
+    def _open_schedule_item(self, key: str) -> None:
+        """Enter / click on a session or meetup row: its details in a window."""
+        obj = self._rows_by_key.get(key)
+        event = self._detail_item
+        if obj is None or event is None or not (key.startswith("session:") or key.startswith("meetup:")):
+            return
+        kind = "session" if key.startswith("session:") else "meetup"
+        data = self._detail_data if isinstance(self._detail_data, dict) else {}
+        agenda = dict_of(data.get("agenda")) if data.get("agenda") is not None else {}
+        if kind == "session":
+            active = any(s.get("sessionID") == obj.get("sessionID") for s in agenda.get("sessions") or [] if isinstance(s, dict))
+        else:
+            active = any(m.get("meetupID") == obj.get("meetupID") for m in agenda.get("meetups") or [] if isinstance(m, dict))
+        tz = dict_of(data.get("schedule")).get("timezone") or dict_of(data.get("meetups")).get("timezone") or ""
+        holder = event.get("eventID") in self._tickets
+
+        def done(result: Optional[str]) -> None:
+            if not result:
+                return
+            if result.startswith("person:"):
+                self.app.open_person({"userID": result[7:]})  # type: ignore[attr-defined]
+            elif result == "bookmark":
+                self.action_bookmark()
+            elif result == "join":
+                self.action_join_meetup()
+
+        self.app.push_screen(ScheduleItemModal(kind, str(event.get("eventID")), obj, holder=holder, active=active, tz=str(tz)), done)
 
     def _all_attendees(self, event_id: str, force: bool) -> Fetched:
         """Every attendee, page after page (an event has a few hundred at most), so

@@ -33,6 +33,16 @@ class HoverTable(DataTable):
             self.move_cursor(row=value.row, animate=False)
         _focus_unless_typing(self)
 
+    async def _on_click(self, event) -> None:
+        # One click opens: DataTable only selects a row the cursor is already on,
+        # and a click can land before any hover moved it there (the first click
+        # then just moved the cursor — and scrolled — so the next one hit another row).
+        meta = event.style.meta
+        row = meta.get("row") if meta else None
+        if isinstance(row, int) and 0 <= row < self.row_count and self.show_cursor and row != self.cursor_row:
+            self.move_cursor(row=row, animate=False)
+        await super()._on_click(event)
+
     def on_enter(self, event) -> None:
         self._mouse_inside = True
 

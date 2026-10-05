@@ -183,7 +183,7 @@ class DataClient:
         key = DiskCache.key(command, *args, **kwargs)
         now = self._clock()
         if getattr(self._local, "cache_only", False):
-            return self._fallback(command, self.cache.get(key), "not cached yet")   # any age, never the network
+            return self._fallback(command, self.cache.get(key), "")   # any age, never the network; a miss is data=None, never shown
         ttl = self.cache.ttl_for(command)
         if not force:
             entry = self.cache.get_fresh(key, command)
