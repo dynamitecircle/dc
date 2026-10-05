@@ -263,8 +263,7 @@ class EventsScreen(ListDetailScreen):
         if tab == "sponsors":
             out["sponsors"] = data.fetch("event-sponsors", event_id, force=force)
         if tab == "attendees":
-            out["attendees"] = data.fetch("event-attendees", event_id, limit=100, force=force)
-            self.__dict__.setdefault("_more_attendees", {}).pop(event_id, None)      # a fresh first page
+            out["attendees"] = self._all_attendees(event_id, force)
         return out
 
     def render_detail(self, item: dict, data: Any) -> Any:
@@ -364,17 +363,12 @@ class EventsScreen(ListDetailScreen):
     def _render_attendees(self, item: dict, fetched: Optional[Fetched]) -> Any:
         body = dict_of(fetched)
         people = [a for a in (body.get("attendees") or items_of(fetched)) if isinstance(a, dict)] if fetched else []
-        event_id = item.get("eventID")
-        more = getattr(self, "_more_attendees", {}).get(event_id)
-        if more is not None:
-            people = people + more["people"]
-        cursor = more["cursor"] if more is not None else (next_cursor(fetched) if fetched is not None else None)
+
         rows = [(str(a.get("userID")), ["👤 " + (a.get("displayName") or a.get("userName") or "DCer"), plain(a.get("headline") or ""),
                                         a.get("businessIndustry") or ""]) for a in people]
         total = body.get("total")
         title = "%s attending%s" % (plural(len(people), "DCer"), (" of %s" % total) if isinstance(total, int) and total > len(people) else "")
-        if cursor:
-            title += "  [dim]·[/dim] [@click=screen.more_attendees]load more ↓[/]"
+
         if fetched is not None and fetched.error:
             title += "  [$warning]%s[/]" % esc(fetched.error)
         if not rows:
@@ -403,43 +397,25 @@ class EventsScreen(ListDetailScreen):
             return
         super().on_data_table_row_selected(event)
 
-    # ── attendees: one page at a time (↓ onto the last row, or "load more") ──
-    def on_data_table_row_highlighted(self, event) -> None:
-        super().on_data_table_row_highlighted(event)
-        table = event.data_table
-        if str(table.id or "").startswith("detail-table") and (self.detail_tab == "attendees") \
-                and table.row_count and event.cursor_row >= table.row_count - 1:
-            self.action_more_attendees()
-
-    def action_more_attendees(self) -> None:
-        item = self._detail_item
-        if item is None or self.list_tab == "calls" or getattr(self, "_attendees_loading", False):
-            return
-        event_id = item.get("eventID")
-        store = self.__dict__.setdefault("_more_attendees", {})
-        data = self._detail_data if isinstance(self._detail_data, dict) else {}
-        cursor = store[event_id]["cursor"] if event_id in store else next_cursor(data.get("attendees")) if data.get("attendees") else None
-        if not cursor:
-            return
-        self._attendees_loading = True
-        self._fetch_attendees(event_id, cursor)
-
-    @work(thread=True, exclusive=True, group="attendees-more", exit_on_error=False)
-    def _fetch_attendees(self, event_id: str, cursor: str) -> None:
-        fetched = self.app.data.fetch("event-attendees", event_id, limit=100, cursor=cursor)  # type: ignore[attr-defined]
-        self.app.call_from_thread(self._attendees_arrived, event_id, fetched)
-
-    def _attendees_arrived(self, event_id: str, fetched: Fetched) -> None:
-        self._attendees_loading = False
-        if fetched.error and fetched.data is None:
-            self.notify(fetched.error, severity="warning", timeout=5)
-            return
-        store = self.__dict__.setdefault("_more_attendees", {})
-        page = [a for a in (dict_of(fetched).get("attendees") or items_of(fetched)) if isinstance(a, dict)]
-        prev = store.get(event_id, {"people": []})
-        store[event_id] = {"people": prev["people"] + page, "cursor": next_cursor(fetched)}
-        if self._detail_item is not None and self._detail_item.get("eventID") == event_id:
-            self._paint_detail()
+    def _all_attendees(self, event_id: str, force: bool) -> Fetched:
+        """Every attendee, page after page (an event has a few hundred at most), so
+        the list simply scrolls — no "load more"."""
+        data = self.app.data  # type: ignore[attr-defined]
+        first = data.fetch("event-attendees", event_id, limit=100, force=force)
+        people = [a for a in (dict_of(first).get("attendees") or items_of(first)) if isinstance(a, dict)]
+        cursor = next_cursor(first)
+        for _ in range(20):                          # a hard stop: 2,000 attendees
+            if not cursor:
+                break
+            page = data.fetch("event-attendees", event_id, limit=100, cursor=cursor, force=force)
+            if page.error and page.data is None:
+                break
+            people += [a for a in (dict_of(page).get("attendees") or items_of(page)) if isinstance(a, dict)]
+            cursor = next_cursor(page)
+        body = dict(dict_of(first))
+        body.update(attendees=people, items=people, has_more=False, cursor=None)
+        return Fetched(first.command, body, from_cache=first.from_cache, stale=first.stale, age=first.age,
+                       error=first.error, fetched_at=first.fetched_at)
 
     def _render_schedule(self, item: dict, data: Dict[str, Fetched], tab: str) -> Any:
         sessions = [s for s in (dict_of(data.get("schedule")).get("sessions") or []) if isinstance(s, dict)] if tab != "meetups" else []
