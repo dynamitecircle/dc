@@ -90,13 +90,19 @@ class LocatorScreen(DCScreen):
 
     @work(thread=True, exclusive=True, group="locator", exit_on_error=False)
     def _load(self, force: bool) -> None:
-        fetched = self.app.data.fetch("locator", force=force)  # type: ignore[attr-defined]
-        # The digest's event and ticket dates carry no isDateConfirmed, and ticket
-        # dates are a copy taken at purchase. The events list is the truth for both.
-        events = self.app.data.fetch("events", limit=100)  # type: ignore[attr-defined]
-        _EVENTS.clear()
-        _EVENTS.update({str(e.get("eventID")): e for e in _list(dict_of_items(events)) if e.get("eventID")})
-        self.app.call_from_thread(self._render_digest, fetched)
+        data = self.app.data  # type: ignore[attr-defined]
+
+        def fetch(f: bool):
+            # The digest's event and ticket dates carry no isDateConfirmed, and ticket
+            # dates are a copy taken at purchase. The events list is the truth for both.
+            return {"locator": data.fetch("locator", force=f), "events": data.fetch("events", limit=100)}
+
+        def paint(results) -> None:
+            _EVENTS.clear()
+            _EVENTS.update({str(e.get("eventID")): e for e in _list(dict_of_items(results["events"])) if e.get("eventID")})
+            self._render_digest(results["locator"])
+
+        self.cached_first(fetch, paint, force)
         self.app.call_from_thread(self.app.refresh_status)  # type: ignore[attr-defined]
 
     def _card_width(self) -> int:

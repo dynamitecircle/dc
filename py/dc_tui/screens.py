@@ -9,7 +9,7 @@ and Me.
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
 import webbrowser
 
@@ -95,6 +95,27 @@ _LINE_STYLE = GREY_700
 
 class StatusBar(Static):
     """One-line status: budget · tier · last refresh · unread · layout mode."""
+
+
+def _payload(value: Any) -> Any:
+    """The data inside Fetched results (a Fetched, or a list / dict of them)."""
+    if isinstance(value, Fetched):
+        return value.data
+    if isinstance(value, dict):
+        return {k: _payload(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_payload(v) for v in value]
+    return value
+
+
+def _has_data(value: Any) -> bool:
+    if isinstance(value, Fetched):
+        return value.data is not None
+    if isinstance(value, dict):
+        return any(_has_data(v) for v in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(_has_data(v) for v in value)
+    return value is not None
 
 
 class DCScreen(Screen):
@@ -290,6 +311,26 @@ class DCScreen(Screen):
             self.detail_pane().display = bool(self.HAS_DETAIL and mode in ("split", "wide"))
         except Exception:  # noqa: BLE001 — not composed yet
             pass
+
+    def cached_first(self, fetch: Callable[[bool], Any], paint: Callable[[Any], None], force: bool) -> None:
+        """From a thread worker: paint what the cache holds at once (even stale),
+        then fetch for real and repaint only when the data changed — a screen you
+        come back to never sits on "loading…" for data it already has."""
+        data = self.app.data  # type: ignore[attr-defined]
+        cached = None
+        if not force and hasattr(data, "cache_only"):
+            try:
+                with data.cache_only():
+                    cached = fetch(False)
+            except Exception:  # noqa: BLE001 — nothing cached yet
+                cached = None
+            if cached is not None and _has_data(cached):
+                self.app.call_from_thread(paint, cached)
+            else:
+                cached = None
+        fresh = fetch(force)
+        if cached is None or _payload(fresh) != _payload(cached):
+            self.app.call_from_thread(paint, fresh)
 
     # ── Hooks for concrete screens ────────────────────────────────────
 
@@ -570,6 +611,11 @@ class HomeScreen(DCScreen):
 
     @work(thread=True, group="home", exit_on_error=False)
     def _fetch(self, panel_id: str, commands: List[Tuple[str, ...]], force: bool) -> None:
+        self.cached_first(lambda f: self._card_results(panel_id, commands, f),
+                          lambda results: self._card_arrived(panel_id, results), force)
+        self.app.call_from_thread(self.app.refresh_status)  # type: ignore[attr-defined]
+
+    def _card_results(self, panel_id: str, commands: List[Tuple[str, ...]], force: bool) -> List[Fetched]:
         data = self.app.data  # type: ignore[attr-defined]
         results = [data.fetch(cmd[0], *cmd[1:], force=force) for cmd in commands]
         if panel_id == "p-announcements":
@@ -580,11 +626,13 @@ class HomeScreen(DCScreen):
                 if rid and rid not in known:
                     known.add(rid)
                     results.append(data.fetch("room", rid))
+        return results
+
+    def _card_arrived(self, panel_id: str, results: List[Fetched]) -> None:
         if all(r.error and r.data is None for r in results):
-            self.app.call_from_thread(self._fail, panel_id, results[0].error or "failed")
+            self._fail(panel_id, results[0].error or "failed")
         else:
-            self.app.call_from_thread(self._render_into, panel_id, results)
-        self.app.call_from_thread(self.app.refresh_status)  # type: ignore[attr-defined]
+            self._render_into(panel_id, results)
 
     # ── painting (UI thread) ──────────────────────────────────────────
 

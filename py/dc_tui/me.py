@@ -46,6 +46,9 @@ class MeScreen(DCScreen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "me-refresh":
+            event.button.label = "Refreshing…"           # visible on every layout, unlike a card subtitle
+            event.button.disabled = True
+            self._refreshing = True
             self.refresh_data(force=True)
         elif event.button.id == "me-open":
             self.app.action_open_in_browser()  # type: ignore[attr-defined]
@@ -58,9 +61,22 @@ class MeScreen(DCScreen):
     @work(thread=True, exclusive=True, group="me", exit_on_error=False)
     def _load(self, force: bool) -> None:
         data = self.app.data  # type: ignore[attr-defined]
-        results = {cmd: data.fetch(cmd, force=force) for cmd in COMMANDS}
-        self.app.call_from_thread(self._render_all, results)
+        self.cached_first(lambda f: {cmd: data.fetch(cmd, force=f) for cmd in COMMANDS}, self._render_all, force)
         self.app.call_from_thread(self.app.refresh_status)  # type: ignore[attr-defined]
+        if force:
+            self.app.call_from_thread(self._refreshed)
+
+    def _refreshed(self) -> None:
+        if not getattr(self, "_refreshing", False):
+            return
+        self._refreshing = False
+        try:
+            button = self.query_one("#me-refresh", Button)
+            button.label = "Refresh"
+            button.disabled = False
+        except Exception:  # noqa: BLE001
+            pass
+        self.notify("Profile and settings refreshed", timeout=3)
 
     def _render_all(self, r: Dict[str, Fetched]) -> None:
         self._paint("me-profile", *self._profile(r["profile"]))
