@@ -173,11 +173,53 @@ DC_API_VERSION = "2.3.1"
 
 
 class DCError(RuntimeError):
-    """Raised by client code when validation, auth, or API calls fail."""
+    """Raised by client code when validation, auth, or API calls fail.
+
+    `code` is the API's machine error (`unauthorized`, `profile_not_found`,
+    `rate_limited`, …) when the failure came from the API; it decides the
+    CLI exit code (see `exit_code_for`)."""
+
+    def __init__(self, message: str = "", *, code: str = ""):
+        super().__init__(message)
+        self.code = code or ""
 
 
 class UsageError(DCError):
     """Raised when the CLI is invoked with the wrong arguments."""
+
+
+class NetworkError(DCError):
+    """Raised when the API could not be reached at all."""
+
+
+#: CLI exit codes — one per error class, so scripts can branch on them.
+EXIT_OK = 0
+EXIT_ERROR = 1          # anything else the API refused or the client could not do
+EXIT_USAGE = 2          # wrong arguments / validation_error
+EXIT_AUTH = 3           # missing or invalid API key, no permission (incl. ticket_required)
+EXIT_NOT_FOUND = 4      # the thing does not exist or is not visible to you
+EXIT_RATE_LIMITED = 5   # per-minute / per-day budget spent
+EXIT_NETWORK = 6        # could not reach the API
+
+
+def exit_code_for(err: Exception) -> int:
+    """The CLI exit code for an exception (documented in README + SKILL.md)."""
+    if isinstance(err, UsageError):
+        return EXIT_USAGE
+    if isinstance(err, NetworkError):
+        return EXIT_NETWORK
+    code = (getattr(err, "code", "") or "").lower()
+    text = str(err).lower()
+    if code in ("validation_error", "invalid_request", "q_required") or code.startswith("invalid_"):
+        return EXIT_USAGE
+    if code in ("unauthorized", "forbidden", "invalid_api_key", "api_key_revoked") or code.endswith("_required") \
+            or "missing required environment variable: dc_api_key" in text:
+        return EXIT_AUTH
+    if code == "not_found" or code.endswith("_not_found"):
+        return EXIT_NOT_FOUND
+    if code in ("rate_limited", "too_many_requests"):
+        return EXIT_RATE_LIMITED
+    return EXIT_ERROR
 
 
 # ── Emit sink ──────────────────────────────────────────────────────────
@@ -685,7 +727,7 @@ class HttpClient:
                 except Exception:
                     raw = "{}"
             except urlerror.URLError as e:
-                raise DCError(f"Network error contacting {url}: {e.reason}")
+                raise NetworkError(f"Network error contacting {url}: {e.reason}")
 
             # Always notify the version-tracker — works on success and error
             server_version = resp_headers.get("X-API-Version") or resp_headers.get("x-api-version")
@@ -785,6 +827,13 @@ class _VersionTracker:
     def attach(cls) -> None:
         """Wire HttpClient → version-tracker observer. Call once at startup."""
         HttpClient._on_server_version = cls.observe
+
+
+def _silence_version_banner() -> None:
+    """`--quiet` means nothing on stdout or stderr: skip the update notice too."""
+    for obj in list(globals().values()):
+        if isinstance(obj, type) and hasattr(obj, "_warned") and hasattr(obj, "observe"):
+            obj._warned = True
 
 
 # ── Runtime base class ───────────────────────────────────────────────────
@@ -958,6 +1007,53 @@ class Runtime:
             return json.dumps(data, indent=2, ensure_ascii=False, default=str)
         return str(data)
 
+    @staticmethod
+    def _list_of(data):
+        """The list inside a result: a list, a `{items: […]}` envelope, or the one
+        list-valued field of a dict (`hits`, `rooms`, `attendees`, …). None if none."""
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            if isinstance(data.get("items"), list):
+                return data["items"]
+            lists = [v for v in data.values() if isinstance(v, list)]
+            if len(lists) == 1:
+                return lists[0]
+        return None
+
+    @staticmethod
+    def _id_of(item):
+        """An item's ID: its first `…ID` field (`roomID`, `eventID`, `userID`, …)."""
+        if not isinstance(item, dict):
+            return item
+        for key, value in item.items():
+            if (key.endswith("ID") or key in ("id", "objectID")) and value not in (None, ""):
+                return value
+        return None
+
+    @staticmethod
+    def _table(rows) -> str:
+        """A plain text table for a list of objects: ID, name, type, date."""
+        import shutil
+        width = shutil.get_terminal_size((100, 20)).columns
+        width = width if width >= 40 else 100          # a pty that reports no size
+        pick = lambda item, keys: next((str(item[k]) for k in keys if isinstance(item, dict) and item.get(k) not in (None, "")), "")
+        name_keys = ("displayName", "name", "title", "eventName", "roomName", "subject", "body")
+        type_keys = ("type", "eventType", "kind", "status", "roomType")
+        date_keys = ("startDate", "date", "lastActivityAt", "sentAt", "scheduledAt", "createdAt", "joinedDate")
+        table = [(str(Runtime._id_of(r) or ""), pick(r, name_keys), pick(r, type_keys), pick(r, date_keys)[:10]) for r in rows]
+        if not any(name or kind or date for _, name, kind, date in table):
+            return "\n".join(json.dumps(r, ensure_ascii=False, default=str) for r in rows)
+        idw = min(28, max([len(t[0]) for t in table] + [2]))
+        tw = min(16, max([len(t[2]) for t in table] + [4]))
+        dw = 10 if any(t[3] for t in table) else 0
+        nw = max(10, width - idw - tw - dw - 6)
+        cut = lambda text, n: text if len(text) <= n else text[: max(1, n - 1)] + "…"
+        lines = ["%-*s  %-*s  %-*s  %s" % (idw, "ID", nw, "NAME", tw, "TYPE", "DATE" if dw else "")]
+        for rid, name, kind, date in table:
+            lines.append("%-*s  %-*s  %-*s  %s" % (idw, cut(rid, idw), nw, cut(" ".join(name.split()), nw), tw, cut(kind, tw), date))
+        return "\n".join(line.rstrip() for line in lines)
+
     # ── Built-ins ────────────────────────────────────────────────────
 
     def _cli_builtins(self) -> dict:
@@ -990,9 +1086,15 @@ class Runtime:
             lines.append(f"  {name:{width}}  {builtins[name][0]}")
         lines.append("")
         lines.append("Global flags (before or after command):")
-        lines.append(f"  {'--format text|json|python':{width}}  Output format (default: text)")
+        lines.append(f"  {'--format table|text|json|python':{width}}  Output format (default: table on a terminal, json when piped)")
         lines.append(f"  {'--json':{width}}  Shortcut for --format json")
         lines.append(f"  {'--python':{width}}  Shortcut for --format python")
+        lines.append(f"  {'--jq <expr>':{width}}  Filter the JSON result with jq (needs the jq binary)")
+        lines.append(f"  {'--ids-only':{width}}  Print only the IDs of a list result, one per line")
+        lines.append(f"  {'--count':{width}}  Print only how many items a list result has")
+        lines.append(f"  {'--quiet, -q':{width}}  Print nothing; the exit code says how it went")
+        lines.append("")
+        lines.append("Exit codes: 0 ok · 1 error · 2 usage · 3 auth/permission · 4 not found · 5 rate limited · 6 network")
         lines.append(f"  {'--api-url <url>':{width}}  Override the API base URL")
         lines.append(f"  {'--help, -h':{width}}  Show help")
         return "\n".join(lines)
@@ -1001,7 +1103,9 @@ class Runtime:
 
     def dispatch(self, argv=None) -> int:
         argv = list(sys.argv[1:] if argv is None else argv)
-        fmt = "text"
+        fmt = "auto"                  # a table on a terminal, plain JSON when piped
+        jq_expr = None
+        ids_only = count_only = quiet = False
 
         cleaned: list = []
         i = 0
@@ -1022,6 +1126,15 @@ class Runtime:
             if tok == "--api-url":
                 self.api_url = argv[i + 1] if i + 1 < len(argv) else None
                 i += 2; continue
+            if tok == "--jq":
+                jq_expr = argv[i + 1] if i + 1 < len(argv) else "."
+                i += 2; continue
+            if tok == "--ids-only":
+                ids_only = True; i += 1; continue
+            if tok == "--count":
+                count_only = True; i += 1; continue
+            if tok in ("--quiet", "-q"):
+                quiet = True; i += 1; continue
             cleaned.append(tok); i += 1
         argv = cleaned
 
@@ -1039,6 +1152,8 @@ class Runtime:
         builtin = self._cli_builtins().get(cmd_name)
         if builtin is not None:
             return int(builtin[1](rest) or 0)
+        if cmd_name == "setup" and rest and rest[0] in getattr(self, "_AGENTS", ()):
+            return int(self.run_setup_agent(rest[0], rest[1:]) or 0)
 
         cmd = self._commands.get(cmd_name)
         if not cmd:
@@ -1046,14 +1161,69 @@ class Runtime:
             print(self._builtin_help(), file=sys.stderr)
             return 2
 
+        if quiet:
+            _silence_version_banner()
         try:
             result = self._invoke(cmd, rest)
+        except TypeError as e:
+            # a missing / extra positional argument is a usage error, not a crash
+            if "positional argument" not in str(e) and "unexpected keyword" not in str(e):
+                raise
+            if not quiet:
+                print(f"Usage: {cmd_name}: {str(e).split(') ', 1)[-1]}\n", file=sys.stderr)
+                print(self._builtin_help(cmd_name), file=sys.stderr)
+            return EXIT_USAGE
         except UsageError as e:
-            print(f"Usage: {e}", file=sys.stderr)
-            return 2
+            if not quiet:
+                print(f"Usage: {e}", file=sys.stderr)
+            return EXIT_USAGE
         except DCError as e:
-            print(f"Error: {e}", file=sys.stderr)
-            return 1
+            if not quiet:
+                print(f"Error: {e}", file=sys.stderr)
+            return exit_code_for(e)
+
+        if quiet:
+            return EXIT_OK
+        data_only = result.data if isinstance(result, Result) else result
+        if count_only or ids_only:
+            items = self._list_of(data_only)
+            if items is None:
+                print(f"Usage: {cmd_name} does not return a list (--count / --ids-only need one)", file=sys.stderr)
+                return EXIT_USAGE
+            if count_only:
+                print(len(items))
+            else:
+                for item in items:
+                    rid = self._id_of(item)
+                    if rid not in (None, ""):
+                        print(rid)
+            return EXIT_OK
+        if jq_expr is not None:
+            import shutil
+            import subprocess
+            if not shutil.which("jq"):
+                print("Usage: --jq needs the `jq` binary on PATH (https://jqlang.org)", file=sys.stderr)
+                return EXIT_USAGE
+            done = subprocess.run(["jq", jq_expr], input=json.dumps(data_only, ensure_ascii=False, default=str),
+                                  text=True, capture_output=True)
+            sys.stdout.write(done.stdout)
+            if done.returncode:
+                sys.stderr.write(done.stderr)
+                return EXIT_USAGE
+            return EXIT_OK
+        if fmt == "auto":
+            # piped: the same plain JSON as always (no envelope), so scripts never break
+            fmt = "table" if sys.stdout.isatty() else "text"
+        if fmt == "table":
+            items = self._list_of(data_only)
+            if items is not None and all(isinstance(i, dict) for i in items):
+                if items:
+                    print(self._table(items))
+                emitted = result.emitted if isinstance(result, Result) else ""
+                if emitted:
+                    print(emitted, file=sys.stderr)
+                return EXIT_OK
+            fmt = "text"
 
         # `_invoke` always returns a Result; extract emit text for
         # the chosen format. In JSON mode, emit is folded into the envelope
@@ -1497,7 +1667,7 @@ class _DCCore:
             return result.get("data") or {}
         error = result.get("error") or "unknown_error"
         message = result.get("message") or ""
-        raise DCError(f"{error}: {message}")
+        raise DCError(f"{error}: {message}", code=str(error))
 
     @staticmethod
     def _wrap_list(api_data: dict, items_field: str, *, extra=None) -> dict:
@@ -1535,8 +1705,8 @@ class _DCCore:
         Runtime.emit("Next: run `self-test` to verify the connection.")
         return {
             "ok":      True,
-            "message": f"Saved DC_API_KEY to {self._runtime.env_path}",
-            "envFile": str(self._runtime.env_path),
+            "message": f"Saved DC_API_KEY to {self.env_path}",
+            "envFile": str(self.env_path),
         }
 
     # ── Self-test ──────────────────────────────────────────────────
@@ -1550,7 +1720,7 @@ class _DCCore:
         if not api_key:
             checks.append({"step": "env", "ok": False, "message": "DC_API_KEY not set — run `setup --api-key dk_...`"})
             return {"ok": False, "checks": checks}
-        checks.append({"step": "env", "ok": True, "message": f"DC_API_KEY loaded from {self._runtime.env_path}"})
+        checks.append({"step": "env", "ok": True, "message": f"DC_API_KEY loaded from {self.env_path}"})
 
         # 2. Key shape
         if not api_key.startswith("dk_"):
@@ -3421,7 +3591,164 @@ class DC(Runtime):
         return {
             "tui": ("Interactive terminal UI — inbox, trips, events, people, settings "
                     "(needs: pip install 'dynamitecircle[tui]')", self.run_tui),
+            "doctor": ("Check the setup: API key, connection, rate limits, Python, optional extras", self.run_doctor),
+            "open": ("Open DC in the browser: dc open [inbox|events|locator|trips|profile|<url>]", self.run_open),
+            "watch": ("Print new unread messages as they arrive: dc watch [--every SECONDS] (Ctrl-C stops)", self.run_watch),
         }
+
+    # ── CLI built-ins: doctor / open / watch / setup <agent> ──────────
+
+    def run_doctor(self, argv=None) -> int:
+        """Each check on one line; exit code of the first failure (or 0)."""
+        import platform
+        worst = EXIT_OK
+        def line(ok, label, detail=""):
+            print("%s %-14s %s" % ("✓" if ok else "✗", label, detail))
+        py_ok = sys.version_info >= (3, 9)
+        line(py_ok, "python", platform.python_version() + ("" if py_ok else " — 3.9 or newer is needed"))
+        key = os.environ.get("DC_API_KEY") or ""
+        line(bool(key), "api key", ("dk_…%s (from %s)" % (key[-4:], self.env_path)) if key
+             else "missing — run: dc setup --api-key dk_<api-key>")
+        if not key:
+            worst = EXIT_AUTH
+        else:
+            try:
+                me = self.profile()
+                me = getattr(me, "data", me)
+                line(True, "connection", "%s as userID[%s] %s" % (self._core._build_url("").rstrip("/"),
+                                                                   me.get("userID"), me.get("displayName") or ""))
+                limits = self.limits()
+                limits = getattr(limits, "data", limits) or {}
+                left = (limits.get("usage") or {}).get("remaining") or {}
+                if limits.get("perMinute") or limits.get("perDay"):
+                    line(True, "rate limits", "%s/%s a minute · %s/%s a day left" % (
+                        left.get("perMinute", "?"), limits.get("perMinute", "?"), left.get("perDay", "?"), limits.get("perDay", "?")))
+            except DCError as e:
+                worst = exit_code_for(e)
+                line(False, "connection", str(e))
+        line(True, "client", "dc %s" % DC_API_VERSION)
+        line(_MCP_AVAILABLE, "mcp extra", "installed" if _MCP_AVAILABLE else "not installed — pip install 'dynamitecircle[mcp]' for --mcp")
+        try:
+            import textual  # noqa: F401
+            tui = True
+        except ImportError:
+            tui = False
+        line(tui, "tui extra", "installed" if tui else "not installed — pip install 'dynamitecircle[tui]' for dc tui")
+        return worst
+
+    _OPEN_PAGES = {"inbox": "/inbox", "events": "/events", "locator": "/locator", "trips": "/locator/my-trips",
+                   "profile": "/profile", "home": "/", "search": "/search", "members": "/members"}
+
+    def run_open(self, argv=None) -> int:
+        import webbrowser
+        target = (list(argv or []) or ["home"])[0]
+        base = "https://dc.dynamitecircle.com"
+        if target.startswith("http://") or target.startswith("https://"):
+            url = target
+        elif target in self._OPEN_PAGES:
+            url = base + self._OPEN_PAGES[target]
+        else:
+            print("Usage: dc open [%s|<url>]" % "|".join(sorted(self._OPEN_PAGES)), file=sys.stderr)
+            return EXIT_USAGE
+        print(url)
+        try:
+            webbrowser.open(url)
+        except Exception:  # noqa: BLE001 — the URL is printed either way
+            pass
+        return EXIT_OK
+
+    def run_watch(self, argv=None) -> int:
+        """Poll the unread inbox and print each room that gains new messages."""
+        import time as _time
+        args = list(argv or [])
+        every = 60
+        if "--every" in args:
+            try:
+                every = max(15, int(args[args.index("--every") + 1]))
+            except (IndexError, ValueError):
+                print("Usage: dc watch [--every SECONDS]  (15 or more)", file=sys.stderr)
+                return EXIT_USAGE
+        seen = {}
+        first = True
+        print("watching your inbox every %ds — Ctrl-C stops" % every, file=sys.stderr)
+        try:
+            while True:
+                try:
+                    data = getattr(self.inbox(), "data", None) or {}
+                except DCError as e:
+                    print("Error: %s" % e, file=sys.stderr)
+                    code = exit_code_for(e)
+                    if code in (EXIT_AUTH, EXIT_USAGE):
+                        return code
+                    _time.sleep(every)
+                    continue
+                for room in self._list_of(data) or []:
+                    if not isinstance(room, dict):
+                        continue
+                    rid, count = room.get("roomID"), int(room.get("badgeCount") or room.get("unreadCount") or 0)
+                    if count > seen.get(rid, 0) and not first:
+                        print("%s  %s  +%d new" % (_time.strftime("%H:%M"), room.get("roomName") or room.get("name") or rid,
+                                                   count - seen.get(rid, 0)), flush=True)
+                    seen[rid] = count
+                if first:
+                    total = sum(seen.values())
+                    print("%d unread right now" % total, flush=True)
+                    first = False
+                _time.sleep(every)
+        except KeyboardInterrupt:
+            return EXIT_OK
+
+    _AGENTS = ("claude", "codex", "gemini")
+
+    def run_setup_agent(self, agent: str, argv=None) -> int:
+        """`dc setup claude|codex|gemini [--apply]`: register the dc MCP server with an AI agent."""
+        import shlex
+        import shutil
+        apply = "--apply" in list(argv or [])
+        exe = sys.executable
+        script = os.path.abspath(self.source_file)
+        if agent == "claude":
+            cmd = ["claude", "mcp", "add", "--scope", "user", "dc", "--", exe, script, "--mcp"]
+            print("Claude Code:\n  " + " ".join(shlex.quote(c) for c in cmd))
+            if apply:
+                if not shutil.which("claude"):
+                    print("Error: the `claude` CLI is not on PATH", file=sys.stderr)
+                    return EXIT_ERROR
+                import subprocess
+                return EXIT_OK if subprocess.run(cmd).returncode == 0 else EXIT_ERROR
+            print("\nRun it, or: dc setup claude --apply")
+            return EXIT_OK
+        if agent == "codex":
+            path = os.path.expanduser("~/.codex/config.toml")
+            snippet = "\n[mcp_servers.dc]\ncommand = %s\nargs = [%s, \"--mcp\"]\n" % (json.dumps(exe), json.dumps(script))
+        else:
+            path = os.path.expanduser("~/.gemini/settings.json")
+            snippet = json.dumps({"mcpServers": {"dc": {"command": exe, "args": [script, "--mcp"]}}}, indent=2)
+        print("%s — add to %s:\n%s" % (agent.title(), path, snippet))
+        if not apply:
+            print("\nOr: dc setup %s --apply" % agent)
+            return EXIT_OK
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        if agent == "codex":
+            existing = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+            if "[mcp_servers.dc]" in existing:
+                print("already registered in %s" % path)
+                return EXIT_OK
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(snippet)
+        else:
+            settings = {}
+            if os.path.exists(path):
+                try:
+                    settings = json.load(open(path, encoding="utf-8"))
+                except ValueError:
+                    print("Error: %s is not valid JSON — not touching it" % path, file=sys.stderr)
+                    return EXIT_ERROR
+            settings.setdefault("mcpServers", {})["dc"] = {"command": exe, "args": [script, "--mcp"]}
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(settings, fh, indent=2)
+        print("registered dc in %s" % path)
+        return EXIT_OK
 
     def run_tui(self, argv=None) -> int:
         """Launch the terminal UI. Returns a process exit code."""

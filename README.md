@@ -320,17 +320,54 @@ Same recipe: command = `python3`, args = `["/path/to/dc.py", "--mcp"]`. The prot
 
 ## Output formats
 
+In a terminal, list results print as a table (ID, name, type, date) and
+everything else as pretty JSON. Piped into another program, the output is
+plain JSON — exactly as before — so scripts keep working.
+
 ```bash
-python3 dc.py profile             # text (pretty JSON for dicts/lists)
-python3 dc.py profile --json      # explicit JSON
-python3 dc.py profile --python    # Python repr (eval-safe)
+python3 dc.py rooms                    # a table in a terminal
+python3 dc.py rooms | jq '.items[0]'   # plain JSON when piped
+python3 dc.py profile --json           # explicit JSON
+python3 dc.py profile --python         # Python repr (eval-safe)
+python3 dc.py rooms --format text      # pretty JSON even in a terminal
 ```
+
+Shortcuts for scripts:
+
+| Flag | What it prints |
+|---|---|
+| `--jq <expr>` | the JSON result filtered by [jq](https://jqlang.org) (needs the `jq` binary): `dc profile --jq .displayName` |
+| `--ids-only` | the IDs of a list result, one per line: `dc rooms --ids-only` |
+| `--count` | how many items a list result has: `dc trips --count` |
+| `--quiet`, `-q` | nothing at all — check the exit code |
 
 Global flags work before or after the command name:
 
 ```bash
 python3 dc.py --json profile
 python3 dc.py profile --json
+```
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | success |
+| 1 | any other error the API returned or the client hit |
+| 2 | usage: wrong or missing arguments, validation error |
+| 3 | auth: missing or invalid API key, no permission (e.g. an event ticket is required) |
+| 4 | not found: it doesn't exist or isn't visible to you |
+| 5 | rate limited: the per-minute or per-day budget is spent |
+| 6 | network: the API could not be reached |
+
+### Diagnostics and helpers
+
+```bash
+dc doctor                 # API key, connection, rate limits, Python, optional extras — one line each
+dc open inbox             # open DC in the browser: inbox, events, locator, trips, profile, members, or a URL
+dc watch --every 60       # print each room that gains unread messages (Ctrl-C stops)
+dc setup claude           # print how to register the dc MCP server with Claude Code
+dc setup codex --apply    # …or write it into ~/.codex/config.toml (also: gemini → ~/.gemini/settings.json)
 ```
 
 ## Cursor pagination

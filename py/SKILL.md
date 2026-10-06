@@ -128,11 +128,18 @@ are passed through under an `extra` key.
 ## Output formats
 
 ```bash
-dc profile             # text (pretty JSON)
+dc rooms               # a table in a terminal; plain JSON when piped (scripts unchanged)
 dc profile --json      # explicit JSON
 dc profile --python    # Python repr
 dc --format python profile
+dc profile --jq .displayName   # filter with jq (needs the jq binary)
+dc rooms --ids-only    # IDs of a list result, one per line
+dc trips --count       # how many items
+dc rooms -q            # print nothing; use the exit code
 ```
+
+Exit codes: `0` ok · `1` error · `2` usage / validation · `3` auth or permission
+(incl. a required event ticket) · `4` not found · `5` rate limited · `6` network.
 
 ## Version warnings
 
@@ -173,6 +180,16 @@ dc setup --api-key dk_<api-key>
 
 # Validate env, network, and /profile end-to-end
 dc self-test
+
+# Human-readable checklist: key, connection, rate limits, Python, extras
+dc doctor
+
+# Register the dc MCP server with an AI agent (prints the config; --apply writes it)
+dc setup claude|codex|gemini [--apply]
+
+# Open DC in the browser; follow new unread messages
+dc open [inbox|events|locator|trips|profile|members|<url>]
+dc watch [--every SECONDS]
 
 # Machine-readable recipes — ordered {method, path} steps for common
 # tasks (who's in <city>, plan together at an event, find DCers by

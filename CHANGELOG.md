@@ -15,6 +15,19 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Output contract** — list results print as a table (ID · name · type · date) in a terminal; piped output stays the same plain JSON as before. New global flags: `--jq <expr>`, `--ids-only`, `--count`, `--quiet` / `-q`.
+- **Exit codes per error class** — `0` ok · `1` error · `2` usage · `3` auth / permission · `4` not found · `5` rate limited · `6` network (`dc.EXIT_*`, `dc.exit_code_for`, `dc.NetworkError`; `DCError.code` carries the API's error code).
+- **`dc doctor`** — one-line checks for the API key, connection, rate limits, Python and the optional extras.
+- **`dc setup claude|codex|gemini [--apply]`** — register the `dc` MCP server with an AI agent.
+- **`dc open [page|url]`** and **`dc watch [--every SECONDS]`**.
+- **`dc tui`** — the interactive terminal app (`pip install 'dynamitecircle[tui]'`), plus `dcer`, `dcer-events`, `room-read`, `room-unread`, `trips-recent` and author-scoped search with an empty query (`--user-id`).
+
+### Fixed
+- A missing positional argument is a usage error (exit 2), not a Python traceback.
+
 ## [v2.3.1] - 2026-07-14
 
 ### Added
