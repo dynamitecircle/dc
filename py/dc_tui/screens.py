@@ -108,6 +108,16 @@ def _payload(value: Any) -> Any:
     return value
 
 
+def _any_stale(value: Any) -> bool:
+    if isinstance(value, Fetched):
+        return bool(value.stale or value.error)
+    if isinstance(value, dict):
+        return any(_any_stale(v) for v in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(_any_stale(v) for v in value)
+    return False
+
+
 def _all_data(value: Any) -> bool:
     """Every Fetched inside holds data (none is a cache miss)."""
     if isinstance(value, Fetched):
@@ -331,7 +341,9 @@ class DCScreen(Screen):
             else:
                 cached = None
         fresh = fetch(force)
-        if cached is None or _payload(fresh) != _payload(cached):
+        # repaint when the data changed, or when the cached copy was marked stale
+        # (an unchanged repaint just clears that marker)
+        if cached is None or _payload(fresh) != _payload(cached) or _any_stale(cached):
             self.app.call_from_thread(paint, fresh)
 
     # ── Hooks for concrete screens ────────────────────────────────────

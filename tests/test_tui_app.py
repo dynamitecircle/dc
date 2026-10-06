@@ -299,15 +299,24 @@ def test_locator_page_matches_the_web_digest(tmp_path):
 
 def test_me_screen_renders_profile_sections(tmp_path):
     async def go():
-        app, _ = make_app(tmp_path)
+        app, fake = make_app(tmp_path)
         async with app.run_test(size=(120, 44)) as pilot:
             await settle(pilot, 1.0)
             await press(pilot, "7"); await settle(pilot, 1.5)
             scr = app.screen
             await shot(app, "me")
             text = "\n".join(str(o.prompt) for p in scr.query(Panel) for o in p.list._options)
-            assert "Primary Business" in text and "announcement" in text and "webcal://x" in text
-            assert "my tickets" in text and "MyTickets" not in text
+            assert "Primary Business" in text and "Announcements" in text and "webcal://x" in text
+            assert "My tickets" in text and "MyTickets" not in text
+            # every setting is a toggle row: Enter flips it and saves it
+            for pid, command in (("me-notifications", "notifications-update"), ("me-calendar", "calendar-update"),
+                                 ("me-locator", "locator-settings-update")):
+                panel = scr.query_one("#" + pid, Panel)
+                panel.list.focus()
+                first = next(i for i, t in enumerate(panel.targets) if t)
+                panel.list.highlighted = first; await settle(pilot, 0.2)
+                await press(pilot, "enter"); await settle(pilot, 1.0)
+                assert any(c[0] == command for c in fake.calls), (command, fake.calls[-3:])
     run(go())
 
 

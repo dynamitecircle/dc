@@ -87,12 +87,36 @@ class MeScreen(DCScreen):
         self._paint("me-calendar", *self._calendar(r["calendar"]))
         self._paint("me-locator", *self._locator(r["locator-settings"]))
 
-    def _paint(self, pid: str, lines: List[str], subtitle: str, fetched: Fetched = None) -> None:
+    def _paint(self, pid: str, lines: List[Any], subtitle: str, fetched: Fetched = None) -> None:
+        """`lines` are markup strings, or (markup, target) rows — a target makes the
+        row pickable (the settings toggles)."""
         try:
             panel = self.query_one("#%s" % pid, Panel)
         except Exception:  # noqa: BLE001
             return
-        panel.set_lines(lines, subtitle=subtitle)
+        panel.set_rows([ln if isinstance(ln, tuple) else (ln, None) for ln in lines], subtitle=subtitle)
+
+    # ── toggles: Enter / click flips one setting, saves it, re-reads it ──
+    def on_option_list_option_selected(self, event) -> None:
+        card = event.option_list.parent
+        target = card.target() if isinstance(card, Panel) else None
+        if not (isinstance(target, tuple) and target and target[0] == "toggle"):
+            return
+        event.stop()
+        _, command, fields, label = target
+        self._save_toggle(command, fields, label)
+
+    @work(thread=True, group="me-toggle", exit_on_error=False)
+    def _save_toggle(self, command: str, fields: dict, label: str) -> None:
+        done = self.app.data.mutate(command, fields)  # type: ignore[attr-defined]
+        self.app.call_from_thread(self._toggle_saved, done, label)
+
+    def _toggle_saved(self, done: Fetched, label: str) -> None:
+        if done.error:
+            self.notify(done.error, title="Couldn't save %s" % label, severity="warning", timeout=6)
+        else:
+            self.notify("Saved: %s" % label, timeout=2)
+        self._load(False)                    # the update dropped those cache entries: re-read them
 
     # ── renderers ─────────────────────────────────────────────────────
     @staticmethod
@@ -131,13 +155,20 @@ class MeScreen(DCScreen):
     def _notifications(self, f: Fetched):
         n = dict_of(f).get("notifications")
         cats = (n or {}).get("categories") if isinstance(n, dict) else {}
-        lines = []
+        lines: List[Any] = []
+        count = 0
         for name, chans in sorted((cats or {}).items()):
             if not isinstance(chans, dict):
                 continue
-            on = [c for c, v in chans.items() if v]
-            lines.append("%-14s %s" % (esc(name), "[$success]%s[/]" % " ".join(on) if on else "[dim]off[/dim]"))
-        return lines or ["[dim]no preferences returned[/dim]"], self._flag(f, "%d categories" % len(lines))
+            count += 1
+            for chan in ("push", "email"):
+                if chan not in chans:
+                    continue                 # e.g. reactions have no email channel
+                on = bool(chans[chan])
+                label = "%s %s" % (_category_label(name), chan)
+                lines.append((_toggle_row(on, _category_label(name), chan),
+                              ("toggle", "notifications-update", {"categories": {name: {chan: not on}}}, label)))
+        return lines or ["[dim]no preferences returned[/dim]"], self._flag(f, "Enter turns one on or off")
 
     def _alerts(self, f: Fetched):
         alerts = [a for a in (dict_of(f).get("alerts") or items_of(f)) if isinstance(a, dict)]
@@ -157,20 +188,43 @@ class MeScreen(DCScreen):
         cal = cal if isinstance(cal, dict) else {}
         feed = cal.get("feed") if isinstance(cal.get("feed"), dict) else {}
         toggles = cal.get("toggles") if isinstance(cal.get("toggles"), dict) else {}
-        on = [_toggle_label(k) for k, v in toggles.items() if v]
-        lines = []
+        on = [k for k, v in toggles.items() if v]
+        lines: List[Any] = []
         if feed.get("webcalURL") or feed.get("httpsURL"):
             lines.append("[dim]feed:[/dim] %s" % esc(feed.get("webcalURL") or feed.get("httpsURL")))
-        lines.append("[dim]includes:[/dim] %s" % (esc(", ".join(on)) if on else "[dim]nothing[/dim]"))
+        for key, value in toggles.items():
+            label = _toggle_label(key)
+            lines.append((_toggle_row(bool(value), label.capitalize()),
+                          ("toggle", "calendar-update", {key: not value}, "calendar: " + label)))
         return lines, self._flag(f, "%d of %d included" % (len(on), len(toggles)))
 
     def _locator(self, f: Fetched):
         s = dict_of(f).get("locatorSettings")
         s = s if isinstance(s, dict) else {}
-        on = [k for k in ("events", "tickets", "trips") if s.get(k)]
-        lines = ["%s  [dim]sections: %s[/dim]" % ("[$success]enabled[/]" if s.get("enabled") else "[dim]disabled[/dim]",
-                                                 ", ".join(on) if on else "none")]
-        return lines, self._flag(f, "")
+        names = (("enabled", "Send me the Friday email"), ("events", "New events"),
+                 ("tickets", "Tickets DCers bought"), ("trips", "Trip alerts"))
+        lines: List[Any] = []
+        for key, label in names:
+            if key not in s:
+                continue
+            lines.append((_toggle_row(bool(s.get(key)), label if key == "enabled" else "  " + label),
+                          ("toggle", "locator-settings-update", {key: not s.get(key)}, "Friday email: " + label.lower())))
+        return lines or ["[dim]no settings returned[/dim]"], self._flag(f, "")
+
+
+def _toggle_row(on: bool, label: str, extra: str = "") -> str:
+    """● on / ○ off, then the setting's name."""
+    mark = "[$success]●[/]" if on else "[dim]○[/dim]"
+    return "%s %s%s" % (mark, esc(label), ("  [dim]%s[/dim]" % esc(extra)) if extra else "")
+
+
+_CATEGORY_LABELS = {"directMessage": "Direct messages", "myReaction": "Reactions to my posts", "photoTag": "Photo tags",
+                    "announcement": "Announcements", "mention": "Mentions", "reaction": "Reactions", "channel": "Channels",
+                    "chat": "Chats", "discussion": "Discussions", "event": "Events", "activity": "Activity", "account": "Account"}
+
+
+def _category_label(name: str) -> str:
+    return _CATEGORY_LABELS.get(name, name)
 
 
 def _toggle_label(key: str) -> str:
