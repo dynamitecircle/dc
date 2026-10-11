@@ -15,7 +15,7 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
-## [v2.5.1] - 2026-10-11
+## [2.5.1] - 2026-10-11
 
 ### Added
 - **`member`** / **`member-events`** — another DCer's public profile and the events they attend: `dc member <userID>`, `dc member-events <userID>`. TS: `client.profiles.get(userID)`, `client.profiles.events(userID)`.
