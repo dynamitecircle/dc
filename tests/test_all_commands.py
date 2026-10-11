@@ -67,8 +67,7 @@ def _bridge_raw_args(fn, arguments):
     for k, v in args.items():
         flag = f"--{k.replace('_', '-')}"
         if isinstance(v, bool):
-            if v:
-                raw.append(flag)
+            raw.append(flag if v else f"{flag}=false")
             continue
         raw.append(flag)
         raw.append(str(v))

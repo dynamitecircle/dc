@@ -23,8 +23,10 @@ import type {
   ReportIssueInput,
   RequestBody,
   RequestOptions,
+  RoomListOptions,
   RSVPStatus,
   SearchOptions,
+  SearchScope,
   TripCreateInput,
   TripUpdateInput,
   VersionDrift,
@@ -99,6 +101,13 @@ export class DC {
       this.request("PATCH", "/profile", { body }),
   };
 
+  readonly profiles = {
+    get: (userID: string) =>
+      this.request("GET", "/profiles/{userID}", { path: { userID } }),
+    events: (userID: string) =>
+      this.request("GET", "/profiles/{userID}/events", { path: { userID } }),
+  };
+
   readonly trips = {
     list: (query?: PastListOptions) =>
       this.request("GET", "/trips", { query }),
@@ -111,6 +120,8 @@ export class DC {
       this.request("GET", "/trips/{tripID}", { path: { tripID } }),
     overlaps: (query?: ListOptions) =>
       this.request("GET", "/trips/overlaps", { query }),
+    recent: (query?: { limit?: number }) =>
+      this.request("GET", "/trips/recent", { query }),
     refresh: (tripID: string) =>
       this.request("POST", "/trips/{tripID}/refresh", { path: { tripID } }),
     discovery: (tripID: string, query?: { include?: string }) =>
@@ -233,8 +244,8 @@ export class DC {
   };
 
   readonly rooms = {
-    list: (query?: ListOptions) => this.request("GET", "/rooms", { query }),
-    inbox: (type: string, query?: ListOptions) =>
+    list: (query?: RoomListOptions) => this.request("GET", "/rooms", { query }),
+    inbox: (type: string, query?: RoomListOptions) =>
       this.request("GET", "/rooms/inbox/{type}", { path: { type }, query }),
     browse: (type: string, query?: ListOptions) =>
       this.request("GET", "/rooms/browse/{type}", { path: { type }, query }),
@@ -266,6 +277,8 @@ export class DC {
     unarchive: (roomID: string) => this.roomMutation(roomID, "unarchive"),
     pin: (roomID: string) => this.roomMutation(roomID, "pin"),
     unpin: (roomID: string) => this.roomMutation(roomID, "unpin"),
+    read: (roomID: string) => this.roomMutation(roomID, "read"),
+    unread: (roomID: string) => this.roomMutation(roomID, "unread"),
   };
 
   readonly locator = {
@@ -370,20 +383,19 @@ export class DC {
       this.request("GET", "/search", { query }),
     profiles: (query: SearchOptions & { q: string }) =>
       this.request("GET", "/search/profiles", { query }),
-    rooms: (query: SearchOptions & { q: string; type?: string; userID?: string }) =>
+    rooms: (query: SearchOptions & SearchScope & { type?: string }) =>
       this.request("GET", "/search/rooms", { query }),
     messages: (
-      query: SearchOptions & { q: string; roomID?: string; userID?: string },
+      query: SearchOptions & SearchScope & { roomID?: string },
     ) => this.request("GET", "/search/messages", { query }),
     events: (
-      query: SearchOptions & {
-        cityID?: string;
-        country?: string;
-        q: string;
-        since?: string;
-        until?: string;
-        userID?: string;
-      },
+      query: SearchOptions &
+        SearchScope & {
+          cityID?: string;
+          country?: string;
+          since?: string;
+          until?: string;
+        },
     ) => this.request("GET", "/search/events", { query }),
     chapters: (query: SearchOptions & { q: string }) =>
       this.request("GET", "/search/chapters", { query }),

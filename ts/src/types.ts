@@ -48,6 +48,11 @@ export interface SearchOptions {
   page?: number;
 }
 
+/** Search text, a DCer's userID, or both — at least one is required. */
+export type SearchScope =
+  | { q: string; userID?: string }
+  | { q?: string; userID: string };
+
 export type RSVPStatus = "yes" | "maybe" | "no";
 
 export type BusinessIndustry =
@@ -102,7 +107,8 @@ export type Diet =
   | "Vegan"
   | "Vegetarian"
   | "Gluten-Free"
-  | "Dairy/Lactose-Free";
+  | "Dairy/Lactose-Free"
+  | "No Seafood";
 
 export type ShirtSize = "XS" | "S" | "M" | "L" | "XL" | "XXL" | "XXXL";
 
@@ -224,19 +230,24 @@ export interface NotificationsUpdateInput {
 }
 
 export interface AlertCreateInput {
-  name: string;
   description: string;
-  frequency: AlertFrequency;
+  notifyDaily: boolean;
+  notifyWeekly: boolean;
 }
 
 export interface AlertUpdateInput {
   name?: string;
   description?: string;
-  frequency?: AlertFrequency;
+  notifyDaily?: boolean;
+  notifyWeekly?: boolean;
   active?: boolean;
 }
 
-export type AlertFrequency = "daily" | "weekly";
+export type RoomFilter = "pinned" | "muted" | "archived";
+
+export interface RoomListOptions extends ListOptions {
+  filter?: RoomFilter;
+}
 
 export interface InterestsUpdateInput {
   updates: Record<string, { subscribed: boolean }>;

@@ -396,6 +396,7 @@ _WRITE_COMMANDS = frozenset({
     "event-free-slots",
     "room-subscribe", "room-unsubscribe", "room-mute", "room-unmute",
     "room-archive", "room-unarchive", "room-pin", "room-unpin",
+    "room-read", "room-unread",
     "follow-profile", "unfollow-profile", "follow-chapter", "unfollow-chapter",
     "invite-create", "calendar-update", "notifications-update",
     "locator-settings-update", "report-issue",
@@ -1135,7 +1136,7 @@ class _DCCore:
     def _parse_list_args(raw_args):
         return _DCCore._parse_paginated(
             raw_args,
-            extra_flags=("past", "status", "type", "sections", "q"),
+            extra_flags=("past", "status", "type", "sections", "q", "filter"),
         )
 
     @staticmethod
@@ -1173,16 +1174,16 @@ class _DCCore:
 
     @staticmethod
     def _parse_search_rooms(raw_args):
-        return _DCCore._parse_search(raw_args, accepted=("limit", "page", "type", "user-id"))
+        return _DCCore._parse_search(raw_args, accepted=("q", "limit", "page", "type", "user-id"))
 
     @staticmethod
     def _parse_search_messages(raw_args):
-        return _DCCore._parse_search(raw_args, accepted=("limit", "page", "room-id", "user-id"))
+        return _DCCore._parse_search(raw_args, accepted=("q", "limit", "page", "room-id", "user-id"))
 
     @staticmethod
     def _parse_search_events(raw_args):
         return _DCCore._parse_search(raw_args, accepted=(
-            "limit", "page", "user-id", "city-id", "country", "since", "until",
+            "q", "limit", "page", "user-id", "city-id", "country", "since", "until",
         ))
 
     @staticmethod
@@ -1659,13 +1660,13 @@ class _DCCore:
             "q":     q,
         })
 
-    def search_rooms(self, q: str, *, limit: int = 20, page: int = 1,
+    def search_rooms(self, q: str = "", *, limit: int = 20, page: int = 1,
                      type_: str | None = None, user_id: str | None = None):
         """Search rooms by name / topic. Optional ?type= filter
         (channel / dm / group / discussion / quick-question / event)
         and ?userID= for rooms created by that DCer."""
-        if not q:
-            raise UsageError("search-rooms requires a query")
+        if not q and not user_id:
+            raise UsageError("search-rooms requires a query or --user-id")
         return self._search_get("/search/rooms", {
             "limit":  limit,
             "page":   page,
@@ -1674,7 +1675,7 @@ class _DCCore:
             "userID": user_id,
         })
 
-    def search_messages(self, q: str, *, limit: int = 20, page: int = 1,
+    def search_messages(self, q: str = "", *, limit: int = 20, page: int = 1,
                         room_id: str | None = None, user_id: str | None = None):
         """Search message bodies across every room you can access —
         incl. your private DMs and any group DMs you're a member of.
@@ -1682,8 +1683,8 @@ class _DCCore:
         Scope to one room with `--room-id` (must be a room you're in,
         else 403). Scope to one author with `--user-id`. The two
         compose."""
-        if not q:
-            raise UsageError("search-messages requires a query")
+        if not q and not user_id:
+            raise UsageError("search-messages requires a query or --user-id")
         return self._search_get("/search/messages", {
             "limit":  limit,
             "page":   page,
@@ -1692,7 +1693,7 @@ class _DCCore:
             "userID": user_id,
         })
 
-    def search_events(self, q: str, *, limit: int = 20, page: int = 1,
+    def search_events(self, q: str = "", *, limit: int = 20, page: int = 1,
                       user_id: str | None = None, city_id: str | None = None,
                       country: str | None = None,
                       since: str | None = None, until: str | None = None):
@@ -1700,8 +1701,8 @@ class _DCCore:
         filters: ?userID= (host), ?cityID= (Google Place ID),
         ?country= (ISO alpha-2 like 'TH'), ?since=/?until=
         (ISO 8601 dates, compose for a window)."""
-        if not q:
-            raise UsageError("search-events requires a query")
+        if not q and not user_id:
+            raise UsageError("search-events requires a query or --user-id")
         return self._search_get("/search/events", {
             "cityID":  city_id,
             "country": country,
@@ -1747,6 +1748,18 @@ class _DCCore:
         if not fields:
             raise UsageError("profile-update requires at least one --<field> <value>")
         return self._patch("/profile", fields)
+
+    def member_profile(self, user_id):
+        """Another DCer's public profile by userID."""
+        if not user_id:
+            raise UsageError("member requires a userID")
+        return self._get(f"/profiles/{user_id}")
+
+    def member_events(self, user_id):
+        """Events a DCer is attending or has attended."""
+        if not user_id:
+            raise UsageError("member-events requires a userID")
+        return self._get(f"/profiles/{user_id}/events")
 
     def limits(self):
         """Effective rate limits + current usage for this API key.
@@ -1802,19 +1815,17 @@ class _DCCore:
         """List your alerts, newest first. Max 50 results."""
         return self._get("/alerts")
 
-    def create_alert(self, name: str, description: str, frequency: str):
+    def create_alert(self, description: str, notify_daily: bool, notify_weekly: bool):
         """Create an alert. The system searches for matching content and
-        delivers digests on the configured frequency."""
-        if not name:
-            raise UsageError("alerts-create requires --name")
+        delivers digests daily, weekly, or both. The server names it."""
         if not description:
             raise UsageError("alerts-create requires --description")
-        if not frequency:
-            raise UsageError("alerts-create requires --frequency (daily|weekly)")
+        if not notify_daily and not notify_weekly:
+            raise UsageError("alerts-create requires --notify-daily and/or --notify-weekly")
         return self._post("/alerts", {
-            "description": description,
-            "frequency":   frequency,
-            "name":        name,
+            "description":  description,
+            "notifyDaily":  notify_daily,
+            "notifyWeekly": notify_weekly,
         })
 
     def update_alert(self, alert_id: str, fields: dict):
@@ -2193,6 +2204,11 @@ class _DCCore:
         data = self._get("/trips/overlaps", {"limit": limit, "cursor": cursor or None})
         return self._wrap_list(data, "overlaps")
 
+    def recent_trips(self, limit=50):
+        """Recently added community trips that have not ended, newest first."""
+        data = self._get("/trips/recent", {"limit": limit})
+        return self._wrap_list(data, "trips")
+
     def create_trip(self, start_date="", end_date="", place_id="", event_id="", points=None, note=""):
         if not start_date or not end_date:
             raise UsageError("trip-create requires --start-date and --end-date")
@@ -2308,11 +2324,14 @@ class _DCCore:
 
     # ── Rooms ─────────────────────────────────────────────────────
 
-    def rooms(self, room_type="", limit=50, cursor=None):
+    def rooms(self, room_type="", limit=50, cursor=None, filter=None):
+        if filter and filter not in ("pinned", "muted", "archived"):
+            raise UsageError("rooms --filter must be pinned, muted or archived")
         path = f"/rooms/inbox/{room_type}" if room_type else "/rooms"
         data = self._get(path, {
             "limit":  limit,
             "cursor": cursor or None,
+            "filter": filter or None,
         })
         return self._wrap_list(data, "rooms")
 
@@ -2385,6 +2404,12 @@ class _DCCore:
 
     def room_unpin(self, room_id):
         return self._room_mutation(room_id, "unpin")
+
+    def room_read(self, room_id):
+        return self._room_mutation(room_id, "read")
+
+    def room_unread(self, room_id):
+        return self._room_mutation(room_id, "unread")
 
     # ── Chapters ──────────────────────────────────────────────────
 
@@ -2562,8 +2587,8 @@ class DC(Runtime):
                         "for rooms created by that DCer.",
                    parser=_DCCore._parse_search_rooms,
                    args={
-                       "q":       {"type": "string", "required": True,
-                                   "description": "Search text"},
+                       "q":       {"type": "string", "required": False,
+                                   "description": "Search text. Required unless user_id is given."},
                        "type":    {"type": "string",
                                    "enum": ["channel", "dm", "group", "discussion",
                                             "quick-question", "event"],
@@ -2571,7 +2596,7 @@ class DC(Runtime):
                        "user_id": {"type": "string", "description": "Scope to rooms this DCer created"},
                        **_SEARCH_PAGE_ARGS,
                    })
-    def search_rooms(self, q, *, limit=20, page=1, type=None, user_id=None):  # pylint: disable=redefined-builtin
+    def search_rooms(self, q="", *, limit=20, page=1, type=None, user_id=None):  # pylint: disable=redefined-builtin
         return self._core.search_rooms(q, limit=limit, page=page, type_=type, user_id=user_id)
 
     @skill_command(name="search-messages",
@@ -2582,15 +2607,15 @@ class DC(Runtime):
                         "Compose both for 'just X's messages in room Y'.",
                    parser=_DCCore._parse_search_messages,
                    args={
-                       "q":       {"type": "string", "required": True,
-                                   "description": "Search text"},
+                       "q":       {"type": "string", "required": False,
+                                   "description": "Search text. Required unless user_id is given."},
                        "room_id": {"type": "string",
                                    "description": "Scope to this room (must be one you're a member of)"},
                        "user_id": {"type": "string",
                                    "description": "Scope to messages authored by this DCer"},
                        **_SEARCH_PAGE_ARGS,
                    })
-    def search_messages(self, q, *, limit=20, page=1, room_id=None, user_id=None):
+    def search_messages(self, q="", *, limit=20, page=1, room_id=None, user_id=None):
         return self._core.search_messages(q, limit=limit, page=page,
                                           room_id=room_id, user_id=user_id)
 
@@ -2602,8 +2627,8 @@ class DC(Runtime):
                         "narrow to upcoming only.",
                    parser=_DCCore._parse_search_events,
                    args={
-                       "q":       {"type": "string", "required": True,
-                                   "description": "Search text"},
+                       "q":       {"type": "string", "required": False,
+                                   "description": "Search text. Required unless user_id is given."},
                        "user_id": {"type": "string", "description": "Host of the event"},
                        "city_id": {"type": "string", "description": "Google Place ID of the event city"},
                        "country": {"type": "string", "description": "ISO 3166-1 alpha-2 country code"},
@@ -2611,7 +2636,7 @@ class DC(Runtime):
                        "until":   {"type": "string", "description": "Events starting on or before this ISO 8601 date"},
                        **_SEARCH_PAGE_ARGS,
                    })
-    def search_events(self, q, *, limit=20, page=1, user_id=None, city_id=None,
+    def search_events(self, q="", *, limit=20, page=1, user_id=None, city_id=None,
                       country=None, since=None, until=None):
         return self._core.search_events(q, limit=limit, page=page, user_id=user_id,
                                         city_id=city_id, country=country,
@@ -2646,6 +2671,21 @@ class DC(Runtime):
                          for field, (ftype, desc) in _DCCore._PROFILE_FIELD_SPECS.items()})
     def profile_update(self, fields: dict):
         return self._core.update_profile(fields or {})
+
+    @skill_command(name="member",
+                   help="Another DCer's public profile by userID — the same profile shape as attendee, "
+                        "chapter and profile-match results. Find userIDs via `profile-match`, "
+                        "`search-profiles` or `event-attendees`. Use `profile` for your own.",
+                   args={})
+    def member(self, user_id):
+        return self._core.member_profile(user_id)
+
+    @skill_command(name="member-events",
+                   help="Events a DCer is attending or has attended (their profile's Events tab): "
+                        "upcoming, pastEvents, pastMeetups, alsoAttended.",
+                   args={})
+    def member_events(self, user_id):
+        return self._core.member_events(user_id)
 
     @skill_command(name="limits",
                    help="Show your effective rate limits (per-minute / per-day) and current usage",
@@ -2706,35 +2746,39 @@ class DC(Runtime):
 
     @skill_command(name="alerts-create",
                    help="Create an alert. Describe what it should look for in "
-                        "plain language; digests arrive daily or weekly.",
+                        "plain language; digests arrive daily, weekly, or both "
+                        "(enable at least one). The server names the alert.",
                    args={
-                       "name":        {"type": "string", "required": True,
-                                       "description": "Alert name (max 100 chars)"},
-                       "description": {"type": "string", "required": True,
-                                       "description": "What the alert should look for (max 500 chars)"},
-                       "frequency":   {"type": "string", "required": True,
-                                       "description": "Digest cadence: daily or weekly"},
+                       "description":   {"type": "string", "required": True,
+                                         "description": "What the alert should look for (max 500 chars)"},
+                       "notify-daily":  {"type": "boolean", "default": False,
+                                         "description": "Send a daily digest"},
+                       "notify-weekly": {"type": "boolean", "default": False,
+                                         "description": "Send a weekly digest"},
                    })
-    def alerts_create(self, name, description, frequency):
-        return self._core.create_alert(name, description, frequency)
+    def alerts_create(self, description, notify_daily=False, notify_weekly=False):
+        return self._core.create_alert(description, notify_daily, notify_weekly)
 
     @skill_command(name="alerts-update",
                    help="Update an alert. Send only the fields that change. "
                         "Use --active true to reactivate a deactivated alert.",
                    args={
-                       "alert-id":    {"type": "string", "required": True,
-                                       "description": "The alertID to update"},
-                       "name":        {"type": "string", "description": "New alert name"},
-                       "description": {"type": "string", "description": "New alert description"},
-                       "frequency":   {"type": "string", "description": "New cadence: daily or weekly"},
-                       "active":      {"type": "boolean", "description": "Whether the alert is active"},
+                       "alert-id":      {"type": "string", "required": True,
+                                         "description": "The alertID to update"},
+                       "name":          {"type": "string", "description": "New alert name"},
+                       "description":   {"type": "string", "description": "New alert description"},
+                       "notify-daily":  {"type": "boolean", "description": "Whether daily digests are enabled"},
+                       "notify-weekly": {"type": "boolean", "description": "Whether weekly digests are enabled"},
+                       "active":        {"type": "boolean", "description": "Whether the alert is active"},
                    })
-    def alerts_update(self, alert_id, name=None, description=None, frequency=None, active=None):
+    def alerts_update(self, alert_id, name=None, description=None, notify_daily=None,
+                      notify_weekly=None, active=None):
         fields = {
-            "active":      active,
-            "description": description,
-            "frequency":   frequency,
-            "name":        name,
+            "active":       active,
+            "description":  description,
+            "name":         name,
+            "notifyDaily":  notify_daily,
+            "notifyWeekly": notify_weekly,
         }
         return self._core.update_alert(alert_id, {k: v for k, v in fields.items() if v is not None})
 
@@ -2910,6 +2954,15 @@ class DC(Runtime):
                    args=_PAGINATION_ARGS)
     def overlaps(self, limit=10, cursor=None):
         return self._core.overlaps(limit=limit, cursor=cursor)
+
+    @skill_command(name="trips-recent",
+                   help="Recently added trips across the community (the app's Locator › New Trips), "
+                        "not yet ended, newest first, each with its traveller [--limit N]",
+                   parser=_DCCore._parse_list_args,
+                   args={"limit": {"type": "integer", "default": 50,
+                                   "description": "Max trips to return"}})
+    def trips_recent(self, limit=50, cursor=None, **_unused):  # cursor accepted for symmetry
+        return self._core.recent_trips(limit=limit)
 
     @skill_command(name="trip-create",
                    help="Create a trip (--start-date YYYY-MM-DD --end-date YYYY-MM-DD --place-id PID | --event-id EID). "
@@ -3147,9 +3200,12 @@ class DC(Runtime):
                    args={**_PAGINATION_ARGS,
                          "type": {"type": "string",
                                   "enum": ["channel", "direct", "group", "discussion", "activity", "event"],
-                                  "description": "Filter rooms by type (includes DMs and group DMs)"}})
-    def rooms(self, room_type="", limit=50, cursor=None):
-        return self._core.rooms(room_type=room_type, limit=limit, cursor=cursor)
+                                  "description": "Filter rooms by type (includes DMs and group DMs)"},
+                         "filter": {"type": "string",
+                                    "enum": ["pinned", "muted", "archived"],
+                                    "description": "Only your pinned, muted or archived rooms (the app's Inbox filter chips)"}})
+    def rooms(self, room_type="", limit=50, cursor=None, filter=None):
+        return self._core.rooms(room_type=room_type, limit=limit, cursor=cursor, filter=filter)
 
     @skill_command(name="browse-rooms",
                    help="Browse public rooms by type (channel|discussion|activity) [--limit N] [--cursor TOKEN]",
@@ -3242,6 +3298,19 @@ class DC(Runtime):
                    args={})
     def room_unpin(self, room_id):
         return self._core.room_unpin(room_id)
+
+    @skill_command(name="room-read",
+                   help="Mark a room as read — clears the unread badge and drops it from `inbox`, "
+                        "like opening it in the app. You must be a member/subscriber.",
+                   args={})
+    def room_read(self, room_id):
+        return self._core.room_read(room_id)
+
+    @skill_command(name="room-unread",
+                   help="Mark a room as unread — the app's 'Mark as unread'. `room-read` reverses it.",
+                   args={})
+    def room_unread(self, room_id):
+        return self._core.room_unread(room_id)
 
     # ── Chapters ───────────────────────────────────────────────────
 
@@ -3411,8 +3480,10 @@ class DC(Runtime):
                 for k, v in args.items():
                     flag = f"--{k.replace('_', '-')}"
                     if isinstance(v, bool):
-                        if v:
-                            raw_args.append(flag)
+                        # An explicit false must reach the command (e.g.
+                        # turning a digest off), so it is sent as a value,
+                        # not dropped.
+                        raw_args.append(flag if v else f"{flag}=false")
                         continue
                     raw_args.append(flag)
                     raw_args.append(str(v))

@@ -14,7 +14,7 @@
       "name": "DC Team",
       "url": "https://dc.dynamitecircle.com"
     },
-    "description": "Programmatic access to your DC membership data — trips, events, profile, announcements, and more.\nDesigned for AI assistants, automation, and personal integrations.\n\n> **For ALL active DC members.** Every active DC member is eligible from day one — DC, DC BLACK, and trial accounts alike.\n\n## What this is for\n\nThe DC Member API is for **personal use** — wiring DC into your own AI assistant, scripting personal automations, pulling your own data into your own dashboards. Think \"give my Claude/Codex/Cursor access to my DC trips and announcements\" or \"auto-update my DC trip when I book a flight.\"\n\n**It is not for:**\n\n- Building apps that other DC members log into (use the official DC app)\n- Crawling, scraping, or bulk-exporting member data\n- Building an alternative DC client\n- Public-facing services running on top of the API\n\nWe **augment, we don't replace** — the API gives you awareness and convenience, then sends you to the app for the real interactions. Human stuff stays in the app: no message content, no DM access, no bulk profile browsing, no discussion threads.\n\n**Rate limits are strict on purpose.** They're sized for personal automation, not application traffic. We'll loosen them once we see real usage patterns — if you hit a wall, email the DC developer team at **bugs+api&#64;dynamitecircle&#46;com** and we'll sort you out.\n\n## Connect to Claude & other AI apps (hosted MCP)\n\nThis API is also a hosted [MCP](https://modelcontextprotocol.io) server — add it as a connector in Claude, Cursor, ChatGPT, or any MCP-compatible app and your assistant can read and act on your DC data directly. **No install.** When prompted, **sign in with your DC account** (one-click OAuth) — or paste a `dk_` API key. Every endpoint below is exposed as a tool.\n\n**Connector URL** (Streamable HTTP): `https://api.dynamitecircle.com/mcp`\n\n- **Claude (web, Desktop & mobile):** Settings → Connectors → **Add custom connector** → paste the URL → **Connect**, then sign in with your DC account. (Paid Claude plan; on Team/Enterprise an admin may need to approve it first.)\n- **Claude Code:** `claude mcp add --transport http dc https://api.dynamitecircle.com/mcp`\n- **Cursor, ChatGPT & other MCP apps:** add a custom / remote MCP connector pointing at the URL above (Streamable HTTP). Discovery is published at `/.well-known/mcp.json`.\n\n**What you can do once connected** — ask in plain language, e.g. \"Which DCBKK sessions have I bookmarked?\", \"Add a trip to Lisbon and show me which DCers will be around\", \"RSVP me to the next Bangkok meetup\", \"Summarize the latest announcements.\" Reads run freely; writes do exactly what the matching endpoint documents. Access is scoped to **you** — the connector only ever sees your own membership data.\n\n## Official client — Agent Skill, CLI, Python library, MCP server\n\nThe fastest way to use this API — and to plug it into Claude Code, Codex CLI, Gemini CLI, Cursor, GitHub Copilot, or Claude Desktop — is the **official DC client**. One self-contained Python file, stdlib only, that ships as **four integrations from the same source**: Agent Skill (auto-discovered via SKILL.md), CLI (`dc …`), Python library (`from dc import DC`), and MCP server (`dc --mcp`, optional `mcp` dep).\n\n**Install via PyPI** (easiest):\n\n```bash\npip install dynamitecircle\ndc setup --api-key dk_your_api_key\ndc self-test\ndc profile\n```\n\nThe package is published on PyPI as [`dynamitecircle`](https://pypi.org/project/dynamitecircle/) — same code as the repo, version-locked to the deployed API.\n\n**Or clone the public repo** at [github.com/dynamitecircle/dc](https://github.com/dynamitecircle/dc) — useful if you want the MCP server config (`.mcp.json` at the repo root auto-registers every endpoint as an `mcp__dc__*` tool when you open the dir in Claude Code), or want to vendor the file via git submodule / subtree:\n\n```bash\ngit clone https://github.com/dynamitecircle/dc.git\ncd dc\npython3 py/dc.py setup --api-key dk_your_api_key\npython3 py/dc.py profile\n```\n\nRun as an MCP server so Claude Desktop / Cursor / Codex MCP / Cline can call every endpoint as a tool:\n\n```bash\npip install dynamitecircle[mcp]\ndc --mcp\n```\n\nCodex CLI and Gemini CLI auto-discover the skill via `AGENTS.md` / `GEMINI.md` (both symlinked to `CLAUDE.md` in the repo). See the [repo README](https://github.com/dynamitecircle/dc#readme) for per-tool setup (Claude Desktop, Codex CLI, Gemini CLI, Cursor) and update strategies (`pip install --upgrade`, git clone, submodule, subtree, symlink).\n\n## Not a DC member yet?\n\nThe Member API is open to active members of [Dynamite Circle](https://www.dynamitecircle.com/?utm_source=dc-developers&utm_medium=dc-body&utm_campaign=learn-more-dc) — a private community for established location-independent founders. [Apply to join](https://dc.dynamitecircle.com/account/apply?utm_source=dc-developers&utm_medium=dc-body&utm_campaign=apply-to-dc) or [learn about DC BLACK](https://www.dynamitecircle.com/dc-black/?utm_source=dc-developers&utm_medium=dc-body&utm_campaign=dc-black-info) (premium tier).\n\n## Authentication\n\nAll requests require an API key. Active members will see the **DC Member API Key** option in their profile dropdown on [dc.dynamitecircle.com](https://dc.dynamitecircle.com/?utm_source=dc-developers&utm_medium=dc-cta&utm_campaign=member-area-keygen) once eligible (currently rolling out to admins and testers first; broader access coming soon).\n\n```\nAuthorization: Bearer dk_your_api_key\n```\n\n## Rate Limits\n\n| Tier | Per Minute | Per Day |\n|------|-----------|---------|\n| DC member | 10 | 300 |\n| DC BLACK member | 60 | 3,000 |\n\nRate limit headers are included on every response:\n`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `X-RateLimit-Daily-Remaining`\n\n## Response Format\n\nAll responses follow this shape:\n```json\n// Success\n{ \"ok\": true, \"data\": { ... } }\n\n// Error\n{ \"ok\": false, \"error\": \"error_code\", \"message\": \"Human-readable message\" }\n```\n\n## Common Workflows\n\nThese are the multi-step recipes the API was designed around. Each one composes a few endpoints into a real member workflow — when an agent reaches for \"how do I X?\", these are the canonical paths.\n\n### 1. \"Who is in <city> right now?\"\n\nDon't hit `GET /chapters/:cityID` alone — that only returns DCers whose **home chapter** is the city, not who is currently visiting. The right two-step:\n\n1. `GET /places/search?q=<city>` → resolve the city placeID.\n2. `POST /trips` with `placeID` + the date window the user is asking about.\n3. `GET /trips/:tripID` → `discovery.fullPool` lists every visible DCer travelling OR local during that window, each with full profile.\n\nFor the home-chapter members only, `GET /chapters/:cityID` returns `members[]` plus `currentVisitors[]` (active trips to the city) without needing to create your own trip — useful as a quick lookup.\n\n### 2. \"Who should I meet on my trip to <city>?\"\n\n1. `GET /trips` → find the tripID (or `POST /trips` to create one).\n2. `GET /trips/:tripID` (or the discovery-only `GET /trips/:tripID/discovery`) — the response embeds a ranked top-10 picks with **AI-written \"why you should meet them\" paragraphs**, the full pool of locals + visitors, and events in town.\n\n**Important:** do NOT use `GET /trips/overlaps` for this question — that's a narrow date-window match only (usually 0-3 people), missing the AI-ranked picks and locals.\n\n### 3. \"Find DCers matching <description>\"\n\n`POST /profile-match` with a free-form `query` (\"DCers in Lisbon who run SaaS, raising a seed round\"). Returns vector-ranked results with `score`, `vectorScore`, and `keywordScore`. Optional structured filters compose with the natural-language query: `locationChapterPlaceID`, `eventID` (DCers attending), `isDCB`, `industry`, `minTeamSize`, `minRevenue`, `gender`. Skip `locationCurrentPlaceID` — that field is sparsely populated; prefer the trip-discovery flow above for presence questions.\n\n### 4. \"Plan together at an event\" (DCMEX, DCBKK, DC Week, etc.)\n\n1. `GET /events/:eventID` → confirm you and the other attendees hold tickets.\n2. `GET /events/:eventID/agendas?userIDs=A,B,C` → fetch multiple attendees' bookmarked sessions + meetup RSVPs in one call.\n3. `POST /events/:eventID/free-slots` with the `userIDs[]` → server returns shared free-time windows, ranked by how many people are free.\n4. `POST /events/:eventID/schedule/:sessionID/bookmark` to coordinate joint session attendance, or `POST /events/:eventID/meetups/:meetupID/rsvp` to commit to a member-organized meetup.\n\n### 5. \"Catch me up on <channel> while I was away\"\n\n1. `GET /rooms` (or `GET /rooms/inbox/channel` to filter) → find the roomID.\n2. `GET /rooms/:roomID/summary/weekly` → the latest AI-written weekly digest (topics, shared URLs, message + participant counts).\n3. `GET /rooms/:roomID/summaries/daily?limit=7` → last 7 daily summaries for finer detail.\n4. `GET /rooms/:roomID/messages?limit=50` → raw message history, newest first, cursor-paginated via `?before=`.\n\n### 6. \"Manage my inbox without leaving my agent\"\n\n- `GET /rooms/inbox/direct` / `/group` / `/channel` — filter by room type.\n- `POST /rooms/:roomID/{subscribe,unsubscribe,mute,unmute,archive,unarchive,pin,unpin}` — all eight mutations are idempotent and mirror the in-app behavior byte-for-byte. Pin auto-subscribes you. Unsubscribe clears the badge.\n- `GET /rooms/browse/channel` — discover public channels you're not yet subscribed to.\n\n### 7. \"Refresh my public-facing profile\"\n\n1. `GET /profile` → see the full editable surface.\n2. `PATCH /profile` with the fields you want to change (`fields.PrimaryBusinessDescription`, `fields.Website`, etc. — sanitized server-side).\n3. `POST /profile-match` (without filters, with no `query`) → see who the matchmaker now recommends for *you* — useful to validate that your edits are landing in the right matches.\n\n### 8. \"Stay on top of new community signal\"\n\n- `GET /announcements/latest` — quick \"what's new across DC?\" — one most-recent broadcast per visible channel.\n- `GET /announcements` — cursor-paginated mixed feed across all visible broadcast channels.\n- `GET /locator/digest` — same data the Friday locator email aggregates: home-city new members, chapter leads, local members, trips, tickets.\n- `GET /inbox/unread` — total unread + per-room breakdown so an agent can prompt \"you have N unread in <room>\".\n\n---\n\n## URL fields — canonical vs `shortURL`\n\nEvery entity that exposes a link (rooms, events, chapters, tickets, locator entries, announcements, profiles) returns two URL fields side-by-side:\n\n- **`*URL`** (e.g. `roomURL`, `eventURL`, `chapterURL`, `profileURL`, `announcementURL`) — canonical link on `dc.dynamitecircle.com`. Use this when storing, indexing, or computing canonical identity.\n- **`shortURL`** — branded `dc.mba/...` short link to the same destination. Use this when the URL is shown to a human (display, copy-to-clipboard, paste into chat/email/SMS). The shortener 301-redirects to the canonical destination, so both URLs resolve identically.\n\nPick one per call site — never both. Default to `shortURL` for visible URLs unless canonical identity matters (SEO `og:url`, link-canonicalization checks, etc.).\n\n---\n\n**Discoverability tip for LLM agents:** every list endpoint that takes pagination uses `?limit=N` and `?cursor=<token>`. State-setting mutations are idempotent; creation endpoints create a new record unless the endpoint explicitly documents an idempotency key. Time-sensitive fields are ISO 8601 (wall-clock-in-venue-timezone for event sessions, see per-endpoint notes). When two endpoints look similar, the description on each one cross-links to the other so you can pick the right one.",
+    "description": "Programmatic access to your DC membership data — trips, events, profile, announcements, and more.\nDesigned for AI assistants, automation, and personal integrations.\n\n> **For ALL active DC members.** Every active DC member is eligible from day one — DC, DC BLACK, and trial accounts alike.\n\n## What this is for\n\nThe DC Member API is for **personal use** — wiring DC into your own AI assistant, scripting personal automations, pulling your own data into your own dashboards. Think \"give my Claude/Codex/Cursor access to my DC trips and announcements\" or \"auto-update my DC trip when I book a flight.\"\n\n**It is not for:**\n\n- Building apps that other DC members log into (use the official DC app)\n- Crawling, scraping, or bulk-exporting member data\n- Building an alternative DC client\n- Public-facing services running on top of the API\n\nWe **augment, we don't replace** — the API gives you awareness and convenience, then sends you to the app for the real interactions. Human stuff stays in the app: no message content, no DM access, no bulk profile browsing, no discussion threads.\n\n**Rate limits are strict on purpose.** They're sized for personal automation, not application traffic. We'll loosen them once we see real usage patterns — if you hit a wall, email the DC developer team at **bugs+api&#64;dynamitecircle&#46;com** and we'll sort you out.\n\n## Connect to Claude & other AI apps (hosted MCP)\n\nThis API is also a hosted [MCP](https://modelcontextprotocol.io) server — add it as a connector in Claude, Cursor, ChatGPT, or any MCP-compatible app and your assistant can read and act on your DC data directly. **No install.** When prompted, **sign in with your DC account** (one-click OAuth) — or paste a `dk_` API key. Every endpoint below is exposed as a tool.\n\n**Connector URL** (Streamable HTTP): `https://api.dynamitecircle.com/mcp`\n\n- **Claude (web, Desktop & mobile):** Settings → Connectors → **Add custom connector** → paste the URL → **Connect**, then sign in with your DC account. (Paid Claude plan; on Team/Enterprise an admin may need to approve it first.)\n- **Claude Code:** `claude mcp add --transport http dc https://api.dynamitecircle.com/mcp`\n- **Cursor, ChatGPT & other MCP apps:** add a custom / remote MCP connector pointing at the URL above (Streamable HTTP). Discovery is published at `/.well-known/mcp.json`.\n\n**What you can do once connected** — ask in plain language, e.g. \"Which DCBKK sessions have I bookmarked?\", \"Add a trip to Lisbon and show me which DCers will be around\", \"RSVP me to the next Bangkok meetup\", \"Summarize the latest announcements.\" Reads run freely; writes do exactly what the matching endpoint documents. Access is scoped to **you** — the connector only ever sees your own membership data.\n\n## Official client — Agent Skill, CLI, Python library, MCP server\n\nThe fastest way to use this API — and to plug it into Claude Code, Codex CLI, Gemini CLI, Cursor, GitHub Copilot, or Claude Desktop — is the **official DC client**. One self-contained Python file, stdlib only, that ships as **four integrations from the same source**: Agent Skill (auto-discovered via SKILL.md), CLI (`dc …`), Python library (`from dc import DC`), and MCP server (`dc --mcp`, optional `mcp` dep).\n\n**Install via PyPI** (easiest):\n\n```bash\npip install dynamitecircle\ndc setup --api-key dk_your_api_key\ndc self-test\ndc profile\n```\n\nThe package is published on PyPI as [`dynamitecircle`](https://pypi.org/project/dynamitecircle/) — same code as the repo, version-locked to the deployed API.\n\n**Or clone the public repo** at [github.com/dynamitecircle/dc](https://github.com/dynamitecircle/dc) — useful if you want the MCP server config (`.mcp.json` at the repo root auto-registers every endpoint as an `mcp__dc__*` tool when you open the dir in Claude Code), or want to vendor the file via git submodule / subtree:\n\n```bash\ngit clone https://github.com/dynamitecircle/dc.git\ncd dc\npython3 py/dc.py setup --api-key dk_your_api_key\npython3 py/dc.py profile\n```\n\nRun as an MCP server so Claude Desktop / Cursor / Codex MCP / Cline can call every endpoint as a tool:\n\n```bash\npip install dynamitecircle[mcp]\ndc --mcp\n```\n\nCodex CLI and Gemini CLI auto-discover the skill via `AGENTS.md` / `GEMINI.md` (both symlinked to `CLAUDE.md` in the repo). See the [repo README](https://github.com/dynamitecircle/dc#readme) for per-tool setup (Claude Desktop, Codex CLI, Gemini CLI, Cursor) and update strategies (`pip install --upgrade`, git clone, submodule, subtree, symlink).\n\n## Not a DC member yet?\n\nThe Member API is open to active members of [Dynamite Circle](https://www.dynamitecircle.com/?utm_source=dc-developers&utm_medium=dc-body&utm_campaign=learn-more-dc) — a private community for established location-independent founders. [Apply to join](https://dc.dynamitecircle.com/account/apply?utm_source=dc-developers&utm_medium=dc-body&utm_campaign=apply-to-dc) or [learn about DC BLACK](https://www.dynamitecircle.com/dc-black/?utm_source=dc-developers&utm_medium=dc-body&utm_campaign=dc-black-info) (premium tier).\n\n## Authentication\n\nAll requests require an API key. Active members will see the **DC Member API Key** option in their profile dropdown on [dc.dynamitecircle.com](https://dc.dynamitecircle.com/?utm_source=dc-developers&utm_medium=dc-cta&utm_campaign=member-area-keygen) once eligible (currently rolling out to admins and testers first; broader access coming soon).\n\n```\nAuthorization: Bearer dk_your_api_key\n```\n\n## Rate Limits\n\n| Tier | Per Minute | Per Day |\n|------|-----------|---------|\n| DC member | 10 | 300 |\n| DC BLACK member | 60 | 3,000 |\n\nRate limit headers are included on every response:\n`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `X-RateLimit-Daily-Remaining`\n\n## Response Format\n\nAll responses follow this shape:\n```json\n// Success\n{ \"ok\": true, \"data\": { ... } }\n\n// Error\n{ \"ok\": false, \"error\": \"error_code\", \"message\": \"Human-readable message\" }\n```\n\n## Common Workflows\n\nThese are the multi-step recipes the API was designed around. Each one composes a few endpoints into a real member workflow — when an agent reaches for \"how do I X?\", these are the canonical paths.\n\n### 1. \"Who is in <city> right now?\"\n\nDon't hit `GET /chapters/:cityID` alone — that only returns DCers whose **home chapter** is the city, not who is currently visiting. The right two-step:\n\n1. `GET /places/search?q=<city>` → resolve the city placeID.\n2. `POST /trips` with `placeID` + the date window the user is asking about.\n3. `GET /trips/:tripID` → `discovery.fullPool` lists every visible DCer travelling OR local during that window, each with full profile.\n\nFor the home-chapter members only, `GET /chapters/:cityID` returns `members[]` plus `currentVisitors[]` (active trips to the city) without needing to create your own trip — useful as a quick lookup.\n\n### 2. \"Who should I meet on my trip to <city>?\"\n\n1. `GET /trips` → find the tripID (or `POST /trips` to create one).\n2. `GET /trips/:tripID` (or the discovery-only `GET /trips/:tripID/discovery`) — the response embeds a ranked top-10 picks with **AI-written \"why you should meet them\" paragraphs**, the full pool of locals + visitors, and events in town.\n\n**Important:** do NOT use `GET /trips/overlaps` for this question — that's a narrow date-window match only (usually 0-3 people), missing the AI-ranked picks and locals.\n\n### 3. \"Find DCers matching <description>\"\n\n`POST /profile-match` with a free-form `query` (\"DCers in Lisbon who run SaaS, raising a seed round\"). Returns vector-ranked results with `score`, `vectorScore`, and `keywordScore`. Optional structured filters compose with the natural-language query: `locationChapterPlaceID`, `eventID` (DCers attending), `isDCB`, `industry`, `minTeamSize`, `minRevenue`, `gender`. Skip `locationCurrentPlaceID` — that field is sparsely populated; prefer the trip-discovery flow above for presence questions.\n\n### 4. \"Plan together at an event\" (DCMEX, DCBKK, DC Week, etc.)\n\n1. `GET /events/:eventID` → confirm you and the other attendees hold tickets.\n2. `GET /events/:eventID/agendas?userIDs=A,B,C` → fetch multiple attendees' bookmarked sessions + meetup RSVPs in one call.\n3. `POST /events/:eventID/free-slots` with the `userIDs[]` → server returns shared free-time windows, ranked by how many people are free.\n4. `POST /events/:eventID/schedule/:sessionID/bookmark` to coordinate joint session attendance, or `POST /events/:eventID/meetups/:meetupID/rsvp` to commit to a member-organized meetup.\n\n### 5. \"Catch me up on <channel> while I was away\"\n\n1. `GET /rooms` (or `GET /rooms/inbox/channel` to filter) → find the roomID.\n2. `GET /rooms/:roomID/summary/weekly` → the latest AI-written weekly digest (topics, shared URLs, message + participant counts).\n3. `GET /rooms/:roomID/summaries/daily?limit=7` → last 7 daily summaries for finer detail.\n4. `GET /rooms/:roomID/messages?limit=50` → raw message history, newest first, cursor-paginated via `?before=`.\n\n### 6. \"Manage my inbox without leaving my agent\"\n\n- `GET /rooms/inbox/direct` / `/group` / `/channel` — filter by room type.\n- `POST /rooms/:roomID/{subscribe,unsubscribe,mute,unmute,archive,unarchive,pin,unpin,read}` — all nine mutations are idempotent and mirror the in-app behavior byte-for-byte. Pin auto-subscribes you. Unsubscribe clears the badge. `read` marks the room read (clears its badge) exactly like opening it in the app — reading summaries or messages never does.\n- `GET /rooms/browse/channel` — discover public channels you're not yet subscribed to.\n\n### 7. \"Refresh my public-facing profile\"\n\n1. `GET /profile` → see the full editable surface.\n2. `PATCH /profile` with the fields you want to change (`fields.PrimaryBusinessDescription`, `fields.Website`, etc. — sanitized server-side).\n3. `POST /profile-match` (without filters, with no `query`) → see who the matchmaker now recommends for *you* — useful to validate that your edits are landing in the right matches.\n\n### 8. \"Stay on top of new community signal\"\n\n- `GET /announcements/latest` — quick \"what's new across DC?\" — one most-recent broadcast per visible channel.\n- `GET /announcements` — cursor-paginated mixed feed across all visible broadcast channels.\n- `GET /locator/digest` — same data the Friday locator email aggregates: home-city new members, chapter leads, local members, trips, tickets.\n- `GET /inbox/unread` — total unread + per-room breakdown so an agent can prompt \"you have N unread in <room>\".\n\n---\n\n## URL fields — canonical vs `shortURL`\n\nEvery entity that exposes a link (rooms, events, chapters, tickets, locator entries, announcements, profiles) returns two URL fields side-by-side:\n\n- **`*URL`** (e.g. `roomURL`, `eventURL`, `chapterURL`, `profileURL`, `announcementURL`) — canonical link on `dc.dynamitecircle.com`. Use this when storing, indexing, or computing canonical identity.\n- **`shortURL`** — branded `dc.mba/...` short link to the same destination. Use this when the URL is shown to a human (display, copy-to-clipboard, paste into chat/email/SMS). The shortener 301-redirects to the canonical destination, so both URLs resolve identically.\n\nPick one per call site — never both. Default to `shortURL` for visible URLs unless canonical identity matters (SEO `og:url`, link-canonicalization checks, etc.).\n\n---\n\n**Discoverability tip for LLM agents:** every list endpoint that takes pagination uses `?limit=N` and `?cursor=<token>`. State-setting mutations are idempotent; creation endpoints create a new record unless the endpoint explicitly documents an idempotency key. Time-sensitive fields are ISO 8601 (wall-clock-in-venue-timezone for event sessions, see per-endpoint notes). When two endpoints look similar, the description on each one cross-links to the other so you can pick the right one.",
     "title": "DC Member API",
     "version": "2.3.1"
   },
@@ -601,7 +601,8 @@
                       "Vegan",
                       "Vegetarian",
                       "Gluten-Free",
-                      "Dairy/Lactose-Free"
+                      "Dairy/Lactose-Free",
+                      "No Seafood"
                     ]
                   }
                 },
@@ -611,6 +612,1695 @@
           },
           "required": true
         }
+      }
+    },
+    "/events": {
+      "get": {
+        "description": "Returns upcoming DC events, sorted by date. Add `?past=true` to include past events.\n\n**See also:** For events by name or topic (`q='productivity'`, `q='DCBKK 2026'`), `POST /search/events` searches title + description directly — faster than paginating this date-sorted list. Combine with `?cityID`, `?country`, `?since`, `?until` filters for narrower scopes.",
+        "operationId": "get_events",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "events": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "description": "Array of events",
+                      "properties": {
+                        "eventID": {
+                          "type": "string",
+                          "description": "Event ID"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Event name"
+                        },
+                        "slug": {
+                          "type": "string",
+                          "description": "URL slug"
+                        },
+                        "eventURL": {
+                          "type": "string",
+                          "description": "Link to event on DC (canonical host)."
+                        },
+                        "shortURL": {
+                          "type": "string",
+                          "description": "Branded short link (dc.mba) to the same event — equivalent destination, shorter for display / sharing."
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "Full description (markdown)"
+                        },
+                        "descriptionShort": {
+                          "type": "string",
+                          "description": "Short description (markdown)"
+                        },
+                        "eventType": {
+                          "type": "string",
+                          "description": "Event type (dcbkk, junto, meet-up, etc.)"
+                        },
+                        "headerImage": {
+                          "type": "string",
+                          "description": "Header image URL"
+                        },
+                        "city": {
+                          "type": "object",
+                          "description": "Event city",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "description": "City name"
+                            },
+                            "country": {
+                              "type": "string",
+                              "description": "Country"
+                            },
+                            "countryCode": {
+                              "type": "string",
+                              "description": "ISO country code"
+                            },
+                            "placeID": {
+                              "type": "string",
+                              "description": "Google Place ID for the city — pass to POST /trips to create a trip to this event"
+                            }
+                          }
+                        },
+                        "venue": {
+                          "type": "object",
+                          "description": "Event venue (the specific building/place inside the event city). `null` until a venue is announced (TBA events).",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "description": "Venue name (e.g. \"Hilton Mexico City Reforma\")"
+                            },
+                            "placeID": {
+                              "type": "string",
+                              "description": "Google Place ID for the venue — pass to Google Maps for directions, or to `GET /places/:placeID` for full details"
+                            },
+                            "city": {
+                              "type": "string",
+                              "description": "City the venue is in (usually matches `event.city.name`, but may differ for satellite venues)"
+                            },
+                            "country": {
+                              "type": "string",
+                              "description": "Country"
+                            },
+                            "countryCode": {
+                              "type": "string",
+                              "description": "ISO country code"
+                            },
+                            "region": {
+                              "type": "string",
+                              "description": "State / region / administrative area"
+                            },
+                            "lat": {
+                              "type": "number",
+                              "description": "Latitude (decimal degrees)"
+                            },
+                            "lon": {
+                              "type": "number",
+                              "description": "Longitude (decimal degrees)"
+                            }
+                          }
+                        },
+                        "venueInfo": {
+                          "type": "string",
+                          "description": "Free-text note about the venue (e.g. \"2nd floor, ask for DC group\"). Separate from the structured `venue` object above."
+                        },
+                        "startDate": {
+                          "type": "string",
+                          "description": "Start date (ISO 8601)"
+                        },
+                        "endDate": {
+                          "type": "string",
+                          "description": "End date (ISO 8601)"
+                        },
+                        "ticketsEnabled": {
+                          "type": "boolean",
+                          "description": "Whether tickets are available"
+                        },
+                        "rsvpEnabled": {
+                          "type": "boolean",
+                          "description": "Whether RSVP is available"
+                        }
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Cursor for the next page, or `null` if no more events."
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "List upcoming events",
+        "tags": [
+          "Events"
+        ],
+        "parameters": [
+          {
+            "description": "Include past events.",
+            "in": "query",
+            "name": "past",
+            "required": false,
+            "schema": {
+              "default": "false",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Max results (1-50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": "20",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Cursor from a previous response's `nextCursor`. Pass to fetch the next page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/events/{eventID}": {
+      "get": {
+        "description": "Returns full details for a specific event, including your ticket status.",
+        "operationId": "get_events__eventID",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "event": {
+                      "type": "object",
+                      "description": "Full event details"
+                    },
+                    "myTickets": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "description": "Your tickets for this event (empty array if none)"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Get event details",
+        "tags": [
+          "Events"
+        ],
+        "parameters": [
+          {
+            "description": "The event ID",
+            "example": "sWnllj1DW2jLMZ1n2KWB",
+            "in": "path",
+            "name": "eventID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/events/{eventID}/attendees": {
+      "get": {
+        "description": "List the confirmed attendees of an event — DCers holding a `valid` paid ticket OR a `valid`/`maybe` RSVP status. Refunded/canceled tickets are excluded. Hidden and guest profiles are filtered out.\n\nProfiles returned use the same shape as the rest of the API (`GET /profile-match`, `GET /trips/:tripID/discovery`, etc.) — full public-other-person view including businessName and expertise, plus privacy-gated annualRevenue + teamSize where shared. Social handles are not included.\n\n**Access:** any active DCer can view event attendees, matching the in-app attendee tab.\n\n**Pagination:** newest first; page with `?limit=` (1-100, default 100) plus the opaque `?cursor=` from the previous response's `nextCursor` (`null` when there are no more).",
+        "operationId": "get_events__eventID_attendees",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "attendees": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "description": "Array of attendee base profiles",
+                      "properties": {
+                        "userID": {
+                          "type": "string",
+                          "description": "Member ID"
+                        },
+                        "userName": {
+                          "type": "string",
+                          "description": "Username (handle)"
+                        },
+                        "displayName": {
+                          "type": "string",
+                          "description": "Display name"
+                        },
+                        "photo": {
+                          "type": "string",
+                          "description": "Profile photo URL"
+                        },
+                        "profileURL": {
+                          "type": "string",
+                          "description": "Profile URL on DC"
+                        },
+                        "headline": {
+                          "type": "string",
+                          "description": "Profile headline"
+                        },
+                        "businessIndustry": {
+                          "type": "string",
+                          "description": "Business industry"
+                        },
+                        "joinedDate": {
+                          "type": "string",
+                          "description": "Join date (YYYY-MM-DD)"
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number",
+                      "description": "Total confirmed attendees across all pages (the visible roster may be slightly smaller when hidden/guest profiles are filtered out)."
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Cursor for the next page, or `null` if no more attendees."
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "List event attendees",
+        "tags": [
+          "Events"
+        ],
+        "parameters": [
+          {
+            "description": "The event ID",
+            "example": "sWnllj1DW2jLMZ1n2KWB",
+            "in": "path",
+            "name": "eventID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Max results (1-100).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": "100",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Cursor from a previous response's `nextCursor`. Pass to fetch the next page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/events/{eventID}/rsvp": {
+      "post": {
+        "description": "RSVP to an event that uses free RSVP (not ticketed). Only works for events with rsvpEnabled: true.",
+        "operationId": "post_events__eventID_rsvp",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "rsvp": {
+                      "type": "object",
+                      "description": "Your RSVP record"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "RSVP to a free event",
+        "tags": [
+          "Events"
+        ],
+        "parameters": [
+          {
+            "description": "The event ID",
+            "example": "sWnllj1DW2jLMZ1n2KWB",
+            "in": "path",
+            "name": "eventID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "description": "RSVP status",
+                    "enum": [
+                      "yes",
+                      "maybe",
+                      "no"
+                    ]
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "status"
+                ]
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/events/{eventID}/schedule": {
+      "get": {
+        "description": "Returns the full schedule (sessions) for an event, sorted chronologically.\n\n**Access:** any active DCer who can see the event can view its public schedule. Personal agenda actions still require a valid ticket.\n\n**Time-zone handling:** session `startAt` / `endAt` are returned as ISO 8601 strings whose digits represent the **venue-local wall-clock time** (e.g. a 9 AM Mexico City session returns `2026-05-08T09:00:00.000Z`, NOT `15:00:00Z`). The session's `timezone` field carries the IANA zone (e.g. `America/Mexico_City`) — pair them when localizing. This matches the convention used by the DC ICS feed.",
+        "operationId": "get_events__eventID_schedule",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "sessions": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "description": "Sessions in chronological order. `date` is YYYY-MM-DD (venue-local) for day-grouping; `startAt`/`endAt` are wall-clock ISO strings + `timezone` for full localization.",
+                      "properties": {
+                        "sessionID": {
+                          "type": "string",
+                          "description": "Session ID"
+                        },
+                        "title": {
+                          "type": "string",
+                          "description": "Title"
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "Description (markdown)"
+                        },
+                        "date": {
+                          "type": "string",
+                          "description": "Date YYYY-MM-DD (venue-local — used to group sessions by day)"
+                        },
+                        "startAt": {
+                          "type": "string",
+                          "description": "Start time as wall-clock ISO 8601 (digits are venue-local; pair with `timezone`)"
+                        },
+                        "endAt": {
+                          "type": "string",
+                          "description": "End time as wall-clock ISO 8601 (digits are venue-local; pair with `timezone`)"
+                        },
+                        "timezone": {
+                          "type": "string",
+                          "description": "IANA timezone of the venue (e.g. America/Mexico_City)"
+                        },
+                        "type": {
+                          "type": "string",
+                          "description": "Session type",
+                          "enum": [
+                            "mainstage",
+                            "talk",
+                            "workshop",
+                            "discussion",
+                            "meetup",
+                            "mastermind",
+                            "social",
+                            "morning",
+                            "break",
+                            "other"
+                          ]
+                        },
+                        "speakers": {
+                          "items": {
+                            "type": "object"
+                          },
+                          "type": "array",
+                          "description": "Speakers — array of `{ userID, name, photoURL, bio }`"
+                        },
+                        "themes": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "description": "Topic tags"
+                        },
+                        "audience": {
+                          "type": "string",
+                          "description": "One-line \"who is this for\""
+                        },
+                        "capacity": {
+                          "type": "number",
+                          "description": "Capacity override (null = use venue default)"
+                        },
+                        "rsvpCount": {
+                          "type": "number",
+                          "description": "Number of attendees who bookmarked this session"
+                        },
+                        "venueID": {
+                          "type": "string",
+                          "description": "Venue ID at the event (or null for off-site sessions)"
+                        },
+                        "place": {
+                          "type": "object",
+                          "description": "Off-site place (when locationType=place)"
+                        },
+                        "locationNote": {
+                          "type": "string",
+                          "description": "Free-text location label (when locationType=note)"
+                        },
+                        "locationType": {
+                          "type": "string",
+                          "description": "Location source",
+                          "enum": [
+                            "venue",
+                            "place",
+                            "note"
+                          ]
+                        },
+                        "spansAllVenues": {
+                          "type": "boolean",
+                          "description": "True if the session spans every venue (general assembly, etc.)"
+                        },
+                        "dcbOnly": {
+                          "type": "boolean",
+                          "description": "True if only DC BLACK members can add the session to their agenda (other tiers get `403 dcb_only` from the bookmark endpoint)"
+                        },
+                        "dcbHidden": {
+                          "type": "boolean",
+                          "description": "True if the session is hidden from non-DC BLACK members (implies `dcbOnly`). Only DC BLACK callers ever see these sessions."
+                        }
+                      }
+                    },
+                    "timezone": {
+                      "type": "string",
+                      "description": "IANA timezone of the event venue"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Get event schedule",
+        "tags": [
+          "Events"
+        ],
+        "parameters": [
+          {
+            "description": "Event ID",
+            "example": "BbZlk82DNQFbV4HT2nJo",
+            "in": "path",
+            "name": "eventID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/events/{eventID}/agenda": {
+      "get": {
+        "description": "Returns the sessions and meetups **YOU** have on your personal agenda for an event:\n\n- Sessions you bookmarked from the schedule.\n- Meetups you RSVPd to.\n\n**Access:** caller must hold a valid ticket to the event.\n\nUse `POST /events/:eventID/schedule/:sessionID/bookmark` and `POST /events/:eventID/meetups/:meetupID/rsvp` to manage entries.",
+        "operationId": "get_events__eventID_agenda",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "sessions": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "description": "Sessions you have bookmarked, in chronological order. Same per-item shape as `/schedule`."
+                    },
+                    "meetups": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "description": "Meetups you have RSVPd to, in chronological order. Same per-item shape as `/meetups`."
+                    },
+                    "timezone": {
+                      "type": "string",
+                      "description": "IANA timezone of the event venue"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Get your personal agenda for an event",
+        "tags": [
+          "Events"
+        ],
+        "parameters": [
+          {
+            "description": "Event ID",
+            "example": "BbZlk82DNQFbV4HT2nJo",
+            "in": "path",
+            "name": "eventID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/events/{eventID}/agenda/{userID}": {
+      "get": {
+        "description": "Returns another attendee's personal agenda for an event — the sessions they bookmarked + meetups they RSVPd to. Use this so an AI agent can plan together with another DCer (find a coffee window, suggest sessions to overlap, propose a meetup).\n\n**Access:** open to any active DCer who can see the event. The target must hold a valid ticket — otherwise there is no agenda to return (404).",
+        "operationId": "get_events__eventID_agenda__userID",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "profile": {
+                      "type": "object",
+                      "description": "Mini profile of the target attendee",
+                      "properties": {
+                        "userID": {
+                          "type": "string",
+                          "description": "Member ID"
+                        },
+                        "userName": {
+                          "type": "string",
+                          "description": "Username (handle)"
+                        },
+                        "displayName": {
+                          "type": "string",
+                          "description": "Display name"
+                        },
+                        "photo": {
+                          "type": "string",
+                          "description": "Profile photo URL"
+                        },
+                        "profileURL": {
+                          "type": "string",
+                          "description": "Profile URL on DC"
+                        },
+                        "headline": {
+                          "type": "string",
+                          "description": "Profile headline"
+                        }
+                      }
+                    },
+                    "sessions": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "description": "Sessions they have bookmarked, chronological order"
+                    },
+                    "meetups": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "description": "Meetups they have RSVPd to, chronological order"
+                    },
+                    "timezone": {
+                      "type": "string",
+                      "description": "IANA timezone of the event venue"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Get another attendee's agenda for an event",
+        "tags": [
+          "Events"
+        ],
+        "parameters": [
+          {
+            "description": "Event ID",
+            "example": "BbZlk82DNQFbV4HT2nJo",
+            "in": "path",
+            "name": "eventID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Target attendee userID",
+            "example": "1673",
+            "in": "path",
+            "name": "userID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/events/{eventID}/schedule/{sessionID}/attendees": {
+      "get": {
+        "description": "Returns the list of attendees who have **bookmarked** a specific session into their agenda. Same profile shape as `/events/:eventID/attendees`.\n\n**Access:** any active DCer who can see the event.",
+        "operationId": "get_events__eventID_schedule__sessionID_attendees",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "attendees": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "description": "Attendees who have this session in their agenda"
+                    },
+                    "total": {
+                      "type": "number",
+                      "description": "Total attendee count for this session"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "List session attendees (people who bookmarked it)",
+        "tags": [
+          "Events"
+        ],
+        "parameters": [
+          {
+            "description": "Event ID",
+            "example": "BbZlk82DNQFbV4HT2nJo",
+            "in": "path",
+            "name": "eventID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session ID",
+            "example": "session_abc123",
+            "in": "path",
+            "name": "sessionID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/events/{eventID}/meetups": {
+      "get": {
+        "description": "Returns the approved member-organized meetups for an event, sorted chronologically. Only approved meetups are returned.\n\n**Access:** any active DCer who can see the event can view approved meetup listings + attendee lists. Only RSVPing to a meetup (and the resulting chat-channel access) requires a valid ticket.\n\n**Time-zone handling:** meetups use explicit wall-clock fields (`date` = YYYY-MM-DD, `startTime` / `endTime` = HH:mm) plus the event's `timezone` (IANA). Pair them when localizing.",
+        "operationId": "get_events__eventID_meetups",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "meetups": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "description": "Approved meetups in chronological order",
+                      "properties": {
+                        "meetupID": {
+                          "type": "string",
+                          "description": "Meetup ID"
+                        },
+                        "title": {
+                          "type": "string",
+                          "description": "Title"
+                        },
+                        "shortDescription": {
+                          "type": "string",
+                          "description": "Short description (one-line)"
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "Long description (markdown)"
+                        },
+                        "date": {
+                          "type": "string",
+                          "description": "Date YYYY-MM-DD (venue-local)"
+                        },
+                        "startTime": {
+                          "type": "string",
+                          "description": "Start time HH:mm (venue-local)"
+                        },
+                        "endTime": {
+                          "type": "string",
+                          "description": "End time HH:mm (venue-local)"
+                        },
+                        "timezone": {
+                          "type": "string",
+                          "description": "IANA timezone of the event"
+                        },
+                        "maxSeats": {
+                          "type": "number",
+                          "description": "Maximum attendees"
+                        },
+                        "rsvpCount": {
+                          "type": "number",
+                          "description": "Current RSVP count"
+                        },
+                        "host": {
+                          "type": "object",
+                          "description": "Host (the member organizing the meetup)"
+                        },
+                        "venue": {
+                          "type": "object",
+                          "description": "Meeting venue (Place — name, city, country, placeID)"
+                        },
+                        "venueDetails": {
+                          "type": "string",
+                          "description": "Free-text venue details (e.g. \"ask for DC group\")"
+                        }
+                      }
+                    },
+                    "timezone": {
+                      "type": "string",
+                      "description": "IANA timezone of the event venue"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "List event meetups",
+        "tags": [
+          "Events"
+        ],
+        "parameters": [
+          {
+            "description": "Event ID",
+            "example": "BbZlk82DNQFbV4HT2nJo",
+            "in": "path",
+            "name": "eventID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/events/{eventID}/meetups/{meetupID}/attendees": {
+      "get": {
+        "description": "Returns the list of attendees who have RSVPd to a specific meetup. Same profile shape as `/events/:eventID/attendees`.\n\n**Access:** any active DCer who can see the event.",
+        "operationId": "get_events__eventID_meetups__meetupID_attendees",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "attendees": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "description": "Attendees who RSVPd to this meetup"
+                    },
+                    "total": {
+                      "type": "number",
+                      "description": "Total RSVP count"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "List meetup attendees",
+        "tags": [
+          "Events"
+        ],
+        "parameters": [
+          {
+            "description": "Event ID",
+            "example": "BbZlk82DNQFbV4HT2nJo",
+            "in": "path",
+            "name": "eventID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Meetup ID",
+            "example": "meetup_xyz789",
+            "in": "path",
+            "name": "meetupID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/events/{eventID}/sponsors": {
+      "get": {
+        "description": "Returns the sponsors for an event, ordered by tier (primary → supporting) then display order. Deleted sponsors are filtered out.\n\n**Access:** any active DCer who can see the event — sponsors are public.",
+        "operationId": "get_events__eventID_sponsors",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "sponsors": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "description": "Sponsors in display order (tier first, then `order` within tier)",
+                      "properties": {
+                        "sponsorID": {
+                          "type": "string",
+                          "description": "Sponsor ID"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Sponsor name"
+                        },
+                        "logoURL": {
+                          "type": "string",
+                          "description": "Logo image URL"
+                        },
+                        "websiteURL": {
+                          "type": "string",
+                          "description": "Marketing website URL"
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "Description (markdown)"
+                        },
+                        "tier": {
+                          "type": "string",
+                          "description": "Sponsorship tier",
+                          "enum": [
+                            "primary",
+                            "supporting"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "List event sponsors",
+        "tags": [
+          "Events"
+        ],
+        "parameters": [
+          {
+            "description": "Event ID",
+            "example": "BbZlk82DNQFbV4HT2nJo",
+            "in": "path",
+            "name": "eventID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/events/{eventID}/schedule/{sessionID}/bookmark": {
+      "post": {
+        "description": "Add or remove a session from your personal agenda — this is the API equivalent of the bookmark/star icon on a session card in the DC app.\n\nRequires a valid ticket for the event. Sessions with `dcbOnly: true` can only be added by DC BLACK members — other tiers get `403 dcb_only` (removing with `bookmarked: false` is always allowed). Counter `rsvpCount` on the session doc is updated atomically and idempotently: repeating the same desired state does not increment or decrement the counter again.",
+        "operationId": "post_events__eventID_schedule__sessionID_bookmark",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "bookmarked": {
+                      "type": "boolean",
+                      "description": "Final bookmark state on your agenda"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Bookmark / unbookmark a session",
+        "tags": [
+          "Events"
+        ],
+        "parameters": [
+          {
+            "description": "Event ID",
+            "example": "BbZlk82DNQFbV4HT2nJo",
+            "in": "path",
+            "name": "eventID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session ID",
+            "example": "session_abc123",
+            "in": "path",
+            "name": "sessionID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "bookmarked": {
+                    "type": "boolean",
+                    "description": "`true` to add to agenda, `false` to remove"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "bookmarked"
+                ]
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/events/{eventID}/meetups/{meetupID}/rsvp": {
+      "post": {
+        "description": "Join or leave a meetup. Requires a valid ticket for the event. The meetup's `rsvpCount` is updated atomically and idempotently.\n\nWhen the meetup has a linked chat channel, this mirrors the DC app side effects too: joining subscribes you to the meetup chat and leaving removes you from it.",
+        "operationId": "post_events__eventID_meetups__meetupID_rsvp",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "joined": {
+                      "type": "boolean",
+                      "description": "Final RSVP state"
+                    },
+                    "rsvpCount": {
+                      "type": "number",
+                      "description": "Current RSVP count for this meetup (after your change)"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "RSVP to / leave a meetup",
+        "tags": [
+          "Events"
+        ],
+        "parameters": [
+          {
+            "description": "Event ID",
+            "example": "BbZlk82DNQFbV4HT2nJo",
+            "in": "path",
+            "name": "eventID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Meetup ID",
+            "example": "meetup_xyz789",
+            "in": "path",
+            "name": "meetupID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "joined": {
+                    "type": "boolean",
+                    "description": "`true` to join, `false` to leave"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "joined"
+                ]
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/events/{eventID}/agendas": {
+      "get": {
+        "description": "Returns the agendas (bookmarked sessions + meetup RSVPs) for **multiple** attendees in a single call. Use when an AI agent needs to plan around several DCers at once — comparing schedules, finding shared sessions, building a meetup invite list.\n\n**Query**: `userIDs=A,B,C` — comma-separated. Max 20 IDs per call.\n\n**Behavior**: silently drops IDs that don't hold a valid ticket (so the AI doesn't need to pre-filter). Returns only the agendas for confirmed attendees, in the order requested.\n\n**Access:** open to any active DCer who can see the event (non-attendee target IDs are silently dropped).",
+        "operationId": "get_events__eventID_agendas",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "agendas": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "description": "One entry per confirmed attendee, in the order requested",
+                      "properties": {
+                        "userID": {
+                          "type": "string",
+                          "description": "Attendee userID"
+                        },
+                        "profile": {
+                          "type": "object",
+                          "description": "Mini profile of the attendee"
+                        },
+                        "sessions": {
+                          "items": {
+                            "type": "object"
+                          },
+                          "type": "array",
+                          "description": "Sessions they bookmarked (chronological)"
+                        },
+                        "meetups": {
+                          "items": {
+                            "type": "object"
+                          },
+                          "type": "array",
+                          "description": "Meetups they RSVPd to (chronological)"
+                        }
+                      }
+                    },
+                    "timezone": {
+                      "type": "string",
+                      "description": "IANA timezone of the event venue"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Get multiple attendees' agendas in one call",
+        "tags": [
+          "Events"
+        ],
+        "parameters": [
+          {
+            "description": "Event ID",
+            "example": "BbZlk82DNQFbV4HT2nJo",
+            "in": "path",
+            "name": "eventID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required. Comma-separated userIDs (max 20). Non-attendees are silently dropped.",
+            "example": "940,1673,2572",
+            "in": "query",
+            "name": "userIDs",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/events/{eventID}/free-slots": {
+      "post": {
+        "description": "Computes shared **free slots** across a set of event attendees — the time windows where they're NOT in a bookmarked session or meetup. Use to find a coffee window with one DCer, or a junto-style lunch slot for a group.\n\n**Body**: `userIDs[]` (1-20), `minDurationMinutes` (default 30, min 15, max 480), optional `eventDayDate: YYYY-MM-DD` to scope to a single event day.\n\n**Slot grid**: derived from the event's session schedule, partitioned into `minDurationMinutes` windows. For each window we subtract each user's bookmarked sessions + meetup RSVPs.\n\n**Sort**: slots ranked by `len(freeFor)` desc — fully-shared windows first, then partial overlaps.\n\n**Auth**: caller must hold a valid ticket. Non-attendee IDs are silently dropped.",
+        "operationId": "post_events__eventID_free-slots",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "slots": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "description": "Free slots ranked by overlap (most-shared first). Wall-clock + IANA timezone — same convention as `/schedule`.",
+                      "properties": {
+                        "startAt": {
+                          "type": "string",
+                          "description": "Slot start (wall-clock ISO)"
+                        },
+                        "endAt": {
+                          "type": "string",
+                          "description": "Slot end (wall-clock ISO)"
+                        },
+                        "durationMinutes": {
+                          "type": "number",
+                          "description": "Duration in minutes"
+                        },
+                        "timezone": {
+                          "type": "string",
+                          "description": "IANA timezone of the event venue"
+                        },
+                        "freeFor": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "description": "userIDs free during this slot"
+                        },
+                        "busyFor": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "description": "userIDs busy (bookmarked session or meetup) during this slot"
+                        }
+                      }
+                    },
+                    "timezone": {
+                      "type": "string",
+                      "description": "IANA timezone of the event venue"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Find shared free time slots across attendees",
+        "tags": [
+          "Events"
+        ],
+        "parameters": [
+          {
+            "description": "Event ID",
+            "example": "BbZlk82DNQFbV4HT2nJo",
+            "in": "path",
+            "name": "eventID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "userIDs": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Attendee userIDs to compare (1-20). Non-attendees silently dropped.",
+                    "example": [
+                      "940",
+                      "1673",
+                      "2572"
+                    ]
+                  },
+                  "minDurationMinutes": {
+                    "type": "number",
+                    "description": "Minimum slot duration in minutes (default 30, range 15-480)",
+                    "example": 30
+                  },
+                  "eventDayDate": {
+                    "type": "string",
+                    "description": "Optional. Scope to a single event day (YYYY-MM-DD venue-local). Omit for the full event range.",
+                    "example": "2026-11-12"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "userIDs"
+                ]
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/profiles/{userID}": {
+      "get": {
+        "description": "Get another DCer's public profile by `userID`.\n\nReturns the **same profile object** every list endpoint already uses — `GET /events/:eventID/attendees`, `GET /chapters/:cityID` members, `POST /profile-match` results, `GET /search/profiles` hits — so a client that renders those lists can render this without a second shape. Sensitive fields (`annualRevenue`, `teamSize`, `peopleOfInterest`) only populate when the owner shared them with all DCers; the owner's current city is omitted when they opted out of location sharing. Social handles are never included — they stay on the owner's own `GET /profile`.\n\n**Discovery:** this endpoint is a lookup, not a browse — you need a `userID` first. Find DCers via `POST /profile-match` (AI matchmaking, \"DCers in Lisbon who run SaaS\"), `GET /search/profiles?q=` (free-text), `GET /chapters/:cityID` (locals), or `GET /events/:eventID/attendees` (who is coming).\n\n**Access:** any active DCer. Hidden, guest, and inactive profiles return 404 — the same visibility gate the list endpoints apply. Looking up your own `userID` is allowed and returns this public shape; use `GET /profile` for your full editable profile.",
+        "operationId": "get_profiles__userID",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "userID": {
+                      "type": "string",
+                      "description": "Member ID.",
+                      "example": "1234"
+                    },
+                    "userName": {
+                      "type": "string",
+                      "description": "DC username — appears in the profile URL.",
+                      "example": "JaneDoe"
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "description": "Display name shown across the DC app.",
+                      "example": "Jane Doe"
+                    },
+                    "nickname": {
+                      "type": "string",
+                      "description": "Preferred nickname, or `null`."
+                    },
+                    "photo": {
+                      "type": "string",
+                      "description": "Profile photo URL, or `null`."
+                    },
+                    "profileURL": {
+                      "type": "string",
+                      "description": "Link to the public profile on DC (canonical host).",
+                      "example": "https://dc.dynamitecircle.com/profile/JaneDoe"
+                    },
+                    "shortURL": {
+                      "type": "string",
+                      "description": "Branded short link (dc.mba) to the public profile.",
+                      "example": "https://dc.mba/profile/JaneDoe"
+                    },
+                    "headline": {
+                      "type": "string",
+                      "description": "One-sentence elevator pitch shown at the top of the profile.",
+                      "example": "Founder at Acme Inc"
+                    },
+                    "joinedDate": {
+                      "type": "string",
+                      "description": "Date they joined DC (YYYY-MM-DD), or `null`.",
+                      "example": "2020-01-15"
+                    },
+                    "chapter": {
+                      "type": "object",
+                      "description": "Home chapter (`{ cityID, cityName, country, countryCode, placeID, chapterURL }`), or `null` when no base location is set."
+                    },
+                    "currentLocation": {
+                      "type": "object",
+                      "description": "Where they are right now, only when it differs from the home chapter — `null` means \"at base\" or location sharing is off."
+                    },
+                    "businessName": {
+                      "type": "string",
+                      "description": "Name of their primary business."
+                    },
+                    "businessDescription": {
+                      "type": "string",
+                      "description": "Description of their primary business (plain text or HTML)."
+                    },
+                    "businessIndustry": {
+                      "type": "string",
+                      "description": "Primary business industry (predefined bracket)."
+                    },
+                    "businessWebsite": {
+                      "type": "string",
+                      "description": "Public website for their primary business."
+                    },
+                    "businessPartnerName": {
+                      "type": "string",
+                      "description": "Business partner's name, or `null`."
+                    },
+                    "otherBusinesses": {
+                      "type": "string",
+                      "description": "Other businesses they run, or `null`."
+                    },
+                    "previousBusinesses": {
+                      "type": "string",
+                      "description": "Previous businesses, or `null`."
+                    },
+                    "yearsInBusiness": {
+                      "type": "string",
+                      "description": "How long they have been on the entrepreneurial path (predefined bracket)."
+                    },
+                    "annualRevenue": {
+                      "type": "string",
+                      "description": "Annual revenue bracket — `null` unless the owner shared it with all DCers."
+                    },
+                    "teamSize": {
+                      "type": "string",
+                      "description": "Team size bracket — `null` unless the owner shared it with all DCers."
+                    },
+                    "expertise": {
+                      "type": "string",
+                      "description": "Fields of expertise (comma-separated), or `null`."
+                    },
+                    "askMeAnythingTopics": {
+                      "type": "string",
+                      "description": "Topics other members can ask them about, or `null`."
+                    },
+                    "currentChallenge": {
+                      "type": "string",
+                      "description": "What they are currently working through, or `null`."
+                    },
+                    "peopleOfInterest": {
+                      "type": "string",
+                      "description": "Who they want to meet — `null` unless the owner shared it with all DCers."
+                    },
+                    "hobbies": {
+                      "type": "string",
+                      "description": "Non-business hobbies, or `null`."
+                    },
+                    "relevantLocations": {
+                      "type": "string",
+                      "description": "Other places they spend time (comma-separated), or `null`."
+                    },
+                    "referredBy": {
+                      "type": "string",
+                      "description": "Who referred them to DC, or `null`."
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Get another DCer's public profile",
+        "tags": [
+          "Profile"
+        ],
+        "parameters": [
+          {
+            "description": "The DCer's member ID. Discover via `POST /profile-match`, `GET /search/profiles`, `GET /chapters/:cityID`, or `GET /events/:eventID/attendees` (each entry carries `userID`).",
+            "example": "1234",
+            "in": "path",
+            "name": "userID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/profiles/{userID}/events": {
+      "get": {
+        "description": "Events a DCer is attending or has attended — the **Events** tab of their profile in the app. Built from their tickets (valid + maybe RSVPs), so it lists events they hold a ticket for, not events they organised.\n\nReturns three event lists, each in date order: `upcoming` (not yet ended), `pastEvents` (past global events) and `pastMeetups` (past local meetups), plus `alsoAttended` — labels of older DC events recorded on the profile before tickets existed (e.g. \"DCBKK 2014\").\n\n**Access:** any active DCer; the same visibility gate as `GET /profiles/:userID` (hidden, guest and inactive profiles return 404).",
+        "operationId": "get_profiles__userID_events",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "upcoming": {
+                      "type": "object",
+                      "description": "Events they are going to (end date in the future), soonest first. Same event shape as `GET /events`."
+                    },
+                    "pastEvents": {
+                      "type": "object",
+                      "description": "Past global events they attended, oldest first."
+                    },
+                    "pastMeetups": {
+                      "type": "object",
+                      "description": "Past local meetups they attended, oldest first."
+                    },
+                    "alsoAttended": {
+                      "type": "object",
+                      "description": "Labels of older events recorded on the profile.",
+                      "example": "[\"DCBKK 2014\"]"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Events a DCer attends",
+        "tags": [
+          "Profile"
+        ],
+        "parameters": [
+          {
+            "description": "The DCer's member ID.",
+            "example": "1234",
+            "in": "path",
+            "name": "userID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/trips": {
@@ -1354,144 +3044,22 @@
         ]
       }
     },
-    "/events": {
+    "/trips/recent": {
       "get": {
-        "description": "Returns upcoming DC events, sorted by date. Add `?past=true` to include past events.\n\n**See also:** For events by name or topic (`q='productivity'`, `q='DCBKK 2026'`), `POST /search/events` searches title + description directly — faster than paginating this date-sorted list. Combine with `?cityID`, `?country`, `?since`, `?until` filters for narrower scopes.",
-        "operationId": "get_events",
+        "description": "Recently added trips across the community — the app's Locator › New Trips tab. The latest trips by creation time that have not ended yet, newest first, each with its traveller (members with a hidden profile are left out). Your own follows are a subset: filter by `member.userID` against `GET /follows/profiles`.",
+        "operationId": "get_trips_recent",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
                   "properties": {
-                    "events": {
+                    "trips": {
                       "items": {
                         "type": "object"
                       },
                       "type": "array",
-                      "description": "Array of events",
-                      "properties": {
-                        "eventID": {
-                          "type": "string",
-                          "description": "Event ID"
-                        },
-                        "name": {
-                          "type": "string",
-                          "description": "Event name"
-                        },
-                        "slug": {
-                          "type": "string",
-                          "description": "URL slug"
-                        },
-                        "eventURL": {
-                          "type": "string",
-                          "description": "Link to event on DC (canonical host)."
-                        },
-                        "shortURL": {
-                          "type": "string",
-                          "description": "Branded short link (dc.mba) to the same event — equivalent destination, shorter for display / sharing."
-                        },
-                        "description": {
-                          "type": "string",
-                          "description": "Full description (markdown)"
-                        },
-                        "descriptionShort": {
-                          "type": "string",
-                          "description": "Short description (markdown)"
-                        },
-                        "eventType": {
-                          "type": "string",
-                          "description": "Event type (dcbkk, junto, meet-up, etc.)"
-                        },
-                        "headerImage": {
-                          "type": "string",
-                          "description": "Header image URL"
-                        },
-                        "city": {
-                          "type": "object",
-                          "description": "Event city",
-                          "properties": {
-                            "name": {
-                              "type": "string",
-                              "description": "City name"
-                            },
-                            "country": {
-                              "type": "string",
-                              "description": "Country"
-                            },
-                            "countryCode": {
-                              "type": "string",
-                              "description": "ISO country code"
-                            },
-                            "placeID": {
-                              "type": "string",
-                              "description": "Google Place ID for the city — pass to POST /trips to create a trip to this event"
-                            }
-                          }
-                        },
-                        "venue": {
-                          "type": "object",
-                          "description": "Event venue (the specific building/place inside the event city). `null` until a venue is announced (TBA events).",
-                          "properties": {
-                            "name": {
-                              "type": "string",
-                              "description": "Venue name (e.g. \"Hilton Mexico City Reforma\")"
-                            },
-                            "placeID": {
-                              "type": "string",
-                              "description": "Google Place ID for the venue — pass to Google Maps for directions, or to `GET /places/:placeID` for full details"
-                            },
-                            "city": {
-                              "type": "string",
-                              "description": "City the venue is in (usually matches `event.city.name`, but may differ for satellite venues)"
-                            },
-                            "country": {
-                              "type": "string",
-                              "description": "Country"
-                            },
-                            "countryCode": {
-                              "type": "string",
-                              "description": "ISO country code"
-                            },
-                            "region": {
-                              "type": "string",
-                              "description": "State / region / administrative area"
-                            },
-                            "lat": {
-                              "type": "number",
-                              "description": "Latitude (decimal degrees)"
-                            },
-                            "lon": {
-                              "type": "number",
-                              "description": "Longitude (decimal degrees)"
-                            }
-                          }
-                        },
-                        "venueInfo": {
-                          "type": "string",
-                          "description": "Free-text note about the venue (e.g. \"2nd floor, ask for DC group\"). Separate from the structured `venue` object above."
-                        },
-                        "startDate": {
-                          "type": "string",
-                          "description": "Start date (ISO 8601)"
-                        },
-                        "endDate": {
-                          "type": "string",
-                          "description": "End date (ISO 8601)"
-                        },
-                        "ticketsEnabled": {
-                          "type": "boolean",
-                          "description": "Whether tickets are available"
-                        },
-                        "rsvpEnabled": {
-                          "type": "boolean",
-                          "description": "Whether RSVP is available"
-                        }
-                      }
-                    },
-                    "nextCursor": {
-                      "type": "string",
-                      "description": "Cursor for the next page, or `null` if no more events."
+                      "description": "Trips (same shape as `GET /trips` items) plus `member` {userID, displayName, userName, photo, profileURL}."
                     }
                   },
                   "type": "object"
@@ -1510,1303 +3078,22 @@
             "description": "Rate limit exceeded"
           }
         },
-        "summary": "List upcoming events",
+        "summary": "Recently added trips (community)",
         "tags": [
-          "Events"
+          "Trips"
         ],
         "parameters": [
           {
-            "description": "Include past events.",
-            "in": "query",
-            "name": "past",
-            "required": false,
-            "schema": {
-              "default": "false",
-              "type": "boolean"
-            }
-          },
-          {
-            "description": "Max results (1-50).",
+            "description": "Max results (1-100)",
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
-              "default": "20",
+              "default": "50",
               "type": "number"
             }
-          },
-          {
-            "description": "Cursor from a previous response's `nextCursor`. Pass to fetch the next page.",
-            "in": "query",
-            "name": "cursor",
-            "required": false,
-            "schema": {
-              "default": "",
-              "type": "string"
-            }
           }
         ]
-      }
-    },
-    "/events/{eventID}": {
-      "get": {
-        "description": "Returns full details for a specific event, including your ticket status.",
-        "operationId": "get_events__eventID",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "event": {
-                      "type": "object",
-                      "description": "Full event details"
-                    },
-                    "myTickets": {
-                      "items": {
-                        "type": "object"
-                      },
-                      "type": "array",
-                      "description": "Your tickets for this event (empty array if none)"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized — missing or invalid API key"
-          },
-          "403": {
-            "description": "Forbidden — inactive membership or not eligible"
-          },
-          "429": {
-            "description": "Rate limit exceeded"
-          }
-        },
-        "summary": "Get event details",
-        "tags": [
-          "Events"
-        ],
-        "parameters": [
-          {
-            "description": "The event ID",
-            "example": "sWnllj1DW2jLMZ1n2KWB",
-            "in": "path",
-            "name": "eventID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
-    "/events/{eventID}/attendees": {
-      "get": {
-        "description": "List the confirmed attendees of an event — DCers holding a `valid` paid ticket OR a `valid`/`maybe` RSVP status. Refunded/canceled tickets are excluded. Hidden and guest profiles are filtered out.\n\nProfiles returned use the same shape as the rest of the API (`GET /profile-match`, `GET /trips/:tripID/discovery`, etc.) — full public-other-person view including businessName and expertise, plus privacy-gated annualRevenue + teamSize where shared. Social handles are not included.\n\n**Access:** any active DCer can view event attendees, matching the in-app attendee tab.\n\n**Pagination:** newest first; page with `?limit=` (1-100, default 100) plus the opaque `?cursor=` from the previous response's `nextCursor` (`null` when there are no more).",
-        "operationId": "get_events__eventID_attendees",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "attendees": {
-                      "items": {
-                        "type": "object"
-                      },
-                      "type": "array",
-                      "description": "Array of attendee base profiles",
-                      "properties": {
-                        "userID": {
-                          "type": "string",
-                          "description": "Member ID"
-                        },
-                        "userName": {
-                          "type": "string",
-                          "description": "Username (handle)"
-                        },
-                        "displayName": {
-                          "type": "string",
-                          "description": "Display name"
-                        },
-                        "photo": {
-                          "type": "string",
-                          "description": "Profile photo URL"
-                        },
-                        "profileURL": {
-                          "type": "string",
-                          "description": "Profile URL on DC"
-                        },
-                        "headline": {
-                          "type": "string",
-                          "description": "Profile headline"
-                        },
-                        "businessIndustry": {
-                          "type": "string",
-                          "description": "Business industry"
-                        },
-                        "joinedDate": {
-                          "type": "string",
-                          "description": "Join date (YYYY-MM-DD)"
-                        }
-                      }
-                    },
-                    "total": {
-                      "type": "number",
-                      "description": "Total confirmed attendees across all pages (the visible roster may be slightly smaller when hidden/guest profiles are filtered out)."
-                    },
-                    "nextCursor": {
-                      "type": "string",
-                      "description": "Cursor for the next page, or `null` if no more attendees."
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized — missing or invalid API key"
-          },
-          "403": {
-            "description": "Forbidden — inactive membership or not eligible"
-          },
-          "429": {
-            "description": "Rate limit exceeded"
-          }
-        },
-        "summary": "List event attendees",
-        "tags": [
-          "Events"
-        ],
-        "parameters": [
-          {
-            "description": "The event ID",
-            "example": "sWnllj1DW2jLMZ1n2KWB",
-            "in": "path",
-            "name": "eventID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Max results (1-100).",
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": "100",
-              "type": "number"
-            }
-          },
-          {
-            "description": "Cursor from a previous response's `nextCursor`. Pass to fetch the next page.",
-            "in": "query",
-            "name": "cursor",
-            "required": false,
-            "schema": {
-              "default": "",
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
-    "/events/{eventID}/rsvp": {
-      "post": {
-        "description": "RSVP to an event that uses free RSVP (not ticketed). Only works for events with rsvpEnabled: true.",
-        "operationId": "post_events__eventID_rsvp",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "rsvp": {
-                      "type": "object",
-                      "description": "Your RSVP record"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized — missing or invalid API key"
-          },
-          "403": {
-            "description": "Forbidden — inactive membership or not eligible"
-          },
-          "429": {
-            "description": "Rate limit exceeded"
-          }
-        },
-        "summary": "RSVP to a free event",
-        "tags": [
-          "Events"
-        ],
-        "parameters": [
-          {
-            "description": "The event ID",
-            "example": "sWnllj1DW2jLMZ1n2KWB",
-            "in": "path",
-            "name": "eventID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "status": {
-                    "type": "string",
-                    "description": "RSVP status",
-                    "enum": [
-                      "yes",
-                      "maybe",
-                      "no"
-                    ]
-                  }
-                },
-                "type": "object",
-                "required": [
-                  "status"
-                ]
-              }
-            }
-          },
-          "required": true
-        }
-      }
-    },
-    "/events/{eventID}/schedule": {
-      "get": {
-        "description": "Returns the full schedule (sessions) for an event, sorted chronologically.\n\n**Access:** any active DCer who can see the event can view its public schedule. Personal agenda actions still require a valid ticket.\n\n**Time-zone handling:** session `startAt` / `endAt` are returned as ISO 8601 strings whose digits represent the **venue-local wall-clock time** (e.g. a 9 AM Mexico City session returns `2026-05-08T09:00:00.000Z`, NOT `15:00:00Z`). The session's `timezone` field carries the IANA zone (e.g. `America/Mexico_City`) — pair them when localizing. This matches the convention used by the DC ICS feed.",
-        "operationId": "get_events__eventID_schedule",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "sessions": {
-                      "items": {
-                        "type": "object"
-                      },
-                      "type": "array",
-                      "description": "Sessions in chronological order. `date` is YYYY-MM-DD (venue-local) for day-grouping; `startAt`/`endAt` are wall-clock ISO strings + `timezone` for full localization.",
-                      "properties": {
-                        "sessionID": {
-                          "type": "string",
-                          "description": "Session ID"
-                        },
-                        "title": {
-                          "type": "string",
-                          "description": "Title"
-                        },
-                        "description": {
-                          "type": "string",
-                          "description": "Description (markdown)"
-                        },
-                        "date": {
-                          "type": "string",
-                          "description": "Date YYYY-MM-DD (venue-local — used to group sessions by day)"
-                        },
-                        "startAt": {
-                          "type": "string",
-                          "description": "Start time as wall-clock ISO 8601 (digits are venue-local; pair with `timezone`)"
-                        },
-                        "endAt": {
-                          "type": "string",
-                          "description": "End time as wall-clock ISO 8601 (digits are venue-local; pair with `timezone`)"
-                        },
-                        "timezone": {
-                          "type": "string",
-                          "description": "IANA timezone of the venue (e.g. America/Mexico_City)"
-                        },
-                        "type": {
-                          "type": "string",
-                          "description": "Session type",
-                          "enum": [
-                            "mainstage",
-                            "talk",
-                            "workshop",
-                            "discussion",
-                            "meetup",
-                            "mastermind",
-                            "social",
-                            "morning",
-                            "break",
-                            "other"
-                          ]
-                        },
-                        "speakers": {
-                          "items": {
-                            "type": "object"
-                          },
-                          "type": "array",
-                          "description": "Speakers — array of `{ userID, name, photoURL, bio }`"
-                        },
-                        "themes": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array",
-                          "description": "Topic tags"
-                        },
-                        "audience": {
-                          "type": "string",
-                          "description": "One-line \"who is this for\""
-                        },
-                        "capacity": {
-                          "type": "number",
-                          "description": "Capacity override (null = use venue default)"
-                        },
-                        "rsvpCount": {
-                          "type": "number",
-                          "description": "Number of attendees who bookmarked this session"
-                        },
-                        "venueID": {
-                          "type": "string",
-                          "description": "Venue ID at the event (or null for off-site sessions)"
-                        },
-                        "place": {
-                          "type": "object",
-                          "description": "Off-site place (when locationType=place)"
-                        },
-                        "locationNote": {
-                          "type": "string",
-                          "description": "Free-text location label (when locationType=note)"
-                        },
-                        "locationType": {
-                          "type": "string",
-                          "description": "Location source",
-                          "enum": [
-                            "venue",
-                            "place",
-                            "note"
-                          ]
-                        },
-                        "spansAllVenues": {
-                          "type": "boolean",
-                          "description": "True if the session spans every venue (general assembly, etc.)"
-                        }
-                      }
-                    },
-                    "timezone": {
-                      "type": "string",
-                      "description": "IANA timezone of the event venue"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized — missing or invalid API key"
-          },
-          "403": {
-            "description": "Forbidden — inactive membership or not eligible"
-          },
-          "429": {
-            "description": "Rate limit exceeded"
-          }
-        },
-        "summary": "Get event schedule",
-        "tags": [
-          "Events"
-        ],
-        "parameters": [
-          {
-            "description": "Event ID",
-            "example": "BbZlk82DNQFbV4HT2nJo",
-            "in": "path",
-            "name": "eventID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
-    "/events/{eventID}/agenda": {
-      "get": {
-        "description": "Returns the sessions and meetups **YOU** have on your personal agenda for an event:\n\n- Sessions you bookmarked from the schedule.\n- Meetups you RSVPd to.\n\n**Access:** caller must hold a valid ticket to the event.\n\nUse `POST /events/:eventID/schedule/:sessionID/bookmark` and `POST /events/:eventID/meetups/:meetupID/rsvp` to manage entries.",
-        "operationId": "get_events__eventID_agenda",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "sessions": {
-                      "items": {
-                        "type": "object"
-                      },
-                      "type": "array",
-                      "description": "Sessions you have bookmarked, in chronological order. Same per-item shape as `/schedule`."
-                    },
-                    "meetups": {
-                      "items": {
-                        "type": "object"
-                      },
-                      "type": "array",
-                      "description": "Meetups you have RSVPd to, in chronological order. Same per-item shape as `/meetups`."
-                    },
-                    "timezone": {
-                      "type": "string",
-                      "description": "IANA timezone of the event venue"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized — missing or invalid API key"
-          },
-          "403": {
-            "description": "Forbidden — inactive membership or not eligible"
-          },
-          "429": {
-            "description": "Rate limit exceeded"
-          }
-        },
-        "summary": "Get your personal agenda for an event",
-        "tags": [
-          "Events"
-        ],
-        "parameters": [
-          {
-            "description": "Event ID",
-            "example": "BbZlk82DNQFbV4HT2nJo",
-            "in": "path",
-            "name": "eventID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
-    "/events/{eventID}/agenda/{userID}": {
-      "get": {
-        "description": "Returns another attendee's personal agenda for an event — the sessions they bookmarked + meetups they RSVPd to. Use this so an AI agent can plan together with another DCer (find a coffee window, suggest sessions to overlap, propose a meetup).\n\n**Access:** open to any active DCer who can see the event. The target must hold a valid ticket — otherwise there is no agenda to return (404).",
-        "operationId": "get_events__eventID_agenda__userID",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "profile": {
-                      "type": "object",
-                      "description": "Mini profile of the target attendee",
-                      "properties": {
-                        "userID": {
-                          "type": "string",
-                          "description": "Member ID"
-                        },
-                        "userName": {
-                          "type": "string",
-                          "description": "Username (handle)"
-                        },
-                        "displayName": {
-                          "type": "string",
-                          "description": "Display name"
-                        },
-                        "photo": {
-                          "type": "string",
-                          "description": "Profile photo URL"
-                        },
-                        "profileURL": {
-                          "type": "string",
-                          "description": "Profile URL on DC"
-                        },
-                        "headline": {
-                          "type": "string",
-                          "description": "Profile headline"
-                        }
-                      }
-                    },
-                    "sessions": {
-                      "items": {
-                        "type": "object"
-                      },
-                      "type": "array",
-                      "description": "Sessions they have bookmarked, chronological order"
-                    },
-                    "meetups": {
-                      "items": {
-                        "type": "object"
-                      },
-                      "type": "array",
-                      "description": "Meetups they have RSVPd to, chronological order"
-                    },
-                    "timezone": {
-                      "type": "string",
-                      "description": "IANA timezone of the event venue"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized — missing or invalid API key"
-          },
-          "403": {
-            "description": "Forbidden — inactive membership or not eligible"
-          },
-          "429": {
-            "description": "Rate limit exceeded"
-          }
-        },
-        "summary": "Get another attendee's agenda for an event",
-        "tags": [
-          "Events"
-        ],
-        "parameters": [
-          {
-            "description": "Event ID",
-            "example": "BbZlk82DNQFbV4HT2nJo",
-            "in": "path",
-            "name": "eventID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Target attendee userID",
-            "example": "1673",
-            "in": "path",
-            "name": "userID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
-    "/events/{eventID}/schedule/{sessionID}/attendees": {
-      "get": {
-        "description": "Returns the list of attendees who have **bookmarked** a specific session into their agenda. Same profile shape as `/events/:eventID/attendees`.\n\n**Access:** any active DCer who can see the event.",
-        "operationId": "get_events__eventID_schedule__sessionID_attendees",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "attendees": {
-                      "items": {
-                        "type": "object"
-                      },
-                      "type": "array",
-                      "description": "Attendees who have this session in their agenda"
-                    },
-                    "total": {
-                      "type": "number",
-                      "description": "Total attendee count for this session"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized — missing or invalid API key"
-          },
-          "403": {
-            "description": "Forbidden — inactive membership or not eligible"
-          },
-          "429": {
-            "description": "Rate limit exceeded"
-          }
-        },
-        "summary": "List session attendees (people who bookmarked it)",
-        "tags": [
-          "Events"
-        ],
-        "parameters": [
-          {
-            "description": "Event ID",
-            "example": "BbZlk82DNQFbV4HT2nJo",
-            "in": "path",
-            "name": "eventID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Session ID",
-            "example": "session_abc123",
-            "in": "path",
-            "name": "sessionID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
-    "/events/{eventID}/meetups": {
-      "get": {
-        "description": "Returns the approved member-organized meetups for an event, sorted chronologically. Only approved meetups are returned.\n\n**Access:** any active DCer who can see the event can view approved meetup listings + attendee lists. Only RSVPing to a meetup (and the resulting chat-channel access) requires a valid ticket.\n\n**Time-zone handling:** meetups use explicit wall-clock fields (`date` = YYYY-MM-DD, `startTime` / `endTime` = HH:mm) plus the event's `timezone` (IANA). Pair them when localizing.",
-        "operationId": "get_events__eventID_meetups",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "meetups": {
-                      "items": {
-                        "type": "object"
-                      },
-                      "type": "array",
-                      "description": "Approved meetups in chronological order",
-                      "properties": {
-                        "meetupID": {
-                          "type": "string",
-                          "description": "Meetup ID"
-                        },
-                        "title": {
-                          "type": "string",
-                          "description": "Title"
-                        },
-                        "shortDescription": {
-                          "type": "string",
-                          "description": "Short description (one-line)"
-                        },
-                        "description": {
-                          "type": "string",
-                          "description": "Long description (markdown)"
-                        },
-                        "date": {
-                          "type": "string",
-                          "description": "Date YYYY-MM-DD (venue-local)"
-                        },
-                        "startTime": {
-                          "type": "string",
-                          "description": "Start time HH:mm (venue-local)"
-                        },
-                        "endTime": {
-                          "type": "string",
-                          "description": "End time HH:mm (venue-local)"
-                        },
-                        "timezone": {
-                          "type": "string",
-                          "description": "IANA timezone of the event"
-                        },
-                        "maxSeats": {
-                          "type": "number",
-                          "description": "Maximum attendees"
-                        },
-                        "rsvpCount": {
-                          "type": "number",
-                          "description": "Current RSVP count"
-                        },
-                        "host": {
-                          "type": "object",
-                          "description": "Host (the member organizing the meetup)"
-                        },
-                        "venue": {
-                          "type": "object",
-                          "description": "Meeting venue (Place — name, city, country, placeID)"
-                        },
-                        "venueDetails": {
-                          "type": "string",
-                          "description": "Free-text venue details (e.g. \"ask for DC group\")"
-                        }
-                      }
-                    },
-                    "timezone": {
-                      "type": "string",
-                      "description": "IANA timezone of the event venue"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized — missing or invalid API key"
-          },
-          "403": {
-            "description": "Forbidden — inactive membership or not eligible"
-          },
-          "429": {
-            "description": "Rate limit exceeded"
-          }
-        },
-        "summary": "List event meetups",
-        "tags": [
-          "Events"
-        ],
-        "parameters": [
-          {
-            "description": "Event ID",
-            "example": "BbZlk82DNQFbV4HT2nJo",
-            "in": "path",
-            "name": "eventID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
-    "/events/{eventID}/meetups/{meetupID}/attendees": {
-      "get": {
-        "description": "Returns the list of attendees who have RSVPd to a specific meetup. Same profile shape as `/events/:eventID/attendees`.\n\n**Access:** any active DCer who can see the event.",
-        "operationId": "get_events__eventID_meetups__meetupID_attendees",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "attendees": {
-                      "items": {
-                        "type": "object"
-                      },
-                      "type": "array",
-                      "description": "Attendees who RSVPd to this meetup"
-                    },
-                    "total": {
-                      "type": "number",
-                      "description": "Total RSVP count"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized — missing or invalid API key"
-          },
-          "403": {
-            "description": "Forbidden — inactive membership or not eligible"
-          },
-          "429": {
-            "description": "Rate limit exceeded"
-          }
-        },
-        "summary": "List meetup attendees",
-        "tags": [
-          "Events"
-        ],
-        "parameters": [
-          {
-            "description": "Event ID",
-            "example": "BbZlk82DNQFbV4HT2nJo",
-            "in": "path",
-            "name": "eventID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Meetup ID",
-            "example": "meetup_xyz789",
-            "in": "path",
-            "name": "meetupID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
-    "/events/{eventID}/sponsors": {
-      "get": {
-        "description": "Returns the sponsors for an event, ordered by tier (primary → supporting) then display order. Deleted sponsors are filtered out.\n\n**Access:** any active DCer who can see the event — sponsors are public.",
-        "operationId": "get_events__eventID_sponsors",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "sponsors": {
-                      "items": {
-                        "type": "object"
-                      },
-                      "type": "array",
-                      "description": "Sponsors in display order (tier first, then `order` within tier)",
-                      "properties": {
-                        "sponsorID": {
-                          "type": "string",
-                          "description": "Sponsor ID"
-                        },
-                        "name": {
-                          "type": "string",
-                          "description": "Sponsor name"
-                        },
-                        "logoURL": {
-                          "type": "string",
-                          "description": "Logo image URL"
-                        },
-                        "websiteURL": {
-                          "type": "string",
-                          "description": "Marketing website URL"
-                        },
-                        "description": {
-                          "type": "string",
-                          "description": "Description (markdown)"
-                        },
-                        "tier": {
-                          "type": "string",
-                          "description": "Sponsorship tier",
-                          "enum": [
-                            "primary",
-                            "supporting"
-                          ]
-                        }
-                      }
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized — missing or invalid API key"
-          },
-          "403": {
-            "description": "Forbidden — inactive membership or not eligible"
-          },
-          "429": {
-            "description": "Rate limit exceeded"
-          }
-        },
-        "summary": "List event sponsors",
-        "tags": [
-          "Events"
-        ],
-        "parameters": [
-          {
-            "description": "Event ID",
-            "example": "BbZlk82DNQFbV4HT2nJo",
-            "in": "path",
-            "name": "eventID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
-    "/events/{eventID}/schedule/{sessionID}/bookmark": {
-      "post": {
-        "description": "Add or remove a session from your personal agenda — this is the API equivalent of the bookmark/star icon on a session card in the DC app.\n\nRequires a valid ticket for the event. Counter `rsvpCount` on the session doc is updated atomically and idempotently: repeating the same desired state does not increment or decrement the counter again.",
-        "operationId": "post_events__eventID_schedule__sessionID_bookmark",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "bookmarked": {
-                      "type": "boolean",
-                      "description": "Final bookmark state on your agenda"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized — missing or invalid API key"
-          },
-          "403": {
-            "description": "Forbidden — inactive membership or not eligible"
-          },
-          "429": {
-            "description": "Rate limit exceeded"
-          }
-        },
-        "summary": "Bookmark / unbookmark a session",
-        "tags": [
-          "Events"
-        ],
-        "parameters": [
-          {
-            "description": "Event ID",
-            "example": "BbZlk82DNQFbV4HT2nJo",
-            "in": "path",
-            "name": "eventID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Session ID",
-            "example": "session_abc123",
-            "in": "path",
-            "name": "sessionID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "bookmarked": {
-                    "type": "boolean",
-                    "description": "`true` to add to agenda, `false` to remove"
-                  }
-                },
-                "type": "object",
-                "required": [
-                  "bookmarked"
-                ]
-              }
-            }
-          },
-          "required": true
-        }
-      }
-    },
-    "/events/{eventID}/meetups/{meetupID}/rsvp": {
-      "post": {
-        "description": "Join or leave a meetup. Requires a valid ticket for the event. The meetup's `rsvpCount` is updated atomically and idempotently.\n\nWhen the meetup has a linked chat channel, this mirrors the DC app side effects too: joining subscribes you to the meetup chat and leaving removes you from it.",
-        "operationId": "post_events__eventID_meetups__meetupID_rsvp",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "joined": {
-                      "type": "boolean",
-                      "description": "Final RSVP state"
-                    },
-                    "rsvpCount": {
-                      "type": "number",
-                      "description": "Current RSVP count for this meetup (after your change)"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized — missing or invalid API key"
-          },
-          "403": {
-            "description": "Forbidden — inactive membership or not eligible"
-          },
-          "429": {
-            "description": "Rate limit exceeded"
-          }
-        },
-        "summary": "RSVP to / leave a meetup",
-        "tags": [
-          "Events"
-        ],
-        "parameters": [
-          {
-            "description": "Event ID",
-            "example": "BbZlk82DNQFbV4HT2nJo",
-            "in": "path",
-            "name": "eventID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Meetup ID",
-            "example": "meetup_xyz789",
-            "in": "path",
-            "name": "meetupID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "joined": {
-                    "type": "boolean",
-                    "description": "`true` to join, `false` to leave"
-                  }
-                },
-                "type": "object",
-                "required": [
-                  "joined"
-                ]
-              }
-            }
-          },
-          "required": true
-        }
-      }
-    },
-    "/events/{eventID}/agendas": {
-      "get": {
-        "description": "Returns the agendas (bookmarked sessions + meetup RSVPs) for **multiple** attendees in a single call. Use when an AI agent needs to plan around several DCers at once — comparing schedules, finding shared sessions, building a meetup invite list.\n\n**Query**: `userIDs=A,B,C` — comma-separated. Max 20 IDs per call.\n\n**Behavior**: silently drops IDs that don't hold a valid ticket (so the AI doesn't need to pre-filter). Returns only the agendas for confirmed attendees, in the order requested.\n\n**Access:** open to any active DCer who can see the event (non-attendee target IDs are silently dropped).",
-        "operationId": "get_events__eventID_agendas",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "agendas": {
-                      "items": {
-                        "type": "object"
-                      },
-                      "type": "array",
-                      "description": "One entry per confirmed attendee, in the order requested",
-                      "properties": {
-                        "userID": {
-                          "type": "string",
-                          "description": "Attendee userID"
-                        },
-                        "profile": {
-                          "type": "object",
-                          "description": "Mini profile of the attendee"
-                        },
-                        "sessions": {
-                          "items": {
-                            "type": "object"
-                          },
-                          "type": "array",
-                          "description": "Sessions they bookmarked (chronological)"
-                        },
-                        "meetups": {
-                          "items": {
-                            "type": "object"
-                          },
-                          "type": "array",
-                          "description": "Meetups they RSVPd to (chronological)"
-                        }
-                      }
-                    },
-                    "timezone": {
-                      "type": "string",
-                      "description": "IANA timezone of the event venue"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized — missing or invalid API key"
-          },
-          "403": {
-            "description": "Forbidden — inactive membership or not eligible"
-          },
-          "429": {
-            "description": "Rate limit exceeded"
-          }
-        },
-        "summary": "Get multiple attendees' agendas in one call",
-        "tags": [
-          "Events"
-        ],
-        "parameters": [
-          {
-            "description": "Event ID",
-            "example": "BbZlk82DNQFbV4HT2nJo",
-            "in": "path",
-            "name": "eventID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Required. Comma-separated userIDs (max 20). Non-attendees are silently dropped.",
-            "example": "940,1673,2572",
-            "in": "query",
-            "name": "userIDs",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
-    "/events/{eventID}/free-slots": {
-      "post": {
-        "description": "Computes shared **free slots** across a set of event attendees — the time windows where they're NOT in a bookmarked session or meetup. Use to find a coffee window with one DCer, or a junto-style lunch slot for a group.\n\n**Body**: `userIDs[]` (1-20), `minDurationMinutes` (default 30, min 15, max 480), optional `eventDayDate: YYYY-MM-DD` to scope to a single event day.\n\n**Slot grid**: derived from the event's session schedule, partitioned into `minDurationMinutes` windows. For each window we subtract each user's bookmarked sessions + meetup RSVPs.\n\n**Sort**: slots ranked by `len(freeFor)` desc — fully-shared windows first, then partial overlaps.\n\n**Auth**: caller must hold a valid ticket. Non-attendee IDs are silently dropped.",
-        "operationId": "post_events__eventID_free-slots",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "slots": {
-                      "items": {
-                        "type": "object"
-                      },
-                      "type": "array",
-                      "description": "Free slots ranked by overlap (most-shared first). Wall-clock + IANA timezone — same convention as `/schedule`.",
-                      "properties": {
-                        "startAt": {
-                          "type": "string",
-                          "description": "Slot start (wall-clock ISO)"
-                        },
-                        "endAt": {
-                          "type": "string",
-                          "description": "Slot end (wall-clock ISO)"
-                        },
-                        "durationMinutes": {
-                          "type": "number",
-                          "description": "Duration in minutes"
-                        },
-                        "timezone": {
-                          "type": "string",
-                          "description": "IANA timezone of the event venue"
-                        },
-                        "freeFor": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array",
-                          "description": "userIDs free during this slot"
-                        },
-                        "busyFor": {
-                          "items": {
-                            "type": "string"
-                          },
-                          "type": "array",
-                          "description": "userIDs busy (bookmarked session or meetup) during this slot"
-                        }
-                      }
-                    },
-                    "timezone": {
-                      "type": "string",
-                      "description": "IANA timezone of the event venue"
-                    }
-                  },
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Success"
-          },
-          "401": {
-            "description": "Unauthorized — missing or invalid API key"
-          },
-          "403": {
-            "description": "Forbidden — inactive membership or not eligible"
-          },
-          "429": {
-            "description": "Rate limit exceeded"
-          }
-        },
-        "summary": "Find shared free time slots across attendees",
-        "tags": [
-          "Events"
-        ],
-        "parameters": [
-          {
-            "description": "Event ID",
-            "example": "BbZlk82DNQFbV4HT2nJo",
-            "in": "path",
-            "name": "eventID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "userIDs": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array",
-                    "description": "Attendee userIDs to compare (1-20). Non-attendees silently dropped.",
-                    "example": [
-                      "940",
-                      "1673",
-                      "2572"
-                    ]
-                  },
-                  "minDurationMinutes": {
-                    "type": "number",
-                    "description": "Minimum slot duration in minutes (default 30, range 15-480)",
-                    "example": 30
-                  },
-                  "eventDayDate": {
-                    "type": "string",
-                    "description": "Optional. Scope to a single event day (YYYY-MM-DD venue-local). Omit for the full event range.",
-                    "example": "2026-11-12"
-                  }
-                },
-                "type": "object",
-                "required": [
-                  "userIDs"
-                ]
-              }
-            }
-          },
-          "required": true
-        }
       }
     },
     "/virtual-events": {
@@ -3693,7 +3980,7 @@
                         },
                         "roomName": {
                           "type": "string",
-                          "description": "Room name"
+                          "description": "Room title as shown in the app — a DM is named after the other participant"
                         },
                         "roomType": {
                           "type": "string",
@@ -3799,7 +4086,51 @@
                         },
                         "name": {
                           "type": "string",
-                          "description": "Room name"
+                          "description": "Room name as stored. For a DM this is empty or both names — show `displayName` instead."
+                        },
+                        "displayName": {
+                          "type": "string",
+                          "description": "Room title as the app shows it to you — a DM is named after the other participant."
+                        },
+                        "seen": {
+                          "type": "object",
+                          "description": "Your own flags for this room — what the app's Pinned / Muted / Archived filters use.",
+                          "properties": {
+                            "isPinned": {
+                              "type": "boolean",
+                              "description": "You pinned the room."
+                            },
+                            "isMuted": {
+                              "type": "boolean",
+                              "description": "Notifications are muted (a mute that has not expired)."
+                            },
+                            "isArchived": {
+                              "type": "boolean",
+                              "description": "You archived the room (hidden from your inbox sidebar, still subscribed)."
+                            }
+                          }
+                        },
+                        "participant": {
+                          "type": "object",
+                          "description": "DMs only: the other participant (null for every other room type).",
+                          "properties": {
+                            "userID": {
+                              "type": "string",
+                              "description": "User ID"
+                            },
+                            "displayName": {
+                              "type": "string",
+                              "description": "Display name"
+                            },
+                            "userName": {
+                              "type": "string",
+                              "description": "Username (profile handle)"
+                            },
+                            "profileURL": {
+                              "type": "string",
+                              "description": "Profile link on DC"
+                            }
+                          }
                         },
                         "description": {
                           "type": "string",
@@ -3863,6 +4194,16 @@
             "schema": {
               "default": "50",
               "type": "number"
+            }
+          },
+          {
+            "description": "Only your `pinned`, `muted` or `archived` rooms — the app's Inbox filter chips. Omit for all subscribed rooms.",
+            "in": "query",
+            "name": "filter",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
             }
           },
           {
@@ -3939,6 +4280,16 @@
             "schema": {
               "default": "50",
               "type": "number"
+            }
+          },
+          {
+            "description": "Only your `pinned`, `muted` or `archived` rooms of this type.",
+            "in": "query",
+            "name": "filter",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
             }
           },
           {
@@ -4032,7 +4383,7 @@
     },
     "/rooms/{roomID}": {
       "get": {
-        "description": "Get a single room's metadata + its latest daily AND weekly AI summaries (when they exist). **Access:** members and subscribers of the room, plus any DCer for browsable public channels/discussions/quick-questions. Private rooms, DMs, group DMs, and event/city rooms you are not a member of return 403. Reading this endpoint does **not** mark the room as read or modify any unread state.\n\n**AI summaries:** the latest daily digest is embedded under `aiSummaryDaily`, the latest weekly digest under `aiSummaryWeekly`. Rooms that don't have a given type yet return `null` for that slot. For history (older summaries), call `GET /rooms/:roomID/summaries/daily` or `/weekly`.\n\n**See also:** For specific content (`did anyone mention X?`), `POST /search/messages` with `q=` and `roomID=` is faster than paginating `/rooms/:roomID/messages` or reading summaries. The AI summaries cover broad activity per window; search is the tool for targeted lookup.",
+        "description": "Get a single room's metadata + its latest daily AND weekly AI summaries (when they exist). **Access:** members and subscribers of the room, plus any DCer for browsable public channels/discussions/quick-questions. Private rooms, DMs, group DMs, and event/city rooms you are not a member of return 403. Reading this endpoint does **not** mark the room as read or modify any unread state — call `POST /rooms/:roomID/read` for that.\n\n**AI summaries:** the latest daily digest is embedded under `aiSummaryDaily`, the latest weekly digest under `aiSummaryWeekly`. Rooms that don't have a given type yet return `null` for that slot. For history (older summaries), call `GET /rooms/:roomID/summaries/daily` or `/weekly`.\n\n**See also:** For specific content (`did anyone mention X?`), `POST /search/messages` with `q=` and `roomID=` is faster than paginating `/rooms/:roomID/messages` or reading summaries. The AI summaries cover broad activity per window; search is the tool for targeted lookup.",
         "operationId": "get_rooms__roomID",
         "responses": {
           "200": {
@@ -4442,7 +4793,7 @@
     },
     "/rooms/{roomID}/messages": {
       "get": {
-        "description": "List messages in a room you are a member of. **Read-only — no write side effects, no unread-state mutation, no reactions/posts/edits.** Cursor-paginated newest-first.\n\n**Access:** strict — the caller must be a subscribed member of the room (same `seen` doc check used by the web inbox). For browsable public channels, any DCer can read. Private rooms, DMs (`dm`), group DMs (`group`), event rooms, and city/country/mastermind rooms hard-block non-members with 403. Hidden/deleted/sunk messages are excluded.\n\n**Pagination:** pass `?before=<nextCursor>` from a previous response to fetch the next (older) page. Default page size 50, max 50.\n\n**See also:** For specific content in this room (`did anyone mention X?`), `POST /search/messages` with `q=` and `roomID=` searches body text directly — far faster than paginating with `?before`. This endpoint is the right call when you want a chronological window (last N messages, conversation reconstruction); search is the right call when you want a topic.",
+        "description": "List messages in a room you are a member of. **Read-only — no write side effects, no unread-state mutation, no reactions/posts/edits.** Cursor-paginated newest-first. Once caught up, `POST /rooms/:roomID/read` marks the room read (clears its badge) — paginating here never does.\n\n**Access:** strict — the caller must be a subscribed member of the room (same `seen` doc check used by the web inbox). For browsable public channels, any DCer can read. Private rooms, DMs (`dm`), group DMs (`group`), event rooms, and city/country/mastermind rooms hard-block non-members with 403. Hidden/deleted/sunk messages are excluded.\n\n**Pagination:** pass `?before=<nextCursor>` from a previous response to fetch the next (older) page. Default page size 50, max 50.\n\n**See also:** For specific content in this room (`did anyone mention X?`), `POST /search/messages` with `q=` and `roomID=` searches body text directly — far faster than paginating with `?before`. This endpoint is the right call when you want a chronological window (last N messages, conversation reconstruction); search is the right call when you want a topic.",
         "operationId": "get_rooms__roomID_messages",
         "responses": {
           "200": {
@@ -4514,6 +4865,40 @@
                         "isHTML": {
                           "type": "boolean",
                           "description": "When the message contains rich content, `true`. Plain-text messages without formatting are `false`."
+                        },
+                        "attachment": {
+                          "type": "object",
+                          "description": "Image / video / file messages: the media itself (null for text). Open `url` to view it; a video has no `url` until `videoStatus` is `ready`.",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "description": "`image`, `video` or `file`."
+                            },
+                            "url": {
+                              "type": "string",
+                              "description": "Link to the media (null while a video is still processing)."
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "File name, when known."
+                            },
+                            "size": {
+                              "type": "number",
+                              "description": "Size in bytes, when known."
+                            },
+                            "width": {
+                              "type": "number",
+                              "description": "Pixel width (images, videos)."
+                            },
+                            "height": {
+                              "type": "number",
+                              "description": "Pixel height (images, videos)."
+                            },
+                            "videoStatus": {
+                              "type": "string",
+                              "description": "Videos: `processing`, `ready` or `failed`."
+                            }
+                          }
                         },
                         "replyTo": {
                           "type": "object",
@@ -5350,6 +5735,196 @@
         ]
       }
     },
+    "/rooms/{roomID}/read": {
+      "post": {
+        "description": "Mark a room as read — the same write the DC app performs when you open a room. Advances your read position to the room's current message count (never backwards — if you already read further in-app, that position is kept), records the latest message as seen, clears the unread badge (`badgeCount: 0`), and stamps `lastSeenAt`. The room drops out of `GET /inbox/unread` and the in-app red dot clears.\n\nReading `GET /rooms/:roomID`, `/messages`, or the AI summaries never marks a room read — this is the only endpoint that does. The reverse is `POST /rooms/:roomID/unread`.\n\n**Access:** the caller must be a member/subscriber of the room — the same gate as `mute`/`archive`/`pin`. Works on DMs and group DMs too (you are a member by definition). Rooms you have no relationship with return 403 `not_a_member`; subscribe first for public channels.\n\n**Idempotent:** marking an already-read room read is a no-op on the counters (the badge stays 0, `lastSeenAt` refreshes).",
+        "operationId": "post_rooms__roomID_read",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "seen": {
+                      "type": "object",
+                      "description": "Echo of the updated subscription state. Boolean flags + ISO timestamps.",
+                      "properties": {
+                        "isSubscribed": {
+                          "type": "boolean",
+                          "description": "True when subscribed to this room (channels / discussions / quick-questions / event rooms)."
+                        },
+                        "isArchived": {
+                          "type": "boolean",
+                          "description": "True when archived (hidden from the inbox sidebar but still searchable)."
+                        },
+                        "isPinned": {
+                          "type": "boolean",
+                          "description": "True when pinned to the top of the inbox."
+                        },
+                        "isMuted": {
+                          "type": "boolean",
+                          "description": "True when notifications are muted (mutedUntilAt is in the future)."
+                        },
+                        "lastSeenAt": {
+                          "type": "string",
+                          "description": "ISO 8601 — when the caller last marked the room read."
+                        },
+                        "subscribedAt": {
+                          "type": "string",
+                          "description": "ISO 8601 — when the caller most recently subscribed."
+                        },
+                        "unsubscribedAt": {
+                          "type": "string",
+                          "description": "ISO 8601 — when the caller most recently unsubscribed."
+                        },
+                        "mutedUntilAt": {
+                          "type": "string",
+                          "description": "ISO 8601 — when notifications stay muted until (`null` = not muted)."
+                        },
+                        "archivedAt": {
+                          "type": "string",
+                          "description": "ISO 8601 — when the room was last archived."
+                        },
+                        "unarchivedAt": {
+                          "type": "string",
+                          "description": "ISO 8601 — when the room was last unarchived."
+                        },
+                        "pinnedAt": {
+                          "type": "string",
+                          "description": "ISO 8601 — when the room was pinned (`null` = not pinned)."
+                        }
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Mark a room as read",
+        "tags": [
+          "Rooms"
+        ],
+        "parameters": [
+          {
+            "description": "Room ID. Discover from `GET /inbox/unread` (the rooms with a badge) or `GET /rooms`.",
+            "example": "abc123",
+            "in": "path",
+            "name": "roomID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/rooms/{roomID}/unread": {
+      "post": {
+        "description": "Mark a room as unread — the app's \"Mark as unread\". Moves your read position back one message (`lastSeenCount = messages − 1`) and sets the unread badge to at least 1, so the room shows in `GET /inbox/unread` and the in-app red dot comes back. `POST /rooms/:roomID/read` reverses it.\n\n**Access:** same gate as `read` — you must be a member/subscriber of the room.",
+        "operationId": "post_rooms__roomID_unread",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "seen": {
+                      "type": "object",
+                      "description": "Echo of the updated subscription state. Boolean flags + ISO timestamps.",
+                      "properties": {
+                        "isSubscribed": {
+                          "type": "boolean",
+                          "description": "True when subscribed to this room (channels / discussions / quick-questions / event rooms)."
+                        },
+                        "isArchived": {
+                          "type": "boolean",
+                          "description": "True when archived (hidden from the inbox sidebar but still searchable)."
+                        },
+                        "isPinned": {
+                          "type": "boolean",
+                          "description": "True when pinned to the top of the inbox."
+                        },
+                        "isMuted": {
+                          "type": "boolean",
+                          "description": "True when notifications are muted (mutedUntilAt is in the future)."
+                        },
+                        "lastSeenAt": {
+                          "type": "string",
+                          "description": "ISO 8601 — when the caller last marked the room read."
+                        },
+                        "subscribedAt": {
+                          "type": "string",
+                          "description": "ISO 8601 — when the caller most recently subscribed."
+                        },
+                        "unsubscribedAt": {
+                          "type": "string",
+                          "description": "ISO 8601 — when the caller most recently unsubscribed."
+                        },
+                        "mutedUntilAt": {
+                          "type": "string",
+                          "description": "ISO 8601 — when notifications stay muted until (`null` = not muted)."
+                        },
+                        "archivedAt": {
+                          "type": "string",
+                          "description": "ISO 8601 — when the room was last archived."
+                        },
+                        "unarchivedAt": {
+                          "type": "string",
+                          "description": "ISO 8601 — when the room was last unarchived."
+                        },
+                        "pinnedAt": {
+                          "type": "string",
+                          "description": "ISO 8601 — when the room was pinned (`null` = not pinned)."
+                        }
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid API key"
+          },
+          "403": {
+            "description": "Forbidden — inactive membership or not eligible"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          }
+        },
+        "summary": "Mark a room as unread",
+        "tags": [
+          "Rooms"
+        ],
+        "parameters": [
+          {
+            "description": "Room ID. Discover from `GET /rooms`.",
+            "example": "abc123",
+            "in": "path",
+            "name": "roomID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/locator/digest": {
       "get": {
         "description": "Returns your weekly locator digest — the same data that powers the Friday locator email.\nUse this to surface trip/event activity around the people and cities a member already follows.\n\nThe response is composed of four independent sections; pass `?sections=<csv>` to skip any you don't need.\nEach section is described in full below.\n\n- **`homeCity`** — Activity in the city you have set as your home chapter. Null if you have no home city, or if you don't belong to any chapter yet.\n- **`favoriteCities`** — Per-city digest for cities you have favorited (besides your home city). Each entry lists upcoming trips/events into that city + new ones added since last week.\n- **`favoritePeople`** — Recent activity from members you follow: their new trips, upcoming trips, recently purchased tickets, and events they've RSVPd to.\n- **`myTrips`** — For each of your own upcoming trips, the people you're likely to overlap with (chapter leads, local members, and other DCers visiting the same city in the same window).\n\nPass a comma-separated subset to `?sections=...` to omit sections you don't use — useful for narrow integrations and faster responses.",
@@ -5641,7 +6216,7 @@
                             "type": "object"
                           },
                           "type": "array",
-                          "description": "Members who have recently joined your home chapter.",
+                          "description": "Members who joined your home chapter in the last week.",
                           "properties": {
                             "userID": {
                               "type": "string",
@@ -5662,6 +6237,14 @@
                             "profileURL": {
                               "type": "string",
                               "description": "Link to the member's public profile on DC"
+                            },
+                            "isNewToDC": {
+                              "type": "boolean",
+                              "description": "True when they joined DC within a week of joining the chapter (\"just joined DC and the chapter\"); false for an existing member who joined it. Returning members who re-joined DC are never listed."
+                            },
+                            "joinedAt": {
+                              "type": "string",
+                              "description": "When they joined the chapter (ISO 8601)"
                             }
                           }
                         }
@@ -5951,6 +6534,43 @@
                                   "description": "Google Place ID"
                                 }
                               }
+                            }
+                          }
+                        },
+                        "newMembers": {
+                          "items": {
+                            "type": "object"
+                          },
+                          "type": "array",
+                          "description": "Members who joined this chapter in the last week.",
+                          "properties": {
+                            "userID": {
+                              "type": "string",
+                              "description": "Member ID"
+                            },
+                            "userName": {
+                              "type": "string",
+                              "description": "DC username (used in profile URL)"
+                            },
+                            "displayName": {
+                              "type": "string",
+                              "description": "Display name"
+                            },
+                            "photo": {
+                              "type": "string",
+                              "description": "Profile photo URL"
+                            },
+                            "profileURL": {
+                              "type": "string",
+                              "description": "Link to the member's public profile on DC"
+                            },
+                            "isNewToDC": {
+                              "type": "boolean",
+                              "description": "True when they joined DC within a week of joining the chapter (\"just joined DC and the chapter\"); false for an existing member who joined it. Returning members who re-joined DC are never listed."
+                            },
+                            "joinedAt": {
+                              "type": "string",
+                              "description": "When they joined the chapter (ISO 8601)"
                             }
                           }
                         }
@@ -7169,7 +7789,7 @@
                             },
                             "progressPct": {
                               "type": "number",
-                              "description": "Trial progress 0–100"
+                              "description": "Trial progress as a fraction from 0 (just started) to 1 (ended)"
                             }
                           }
                         },
@@ -7243,7 +7863,7 @@
                             },
                             "currentPeriodPct": {
                               "type": "number",
-                              "description": "Progress through the current period (0–100)"
+                              "description": "Progress through the current billing period as a fraction from 0 to 1"
                             },
                             "nextBillingDate": {
                               "type": "string",
@@ -8198,7 +8818,7 @@
     },
     "/profile-match": {
       "post": {
-        "description": "**AI-powered profile matchmaker.** Match DCers against a natural-language description, or — when `query` is omitted — recommend DCers based on your own profile (chapter, industry, expertise, goals).\n\nReturns ranked results from a profile-vector search (Gemini embeddings + reranking under the hood). The caller's LLM synthesizes any narrative on top. Stricter rate limits than the standard CRUD endpoints because of the embedding/rerank cost.\n\n**Two modes**:\n- **With `query`**: free-form description (\"DCers in Lisbon who run SaaS\").\n- **Without `query`**: AI builds an implicit query from your profile and returns \"DCers you should meet\". Useful for cold-start \"who should I message this week?\" prompts.\n\n**Optional structured filters** (combine with either mode, all AND-ed):\n- `locationChapterPlaceID` — narrow to DCers whose home / base location matches this Google Place ID. Use for \"based in X\" queries. Resolve via `GET /places/search`.\n- `locationCurrentPlaceID` — narrow to DCers currently in this place (auto-derived from their last GPS / active trip). Use for \"currently in X\" / \"visiting X\" queries.\n- `eventID` — narrow to DCers holding a valid ticket to this event (\"DCers attending DCMEX who run logistics\"). Refunded / canceled tickets are excluded.\n- `isDCB` — when `true`, narrow to DC BLACK members only.\n- `businessIndustry` — exact match on the DCer's primary business industry.\n- `minTeamSize` — \"at least this size\" filter on team headcount (only matches DCers whose team-size visibility is shared with all DCers).\n- `minAnnualRevenue` — \"at least this revenue\" filter on annual revenue (only matches DCers whose revenue visibility is shared with all DCers).\n- `gender` — exact match on the DCer's self-reported gender. **Note: Gender is sparsely populated — most DCers leave it blank.** Use this as a \"narrow if set\" hint rather than a hard requirement; combine with `query` for best results.",
+        "description": "**AI-powered profile matchmaker.** Match DCers against a natural-language description, or — when `query` is omitted — recommend DCers based on your own profile (chapter, industry, expertise, goals).\n\nReturns ranked results from a profile-vector search (Gemini embeddings + reranking under the hood). The caller's LLM synthesizes any narrative on top. Stricter rate limits than the standard CRUD endpoints because of the embedding/rerank cost.\n\n**Two modes**:\n- **With `query`**: free-form description (\"DCers in Lisbon who run SaaS\").\n- **Without `query`**: AI builds an implicit query from your profile and returns \"DCers you should meet\". Useful for cold-start \"who should I message this week?\" prompts.\n\n**Optional structured filters** (combine with either mode, all AND-ed):\n- `locationChapterPlaceID` — narrow to DCers whose home / base location is this city. Matched by city rather than place ID, so a city carrying more than one Google place ID is not split. Use for \"based in X\" queries. Resolve via `GET /places/search`.\n- `locationCurrentPlaceID` — narrow to DCers currently in this place (auto-derived from their last GPS / active trip). Matched by city, so GPS-derived locations count too. Use for \"currently in X\" / \"visiting X\" queries.\n- `eventID` — narrow to DCers holding a valid ticket to this event (\"DCers attending DCMEX who run logistics\"). Refunded / canceled tickets are excluded.\n- `isDCB` — when `true`, narrow to DC BLACK members only.\n- `businessIndustry` — exact match on the DCer's primary business industry.\n- `minTeamSize` — \"at least this size\" filter on team headcount (only matches DCers whose team-size visibility is shared with all DCers).\n- `minAnnualRevenue` — \"at least this revenue\" filter on annual revenue (only matches DCers whose revenue visibility is shared with all DCers).\n- `gender` — exact match on the DCer's self-reported gender. **Note: Gender is sparsely populated — most DCers leave it blank.** Use this as a \"narrow if set\" hint rather than a hard requirement; combine with `query` for best results.",
         "operationId": "post_profile-match",
         "responses": {
           "200": {
@@ -8269,7 +8889,7 @@
                   },
                   "locationCurrentPlaceID": {
                     "type": "string",
-                    "description": "Optional. Google Place ID — narrows results to DCers currently here, whether they live there or are visiting. **Sparsely populated** — `currentLocation` is self-reported and most DCers leave it null, so this filter under-recalls. For \"who is in <city> right now?\" prefer creating a trip via `POST /trips` and reading `GET /trips/:tripID` — the `discovery.fullPool` block lists locals AND visitors during the trip window. Resolve placeIDs via `GET /places/search`.",
+                    "description": "Optional. Google Place ID — narrows results to DCers currently here, whether they live there or are visiting. Matched by city rather than by place ID, so it finds DCers whose location came from GPS as well as those who picked a place, and it is not split when a city has more than one Google place ID. Still narrower than a trip: `currentLocation` is only set for DCers sharing location. For a full \"who is in <city> right now?\" prefer creating a trip via `POST /trips` and reading `GET /trips/:tripID` — the `discovery.fullPool` block lists locals AND visitors during the trip window. Resolve placeIDs via `GET /places/search`.",
                     "example": "ChIJ82ENKDJgHTERIEjiXbIAAQE"
                   },
                   "eventID": {
@@ -8685,11 +9305,11 @@
         ],
         "parameters": [
           {
-            "description": "Search text. Required.",
+            "description": "Search text. Required unless `userID` is given.",
             "example": "outsourcing",
             "in": "query",
             "name": "q",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -8787,11 +9407,11 @@
         ],
         "parameters": [
           {
-            "description": "Search text. Required.",
+            "description": "Search text. Required unless `userID` is given.",
             "example": "hiring in Lisbon",
             "in": "query",
             "name": "q",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -8889,11 +9509,11 @@
         ],
         "parameters": [
           {
-            "description": "Search text. Required.",
+            "description": "Search text. Required unless `userID` is given.",
             "example": "DCBKK",
             "in": "query",
             "name": "q",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -9079,17 +9699,21 @@
                           "type": "string",
                           "description": "Alert description"
                         },
-                        "frequency": {
-                          "type": "string",
-                          "description": "Delivery frequency",
-                          "enum": [
-                            "daily",
-                            "weekly"
-                          ]
+                        "notifyDaily": {
+                          "type": "boolean",
+                          "description": "Whether daily digests are enabled"
+                        },
+                        "notifyWeekly": {
+                          "type": "boolean",
+                          "description": "Whether weekly digests are enabled"
                         },
                         "active": {
                           "type": "boolean",
                           "description": "Whether the alert is currently active"
+                        },
+                        "embeddingModel": {
+                          "type": "string",
+                          "description": "Embedding model used for matching (null until generated)"
                         },
                         "createdAt": {
                           "type": "string",
@@ -9176,28 +9800,24 @@
             "application/json": {
               "schema": {
                 "properties": {
-                  "name": {
-                    "type": "string",
-                    "description": "Alert name (max 100 chars)"
-                  },
                   "description": {
                     "type": "string",
                     "description": "Alert description — what the alert should look for (max 500 chars)"
                   },
-                  "frequency": {
-                    "type": "string",
-                    "description": "Digest delivery frequency",
-                    "enum": [
-                      "daily",
-                      "weekly"
-                    ]
+                  "notifyDaily": {
+                    "type": "boolean",
+                    "description": "Whether daily digests are enabled"
+                  },
+                  "notifyWeekly": {
+                    "type": "boolean",
+                    "description": "Whether weekly digests are enabled"
                   }
                 },
                 "type": "object",
                 "required": [
-                  "name",
                   "description",
-                  "frequency"
+                  "notifyDaily",
+                  "notifyWeekly"
                 ]
               }
             }
@@ -9270,13 +9890,13 @@
                     "type": "string",
                     "description": "New alert description"
                   },
-                  "frequency": {
-                    "type": "string",
-                    "description": "New delivery frequency",
-                    "enum": [
-                      "daily",
-                      "weekly"
-                    ]
+                  "notifyDaily": {
+                    "type": "boolean",
+                    "description": "Whether daily digests are enabled"
+                  },
+                  "notifyWeekly": {
+                    "type": "boolean",
+                    "description": "Whether weekly digests are enabled"
                   },
                   "active": {
                     "type": "boolean",
@@ -9482,10 +10102,10 @@
       "name": "Profile"
     },
     {
-      "name": "Trips"
+      "name": "Events"
     },
     {
-      "name": "Events"
+      "name": "Trips"
     },
     {
       "name": "Live Calls"

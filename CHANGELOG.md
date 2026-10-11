@@ -15,6 +15,21 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [v2.5.1] - 2026-10-11
+
+### Added
+- **`member`** / **`member-events`** — another DCer's public profile and the events they attend: `dc member <userID>`, `dc member-events <userID>`. TS: `client.profiles.get(userID)`, `client.profiles.events(userID)`.
+- **`trips-recent`** — recently added community trips (Locator › New Trips): `dc trips-recent [--limit N]`. TS: `client.trips.recent({ limit })`.
+- **`room-read`** / **`room-unread`** — mark a room read (clears the badge, drops it from `inbox`) or unread again. TS: `client.rooms.read(roomID)`, `client.rooms.unread(roomID)`.
+- **`rooms --filter pinned|muted|archived`** — the app's Inbox filter chips, on both `rooms` and `rooms --type`. TS: `client.rooms.list({ filter })`, `client.rooms.inbox(type, { filter })`.
+- **`alerts`**, **`alerts-create`**, **`alerts-update`**, **`alerts-delete`** — saved searches that send a digest of matching new content. TS: `client.alerts.*`.
+- **`interests`** / **`interests-update`** — read and subscribe/unsubscribe interest tags. TS: `client.interests.*`.
+- TS: `AlertCreateInput`, `AlertUpdateInput`, `InterestsUpdateInput`, `RoomFilter`, `RoomListOptions` are now exported from the package root.
+
+### Changed
+- Realigned `DC_API_VERSION` to the deployed Member API contract **2.5.1**, and refreshed the pinned OpenAPI snapshot from the live API (every operation is now covered by a Python command and a TypeScript method).
+- Alerts use the API's delivery flags: `alerts-create --description … --notify-daily/--notify-weekly` (at least one), and `alerts-update --notify-daily/--notify-weekly`. The server names new alerts, so `alerts-create` no longer takes `--name`; `alerts-update --name` still renames.
+
 ## [v2.3.1] - 2026-07-14
 
 ### Added

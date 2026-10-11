@@ -264,6 +264,34 @@ dc profile-update --github octocat
 
 # Show your effective rate limits (per-minute, per-day) + current usage
 dc limits
+
+# Another DCer's public profile (find userIDs via profile-match,
+# search-profiles or event-attendees)
+dc member <userID>
+
+# Events they are attending or have attended (their profile's Events tab)
+dc member-events <userID>
+```
+
+### Alerts & interests
+
+```bash
+# Your alerts — saved searches that send a digest of matching new content
+dc alerts
+
+# Create one: describe it in plain language, pick daily and/or weekly
+dc alerts-create --description 'AI tools for agencies' --notify-weekly true
+
+# Change cadence, rename, or reactivate a deactivated alert
+dc alerts-update --alert-id <alertID> --notify-daily true
+dc alerts-update --alert-id <alertID> --active true
+
+# Deactivate (soft delete — history is kept)
+dc alerts-delete --alert-id <alertID>
+
+# Interest tags you follow, and subscribe/unsubscribe (max 20 per call)
+dc interests
+dc interests-update --subscribe ai,saas --unsubscribe crypto
 ```
 
 ### Announcements
@@ -294,6 +322,9 @@ dc trips --past
 
 # Trip overlaps — DCers whose trips overlap with yours in the same city
 dc overlaps
+
+# Recently added trips across the community (Locator › New Trips)
+dc trips-recent --limit 20
 
 # Create a trip — provide either --place-id (Google Place ID) OR --event-id
 dc trip-create \
@@ -419,6 +450,13 @@ dc inbox
 # Rooms you are subscribed to
 dc rooms
 dc rooms --type channel
+
+# Only your pinned / muted / archived rooms (the Inbox filter chips)
+dc rooms --filter pinned
+
+# Mark a room read (clears the badge, drops it from `inbox`) or unread again
+dc room-read <roomID>
+dc room-unread <roomID>
 
 # Browse public rooms (type required: channel|discussion|activity)
 dc browse-rooms channel

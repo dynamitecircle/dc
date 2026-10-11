@@ -33,6 +33,22 @@
       "typescriptMethod": "profile.update"
     },
     {
+      "operationId": "get_profiles__userID",
+      "method": "GET",
+      "path": "/profiles/{userID}",
+      "tag": "Profile",
+      "pythonCommand": "member",
+      "typescriptMethod": "profiles.get"
+    },
+    {
+      "operationId": "get_profiles__userID_events",
+      "method": "GET",
+      "path": "/profiles/{userID}/events",
+      "tag": "Profile",
+      "pythonCommand": "member-events",
+      "typescriptMethod": "profiles.events"
+    },
+    {
       "operationId": "get_trips",
       "method": "GET",
       "path": "/trips",
@@ -79,6 +95,14 @@
       "tag": "Trips",
       "pythonCommand": "overlaps",
       "typescriptMethod": "trips.overlaps"
+    },
+    {
+      "operationId": "get_trips_recent",
+      "method": "GET",
+      "path": "/trips/recent",
+      "tag": "Trips",
+      "pythonCommand": "trips-recent",
+      "typescriptMethod": "trips.recent"
     },
     {
       "operationId": "post_trips__tripID_refresh",
@@ -407,6 +431,22 @@
       "tag": "Rooms",
       "pythonCommand": "room-unpin",
       "typescriptMethod": "rooms.unpin"
+    },
+    {
+      "operationId": "post_rooms__roomID_read",
+      "method": "POST",
+      "path": "/rooms/{roomID}/read",
+      "tag": "Rooms",
+      "pythonCommand": "room-read",
+      "typescriptMethod": "rooms.read"
+    },
+    {
+      "operationId": "post_rooms__roomID_unread",
+      "method": "POST",
+      "path": "/rooms/{roomID}/unread",
+      "tag": "Rooms",
+      "pythonCommand": "room-unread",
+      "typescriptMethod": "rooms.unread"
     },
     {
       "operationId": "get_locator_digest",

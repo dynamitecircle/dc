@@ -7,6 +7,8 @@ export {
 } from "./version.js";
 export type { DCAPIErrorPayload } from "./errors.js";
 export type {
+  AlertCreateInput,
+  AlertUpdateInput,
   AnnualRevenue,
   BusinessIndustry,
   CalendarUpdateInput,
@@ -15,6 +17,7 @@ export type {
   EventFreeSlotsInput,
   Gender,
   HTTPMethod,
+  InterestsUpdateInput,
   InviteCreateInput,
   ListOptions,
   LocatorSettingsUpdateInput,
@@ -29,8 +32,11 @@ export type {
   ReportIssueInput,
   RequestBody,
   RequestOptions,
+  RoomFilter,
+  RoomListOptions,
   RSVPStatus,
   SearchOptions,
+  SearchScope,
   ShirtSize,
   TeamSize,
   TripCreateInput,
