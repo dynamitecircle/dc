@@ -1379,7 +1379,8 @@ Tag exists but no PyPI release. Replaced by 1.6.3.
 
 ---
 
-[Unreleased]: https://github.com/dynamitecircle/dc/compare/v2.5.1...HEAD
+[Unreleased]: https://github.com/dynamitecircle/dc/compare/v2.6.1...HEAD
+[2.6.1]: https://github.com/dynamitecircle/dc/compare/v2.5.1...v2.6.1
 [2.5.1]: https://github.com/dynamitecircle/dc/compare/v2.3.1...v2.5.1
 [2.3.1]: https://github.com/dynamitecircle/dc/compare/v2.0.4...v2.3.1
 [2.0.4]: https://github.com/dynamitecircle/dc/compare/v2.0.1...v2.0.4

@@ -7,7 +7,7 @@
     "url": "https://github.com/dynamitecircle/dc",
     "source": "github"
   },
-  "version": "2.5.1",
+  "version": "2.6.1",
   "remotes": [
     {
       "type": "streamable-http",
