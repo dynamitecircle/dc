@@ -15,6 +15,18 @@ the public Python API surface (`dc.DC`, `dc.DCError`, `dc.Result`,
 
 ---
 
+## [2.6.1] - 2026-10-12
+
+### Changed
+- Tracks Member API 2.6.1. The API now requires a `User-Agent` header on every
+  request (`400 user_agent_required` without one) and refuses the official
+  clients below 2.0.0 (`426 client_upgrade_required`, with the upgrade command
+  in `hint`). Both clients already send `dc-py/<version>` / `dc-ts/<version>`,
+  so nothing changes for 2.x users — this release keeps the version in lockstep
+  so 2.6.x clients are not warned as a minor behind.
+- Pinned contract (`contracts/openapi.json`) picks up the new authentication
+  wording.
+
 ## [2.5.1] - 2026-10-11
 
 ### Added
